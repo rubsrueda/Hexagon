@@ -163,12 +163,13 @@ const UIManager = {
 
         contextualActions.innerHTML = ''; 
         
+        // === INICIO: BLOQUE DE BOTONES DE ACCIÓN (Corregido el ámbito de variables) ===
         if (isPlayerUnit && gameState.currentPhase === 'play') {
-            let canShowReinforceButton = false;
-            let minCostToReinforceForDisplay = 0;
+            let canShowReinforceButton = false; // Declarada aquí
+            let minCostToReinforceForDisplay = 0; // Declarada aquí
 
-            if (unit.currentHealth < unit.maxHealth && !unit.hasMoved && !unit.hasAttacked) {
-                if (typeof isHexSupplied === "function" && isHexSupplied(unit.r, unit.c, unit.player)) {
+            if (unit.currentHealth < unit.maxHealth) {
+                if (typeof isHexSuppliedForReinforce === "function" && isHexSuppliedForReinforce(unit.r, unit.c, unit.player)) {
                     let baseUnitCostOro = 20; 
                     if (unit.regiments && unit.regiments.length > 0 && typeof REGIMENT_TYPES !== 'undefined') {
                         const mainRegimentTypeKey = unit.regiments[0].type;
@@ -184,7 +185,7 @@ const UIManager = {
                     minCostToReinforceForDisplay = Math.max(1, minCostToReinforceForDisplay);
 
                     if (gameState.playerResources[gameState.currentPlayer].oro >= minCostToReinforceForDisplay) {
-                        canShowReinforceButton = true;
+                        canShowReinforceButton = true; // Asignación de valor
                     }
                 }
             }
@@ -213,7 +214,7 @@ const UIManager = {
                 contextualActions.appendChild(attackBtn);
             }
 
-            if (unit.lastMove && !unit.hasAttacked) { // Solo si hubo un último movimiento y no ha atacado después
+            if (unit.lastMove && !unit.hasAttacked) {
                 const undoMoveBtn = document.createElement('button');
                 undoMoveBtn.textContent = "Deshacer Movimiento";
                 undoMoveBtn.onclick = () => { 
@@ -222,6 +223,7 @@ const UIManager = {
                 contextualActions.appendChild(undoMoveBtn);
             }
         }
+        // === FIN: BLOQUE DE BOTONES DE ACCIÓN ===
         
         if (contextualContent.children.length > 0 || contextualActions.children.length > 0) {
             contextualInfoPanel.classList.add('visible');

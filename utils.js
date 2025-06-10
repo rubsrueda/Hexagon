@@ -124,3 +124,27 @@ function isHexSupplied(startR, startC, playerId) {
     console.log(`%c[isHexSupplied] (${startR},${startC}) NO está suministrada (no se encontró ruta).`, "color: red;");
     return false;
 }
+
+function isHexSuppliedForReinforce(r, c, playerId) {
+    const hexData = board[r]?.[c];
+    if (!hexData) return false;
+
+    // Caso 1: La unidad está DIRECTAMENTE en una Capital o Fortaleza propia.
+    if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
+        console.log(`%c[DEBUG Reforzar] (${r},${c}) es fuente DIRECTA de refuerzo.`, "color: green;");
+        return true;
+    }
+
+    // Caso 2: La unidad está ADYACENTE a una Capital o Fortaleza propia.
+    const neighbors = getHexNeighbors(r, c);
+    for (const neighbor of neighbors) {
+        const neighborHexData = board[neighbor.r]?.[neighbor.c];
+        if (neighborHexData && neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza")) {
+            console.log(`%c[DEBUG Reforzar] (${r},${c}) es adyacente a fuente de refuerzo en (${neighbor.r},${neighbor.c}).`, "color: green;");
+            return true;
+        }
+    }
+
+    console.log(`%c[DEBUG Reforzar] (${r},${c}) NO es una fuente de refuerzo directa ni adyacente.`, "color: red;");
+    return false;
+}

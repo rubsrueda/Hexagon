@@ -764,9 +764,9 @@ function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotential
 }
 
 async function moveUnit(unit, toR, toC) {
-    // ... (función moveUnit como estaba, asegurando que actualiza hasMoved y currentMovement) ...
     const fromR = unit.r;
     const fromC = unit.c;
+    const targetHexData = board[toR]?.[toC]; // Obtener los datos del hexágono destino ANTES de mover la unidad
 
     if (unit.player === gameState.currentPlayer) {
         unit.lastMove = {
@@ -774,52 +774,59 @@ async function moveUnit(unit, toR, toC) {
             fromC: fromC,
             initialCurrentMovement: unit.currentMovement, // Registrar el movimiento antes de gastar
             initialHasMoved: unit.hasMoved,              // Registrar el estado de 'hasMoved'
-            initialHasAttacked: unit.hasAttacked         // Registrar el estado de 'hasAttacked'
+            initialHasAttacked: unit.hasAttacked,         // Registrar el estado de 'hasAttacked'
+            movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null // Guardar el owner original del hexágono de destino
         };
-        console.log(`[Undo] Registrando lastMove para ${unit.name}: (${fromR},${fromC})`);
+        console.log(`[Undo] Registrando lastMove para ${unit.name}: (${fromR},${fromC}). Hex destino original owner: ${unit.lastMove.movedToHexOriginalOwner}`);
     }
     
     const costOfThisMove = getMovementCost(unit, fromR, fromC, toR, toC);
-    // console.log(`[moveUnit] ${unit.name} de (${fromR},${fromC}) a (${toR},${toC}). Costo:${costOfThisMove}. Mov antes:${unit.currentMovement}, moved:${unit.hasMoved}`);
     if (costOfThisMove === Infinity || costOfThisMove > unit.currentMovement || (gameState.currentPhase === 'play' && unit.hasMoved) || unit.currentMovement <= 0) {
-        console.error(`[moveUnit] MOVIMIENTO INVÁLIDO (CHEQUEO ROBUSTO) para ${unit.name}.`);
-        if (typeof logMessage === "function") logMessage("Movimiento inválido (interno).");
+        logMessage(`Movimiento inválido para ${unit.name}.`);
         if (selectedUnit && selectedUnit.id === unit.id && typeof highlightPossibleActions === "function") highlightPossibleActions(unit);
         return;
     }
-    if (board[fromR]?.[fromC]) board[fromR][fromC].unit = null;
-    if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(fromR, fromC);
+    if (board[fromR]?.[fromC]) { // Liberar el hexágono de partida
+        board[fromR][fromC].unit = null;
+        renderSingleHexVisuals(fromR, fromC); // Re-renderizar el hexágono que la unidad dejó
+    }
+    
     unit.r = toR;
     unit.c = toC;
     unit.currentMovement -= costOfThisMove;
-    if (gameState.currentPhase === 'play') { unit.hasMoved = true; }
-    // console.log(`   L-> DESPUÉS ${unit.name}: mov=${unit.currentMovement}, moved=${unit.hasMoved}`);
-    const targetHexData = board[toR]?.[toC];
+    if (gameState.currentPhase === 'play') { unit.hasMoved = true; } // Marcar como movida en fase de juego
+    
+    // Ocupar el hexágono de destino y actualizar su propiedad
     if (targetHexData) {
         targetHexData.unit = unit;
         if (targetHexData.owner !== unit.player) { 
             targetHexData.owner = unit.player;
+            // Si el hexágono es una ciudad y cambia de dueño
             const city = gameState.cities.find(ci => ci.r === toR && ci.c === toC);
             if (city && city.owner !== unit.player) {
                 city.owner = unit.player;
-                if (typeof logMessage === "function") logMessage(`¡Ciudad ${city.name} capturada por Jugador ${unit.player}!`);
-                if (typeof UIManager !== 'undefined' && UIManager.updateCityInfo) UIManager.updateCityInfo(city);
+                logMessage(`¡Ciudad ${city.name} capturada por Jugador ${unit.player}!`);
+                // if (typeof UIManager !== 'undefined' && UIManager.updateCityInfo) UIManager.updateCityInfo(city); // Si existe esta función
             }
         }
-        if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(toR, toC);
+        renderSingleHexVisuals(toR, toC); // Re-renderizar el hexágono que la unidad ocupa
     } else { 
-        console.error(`[moveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado.`);
+        console.error(`[moveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado en el tablero.`);
+        // Revertir el movimiento si el destino no es válido (fallback)
         unit.r = fromR; unit.c = fromC; unit.currentMovement += costOfThisMove; 
         if (gameState.currentPhase === 'play') unit.hasMoved = false; 
         if (board[fromR]?.[fromC]) board[fromR][fromC].unit = unit; 
-        if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(fromR, fromC); 
+        renderSingleHexVisuals(fromR, fromC); 
         return; 
     }
-    if (typeof positionUnitElement === "function") positionUnitElement(unit);
-    if (typeof logMessage === "function") logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
+    
+    logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
+    if (typeof positionUnitElement === "function") positionUnitElement(unit); // Asegurar posición visual
     if (typeof UIManager !== 'undefined' && UIManager.updateSelectedUnitInfoPanel) UIManager.updateSelectedUnitInfoPanel();
     if (typeof UIManager !== 'undefined' && UIManager.updatePlayerAndPhaseInfo) UIManager.updatePlayerAndPhaseInfo(); 
     if (gameState.currentPhase === 'play' && typeof checkVictory === "function") { if (checkVictory()) return; }
+    
+    // Actualizar highlights para reflejar el nuevo estado de la unidad (ha movido)
     if (selectedUnit && selectedUnit.id === unit.id) {
         const canStillAttack = gameState.currentPhase === 'play' && !unit.hasAttacked; 
         if (unit.hasMoved && !canStillAttack) { 
@@ -952,7 +959,6 @@ function applyDamage(attacker, target) { /* ... (usando attacker.attack y target
     return damageDealt;
 }
 
-
 function handleUnitDestroyed(destroyedUnit, victorUnit) {
     if (!destroyedUnit) {
         console.warn("[handleUnitDestroyed] Se intentó destruir una unidad nula.");
@@ -1051,27 +1057,19 @@ function handleUnitDestroyed(destroyedUnit, victorUnit) {
 
 function handleReinforceUnitAction(unitToReinforce) {
     console.log("%c[Reinforce] Iniciando acción de refuerzo...", "color: darkviolet; font-weight:bold;");
+
     // ... (tus validaciones iniciales para unitToReinforce, salud máxima, si ya actuó) ...
     if (!unitToReinforce) { /* ... */ unitToReinforce = selectedUnit; if (!unitToReinforce) { /*...*/ return; } }
     console.log(`[Reinforce] Intentando reforzar a: ${unitToReinforce.name}`);
-    if (unitToReinforce.currentHealth >= unitToReinforce.maxHealth) { /* ... mensaje y return ... */ }
-    if (gameState.currentPhase === 'play' && (unitToReinforce.hasMoved || unitToReinforce.hasAttacked)) { /* ... mensaje y return ... */ }
+    if (unitToReinforce.currentHealth >= unitToReinforce.maxHealth) { logMessage("La unidad ya tiene la salud máxima."); return; }
 
-    // --- NUEVA CONDICIÓN DE SUMINISTRO ---
-    if (typeof isHexSupplied !== "function") {
-        console.error("handleReinforceUnitAction: La función isHexSupplied no está definida.");
-        UIManager.showMessageTemporarily("Error interno: No se puede verificar el suministro.", 3000, true);
-        return;
-    }
-    
-    if (!isHexSupplied(unitToReinforce.r, unitToReinforce.c, unitToReinforce.player)) {
-        const msg = "La unidad no está suministrada (sin conexión por camino a ciudad/fortaleza propia).";
-        if(typeof logMessage === "function") logMessage(msg);
+     if (typeof isHexSuppliedForReinforce !== "function" || !isHexSuppliedForReinforce(unitToReinforce.r, unitToReinforce.c, unitToReinforce.player)) {
+        const msg = "La unidad no está en una Capital/Fortaleza propia o adyacente a una.";
+        logMessage(msg);
         UIManager.showMessageTemporarily(msg, 4000, true);
         return;
     }
-    // --- FIN NUEVA CONDICIÓN DE SUMINISTRO ---
-
+    
     const healthToRestore = unitToReinforce.maxHealth - unitToReinforce.currentHealth;
     // ... (resto de tu lógica de cálculo de costo, como la tenías) ...
     let baseUnitCostOro = 20; /* ... tu cálculo ... */
@@ -1414,23 +1412,16 @@ async function undoLastUnitMove(unit) {
 
     const prevR = unit.lastMove.fromR;
     const prevC = unit.lastMove.fromC;
-    const currentR = unit.r;
+    const currentR = unit.r; // La posición actual de la unidad (donde estaba al deshacer)
     const currentC = unit.c;
 
     logMessage(`Deshaciendo movimiento de ${unit.name} de (${currentR},${currentC}) a (${prevR},${prevC}).`);
 
-    // 1. Liberar el hexágono actual
+    // 1. Liberar el hexágono actual Y RESTAURAR SU PROPIEDAD
     if (board[currentR]?.[currentC]) {
         board[currentR][currentC].unit = null;
-        // Restaurar el dueño del hexágono si cambió
-        // Simplificado: si el hexágono era neutral y ahora es nuestro, al deshacer debería volver a ser neutral.
-        // Si tienes un sistema más complejo de propiedad de hexágonos al mover, necesitarías registrar el owner original.
-        if (board[currentR][currentC].owner === unit.player && !board[currentR][currentC].isCity) { // Si no es ciudad, asumimos que puede volver a ser neutral.
-            // Para ser preciso, necesitaríamos guardar el `owner` original del hex en `lastMove`.
-            // Por ahora, asumimos que si no era ciudad y no era de IA (que no mueve), es neutral.
-            // O una solución más simple: el owner del hexágono solo cambia cuando una unidad se asienta.
-            // No revertimos el owner aquí a menos que sea crucial para la UI/juego.
-        }
+        // Restaurar el dueño original del hexágono al que la unidad se había movido.
+        board[currentR][currentC].owner = unit.lastMove.movedToHexOriginalOwner;
         if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(currentR, currentC);
     }
 
@@ -1438,14 +1429,13 @@ async function undoLastUnitMove(unit) {
     unit.r = prevR;
     unit.c = prevC;
     
-    // 3. Asignar la unidad al hexágono anterior
+    // 3. Asignar la unidad al hexágono anterior (donde estaba antes de mover)
     if (board[prevR]?.[prevC]) {
         board[prevR][prevC].unit = unit;
-        // Si el hexágono anterior era propiedad del jugador, asegurarlo.
-        if (board[prevR][prevC].owner !== unit.player) {
-             board[prevR][prevC].owner = unit.player;
-             if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(prevR, prevC);
-        }
+        // Si el hexágono anterior era propiedad del jugador, asegurar que sigue siéndolo.
+        // No debería cambiar el owner de prevR/prevC ya que la unidad estaba allí.
+        // Aquí no hace falta lógica de owner, ya que la unidad vuelve a su hex original.
+        if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(prevR, prevC);
     }
 
     // 4. Restaurar el estado de movimiento y ataque
@@ -1460,8 +1450,7 @@ async function undoLastUnitMove(unit) {
     if (typeof positionUnitElement === "function") positionUnitElement(unit);
     if (typeof UIManager !== 'undefined' && UIManager.updateSelectedUnitInfoPanel) UIManager.updateSelectedUnitInfoPanel();
     if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) UIManager.updateAllUIDisplays();
-    if (typeof highlightPossibleActions === "function") highlightPossibleActions(unit); // Resaltar de nuevo las acciones disponibles
+    if (typeof highlightPossibleActions === "function") highlightPossibleActions(unit); 
 }
-
 
 console.log("unit_Actions.js CARGA COMPLETA (Corregido para usar 'attackRange')");
