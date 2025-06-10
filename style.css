@@ -1,0 +1,1053 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    margin: 0;
+    padding: 10px;
+    background-color: #e8e8e8;
+    min-height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.game-container {
+    display: flex; /* Mantenemos flex por si tienes otros elementos directos además del tablero */
+    width: 100vw; /* Ocupa todo el ancho de la ventana gráfica */
+    height: 100vh; /* Ocupa todo el alto de la ventana gráfica */
+    overflow: hidden; /* ESTO ES CLAVE: Contendrá el tablero que es más grande */
+    position: relative; /* Para que los elementos internos absolutos se posicionen respecto a él */
+    justify-content: flex-start; /* Alinea el tablero a la izquierda por defecto */
+    align-items: flex-start;   /* Alinea el tablero arriba por defecto */
+    /* Nota: Los botones flotantes y paneles ya están 'fixed', por lo que no se verán afectados
+       directamente por el overflow de game-container, pero sí por sus dimensiones
+       si estaban calculadas dinámicamente respecto a game-container.
+       Como son fixed, deben calcular su posición respecto a la ventana del navegador. */
+}
+
+#sidebar {
+    width: 280px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#sidebar h2, #sidebar h3, #sidebar h4 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: #333;
+}
+#sidebar h4 { font-size: 1em; color: #555;}
+
+.info-box {
+    background-color: #ffffff;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+#playerResourcesList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.9em;
+}
+#playerResourcesList li {
+    padding: 2px 0;
+}
+
+
+#sidebar button, .button-like-label {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    text-align: center;
+    box-sizing: border-box;
+}
+#sidebar button:hover, .button-like-label:hover {
+    background-color: #0056b3;
+}
+#sidebar button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+#gameBoard {
+    display: grid; /* Se ajustará en JS */
+    border: 2px solid #6c757d;
+    background-color: #c2b280; /* Un tono tierra */
+    position: relative;
+    align-self: flex-start; /* Evita que se estire si el sidebar es más alto */
+    cursor: grab;
+    transform-origin: 0 0;
+    touch-action: none;
+    flex-shrink: 0;
+}
+
+#gameBoard.grabbing {
+    cursor: grabbing;
+}
+
+.hex {
+    width: 50px;
+    height: 57.73px; /* width * sqrt(3) */
+    background-color: #90ee90; /* Verde claro base */
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    position: absolute; /* Para grid layout manual */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 9px;
+    box-sizing: border-box;
+    border: 1px solid transparent; /* Para hover/selection */
+    transition: background-color 0.2s;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat; 
+}
+
+.hex:hover {
+    border-color: #ffc107;
+}
+
+/* Clases específicas para cada tipo de terreno */
+/* .hex.plains {
+    background-image: url('images/terrain/green_plain.png');
+    /* Opcional: un color de fondo si la imagen tiene transparencias o no carga */
+    /* background-color: #90ee90;
+} */
+
+
+.hex.forest {
+    background-image: url('images/terrain/forest.png');
+    /* background-color: #228B22; */
+}
+
+.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
+.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4); }
+.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4); }
+
+
+.hex.player1-owner { box-shadow: inset 0 0 0 3px rgba(0, 0, 255, 0.6); }
+.hex.player2-owner { box-shadow: inset 0 0 0 3px rgba(255, 0, 0, 0.6); }
+
+.hex.city::before { content: '🏠'; font-size: 18px; opacity: 0.7; }
+.hex.capital-city::before { content: '👑'; font-size: 20px; opacity: 0.9; }
+.hex.resource-hierro::after { content: 'Fe'; font-size: 10px; color: #663300; position: absolute; top: 2px; right: 2px;}
+.hex.resource-madera::after { content: 'Wd'; font-size: 10px; color: #228B22; position: absolute; top: 2px; right: 2px;}
+/* Añadir más para piedra, comida, oro (o usar iconos SVG) */
+
+.hex .structure-sprite {
+    position: absolute;
+    font-size: 18px;
+    bottom: 1px;
+    right: 1px;
+    opacity: 0.9;
+    z-index: 5;
+}
+
+.unit {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 0.2s, left 0.3s, top 0.3s;
+    border: 2px solid black;
+    box-sizing: border-box;
+    z-index: 10;
+    pointer-events: none; /* ¡CLAVE! Los clics "atravesarán" la unidad hacia el hexágono debajo */
+}
+.unit-strength {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    white-space: nowrap;
+    border: 1px solid #aaa;
+}
+.player1 { background-color: #add8e6; border-color: #0000ff; } /* Azul claro */
+.player2 { background-color: #f08080; border-color: #ff0000; } /* Rojo claro */
+
+.selected-unit {
+    box-shadow: 0 0 12px 4px gold;
+    transform: scale(1.1);
+}
+
+/* Niebla de Guerra */
+.hex.fog-hidden { background-color: #777 !important; background-image: none !important; }
+.hex.fog-hidden::before, .hex.fog-hidden::after, .hex.fog-hidden .structure-sprite { display: none; }
+.hex.fog-partial { filter: grayscale(70%) brightness(0.8); }
+.hex.fog-partial .unit:not(.player-controlled-visible) { display: none !important; } /* Oculta unidades enemigas */
+.unit.player-controlled-visible { /* Clase temporal para forzar visibilidad propia en niebla parcial */
+    display: flex !important;
+}
+
+
+/* Modal Styles */
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 1000; 
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.5); 
+    align-items: center;
+    justify-content: center;
+}
+.modal-content {
+    background-color: #fefefe;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.close-button:hover, .close-button:focus { color: black; }
+
+#availableRegimentsList li, #currentDivisionRegimentsList li, #availableStructuresList li {
+    cursor: pointer;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+#availableRegimentsList li:hover, #currentDivisionRegimentsList li:hover, #availableStructuresList li:hover {
+    background-color: #f0f0f0;
+}
+#availableStructuresList li.selected-structure {
+    background-color: #d0e0ff;
+    font-weight: bold;
+}
+
+.hex.resource-hierro::after,
+.hex.resource-oro::after, /* Usaremos 'oro' para 'oro_mina' */
+.hex.resource-piedra::after,
+.hex.resource-madera::after,
+.hex.resource-comida::after {
+    content: ""; /* Contenido se define abajo */
+    position: absolute;
+    top: 3px; /* Ajusta para que no choque con coordenadas si las tienes */
+    right: 3px;
+    font-size: 14px; /* Tamaño del emoji/texto */
+    opacity: 0.7;
+    pointer-events: none; /* Para que no interfiera con clics en el hexágono */
+}
+
+.hex.resource-hierro::after {
+    content: "⛏️"; /* Símbolo de Hierro */
+    color: #8B4513; /* Marrón */
+}
+.hex.resource-oro::after { /* Para oro_mina */
+    content: "💰"; /* Emoji de oro */
+    /* color: gold; El emoji ya tiene color */
+}
+.hex.resource-piedra::after {
+     content: "⛰️"; 
+    color: #708090; /* Gris pizarra */
+}
+.hex.resource-madera::after {
+     content: "🌲"; 
+    color: #228B22; /* Verde bosque */
+}
+.hex.resource-comida::after {
+     content: "🌾"; 
+    color: #DAA520; /* Dorado/amarillo para comida */
+}
+
+/* Ajuste para que los sprites de recursos no se superpongan con el de estructura si están en la misma esquina */
+.hex .structure-sprite {
+    bottom: 3px;
+    left: 3px; /* Moverlo a la esquina inferior izquierda */
+    right: auto; /* Resetear right */
+}
+
+/* ====================================================================== */
+/* =================== ESTILOS PARA MENÚ PRINCIPAL ====================== */
+/* ====================================================================== */
+#mainMenuScreen .modal-content {
+    background-color: #f0f2f5; /* Un gris claro ligeramente diferente */
+    border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+}
+
+#mainMenuScreen h2 {
+    color: #333;
+    margin-bottom: 30px;
+    font-size: 2em;
+}
+
+#mainMenuScreen button {
+    background-color: #007bff; /* Azul primario */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+    font-weight: bold;
+}
+
+#mainMenuScreen button:hover {
+    background-color: #0056b3; /* Azul más oscuro */
+    transform: translateY(-2px);
+}
+#mainMenuScreen button:active {
+    transform: translateY(0px);
+}
+
+
+/* ====================================================================== */
+/* =============== ESTILOS PARA ARBOL TECNOLOGÍA ============= */
+/* ====================================================================== */
+
+.tech-tree-content .tech-node {
+    position: absolute; /* Para usar las coordenadas x,y */
+    width: 100px; /* Ejemplo */
+    height: 100px; /* Ejemplo */
+    background-color: #2a9d8f; /* Verde similar al de la imagen */
+    color: white;
+    border-radius: 50%; /* Para hacerlos circulares */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border: 3px solid #264653;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    padding: 5px;
+    box-sizing: border-box;
+    font-size: 0.8em;
+}
+.tech-tree-content .tech-node:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px #f4a261;
+}
+.tech-tree-content .tech-node img { /* Estilo para el icono dentro del nodo */
+    width: 40px; /* Ejemplo */
+    height: 40px; /* Ejemplo */
+    margin-bottom: 5px;
+}
+.tech-tree-content .tech-node.researched {
+    background-color: #e9c46a; /* Dorado para investigadas */
+    border-color: #f4a261;
+}
+.tech-tree-content .tech-node.available {
+    background-color: #2a9d8f; /* Verde para disponibles */
+    border-color: #264653;
+    box-shadow: 0 0 10px 3px #aaf0d1; /* Un brillo para las disponibles */
+}
+.tech-tree-content .tech-node.locked {
+    background-color: #6c757d; /* Gris para bloqueadas */
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.floating-btn.top-right {
+    top: 15px;
+    right: 15px;
+}
+
+/* ====================================================================== */
+/* =============== ESTILOS PARA CONFIGURACIÓN DE ESCARAMUZA ============= */
+/* ====================================================================== */
+#setupScreen .modal-content {
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+#setupScreen div {
+    margin-bottom: 15px;
+}
+#setupScreen label {
+    display: inline-block;
+    width: 130px; /* Alineación de labels */
+    font-weight: 500;
+}
+#setupScreen select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    min-width: 150px;
+}
+#setupScreen button { /* Estilo general para botones en este modal */
+    padding: 10px 20px;
+    font-size: 1em;
+}
+
+
+/* ====================================================================== */
+/* ================= ESTILOS PARA MAPA MUNDIAL (CAMPAÑA) ================ */
+/* ====================================================================== */
+#worldMapScreen { /* Este es un div que envuelve la imagen y los marcadores */
+    background-color: #7da0c0; 
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    border-radius: 8px;
+    position: relative; /* Para posicionar los marcadores absolutamente dentro de él */
+    /* El tamaño se definirá por la imagen o explícitamente */
+}
+
+#worldMapImage { /* La imagen del mapa en sí */
+    border-radius: 6px; 
+    display: block; /* Para evitar espacio extra debajo si es inline */
+    max-width: 100%; /* Para responsividad */
+    height: auto;   /* Para responsividad */
+}
+
+
+.territory-on-map {
+    position: absolute; 
+    width: auto; 
+    min-width: 30px; 
+    height: auto;
+    padding: 5px 8px;
+    background-color: rgba(220, 220, 220, 0.8); 
+    border: 1px solid #777;
+    color: #333;
+    border-radius: 20px; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.75em;
+    font-weight: bold;
+    text-align: center;
+    cursor: default;
+    pointer-events: all; 
+    transform: translate(-50%, -50%); 
+    transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+
+.territory-on-map.player-controlled {
+    background-color: rgba(60, 179, 113, 0.85); 
+    border-color: #2e8b57; 
+    color: white;
+}
+
+.territory-on-map.ai-controlled { 
+    background-color: rgba(220, 20, 60, 0.85); 
+    border-color: #b22222; 
+    color: white;
+}
+
+
+
+.territory-on-map.neutral-territory {
+    background-color: rgba(240, 230, 140, 0.85); 
+    border-color: #b8860b; 
+    color: #545454;
+}
+
+.territory-on-map.selectable-territory {
+    cursor: pointer;
+    border-width: 2px;
+}
+.territory-on-map.selectable-territory:hover {
+    transform: translate(-50%, -50%) scale(1.1); 
+    box-shadow: 0 0 12px 4px gold; 
+    z-index: 10; 
+}
+
+#campaignMessages { /* Panel para mensajes de campaña */
+    border-top: 1px solid #ccc;
+    color: #333;
+    max-width: 300px; /* O el ancho que se ajuste al diseño */
+    word-wrap: break-word; /* Para que el texto largo no rompa el layout */
+    padding: 10px;
+    margin-top: 10px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+}
+
+#backToMainMenuBtn_fromCampaign, #backToMainMenuBtn_fromSetup { 
+    background-color: #6c757d; 
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 8px 15px;
+    font-size: 0.9em;
+    margin-top: 10px; /* Espacio arriba del botón */
+}
+#backToMainMenuBtn_fromCampaign:hover, #backToMainMenuBtn_fromSetup:hover {
+    background-color: #5a6268;
+}
+
+
+/* ====================================================================== */
+/* ================= ESTILOS PARA MODAL DE BRIEFING =================== */
+/* ====================================================================== */
+#scenarioBriefingModal .modal-content {
+    text-align: left; 
+    max-height: 90vh; 
+    overflow-y: auto; 
+}
+#scenarioBriefingModal #scenarioTitle {
+    color: #0056b3; 
+    margin-bottom: 10px; /* Espacio después del título */
+}
+#scenarioBriefingModal #scenarioImage {
+    border: 1px solid #eee; 
+    max-width: 100%; /* Responsiva */
+    height: auto;
+    display: block; /* Evitar espacio extra */
+    margin: 10px auto; /* Centrar imagen si es más pequeña que el contenedor */
+    border-radius: 4px;
+}
+#scenarioBriefingModal #startScenarioBattleBtn {
+    background-color: #28a745; 
+    color: white;
+    display: block; /* Para centrar con margin auto */
+    margin: 20px auto 0 auto; /* Margen superior y centrado */
+    padding: 10px 20px;
+}
+#scenarioBriefingModal #startScenarioBattleBtn:hover {
+    background-color: #1e7e34; 
+}
+
+
+/* ====================================================================== */
+/* ================= ESTILOS PARA JUEGO TÁCTICO (Sidebar & Actions) ===== */
+/* ====================================================================== */
+
+#actions-panel { /* Asumiendo que tienes un panel de acciones en el sidebar */
+    margin-top: 15px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+#actions-panel #concedeBattleBtn {
+    background-color: #c82333; 
+    border-color: #bd2130; /* Si los botones tienen borde */
+    width: 100%; 
+}
+#actions-panel #concedeBattleBtn:hover {
+    background-color: #a71d2a; /* Rojo más oscuro al pasar el mouse */
+}
+
+
+/* Ajuste general para los modales si es necesario */
+/* La regla .modal ya está definida arriba, no es necesario repetirla menos que quieras anular algo específico */
+
+
+/* Posicionamiento del close-button para modales */
+/* Ya tienes un .close-button arriba, asegúrate que esta es la que quieres o unifícalas. */
+/* Si esta es la que debe aplicar, renombra la de arriba o elimina la redundancia. */
+/* Asumiendo que quieres esta para todos los .close-button: */
+.modal .close-button { /* Más específico para asegurar que aplica a los botones de cierre en modales */
+    color: #aaa;
+    position: absolute; 
+    top: 10px;
+    right: 15px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1; /* Para mejor alineación vertical */
+}
+.modal .close-button:hover, .modal .close-button:focus { 
+    color: black; 
+}
+
+.unit-damaged {
+    animation: shake 0.5s;
+    /* background-color: rgba(255, 100, 100, 0.7) !important; Ya no es necesario, la animación lo hace */
+}
+
+.unit-destroyed {
+    animation: explode 0.5s forwards; 
+}
+
+.unit-retreat {
+    opacity: 0.7;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); } /* No escalar aquí, solo mover */
+    10% { background-color: rgba(255,0,0,0.5); } /* Destello rojo */
+    20% { transform: translateX(-2px); background-color: transparent; }
+    40% { transform: translateX(2px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+}
+
+@keyframes explode {
+    0% { transform: scale(1) rotate(0deg); opacity: 1; }
+    50% { transform: scale(1.3) rotate(15deg); opacity: 0.5; }
+    100% { transform: scale(0.3) rotate(-15deg); opacity: 0; display:none !important; } 
+}
+
+#unit-info .unit-name-editor {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+#unit-info .unit-name-editor label {
+    margin-right: 5px;
+    font-weight: bold;
+}
+
+#unit-info #selectedUnitNameInput {
+    flex-grow: 1;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    margin-right: 5px;
+    background-color: #f8f9fa; 
+}
+
+#unit-info #selectedUnitNameInput:not([readonly]) {
+    background-color: #fff; 
+    border-color: #007bff;
+}
+
+#unit-info .unit-name-editor button {
+    padding: 4px 8px;
+    font-size: 0.9em;
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    cursor: pointer;
+}
+#unit-info .unit-name-editor button:hover {
+    background-color: #dee2e6;
+}
+
+#unit-info #saveUnitNameBtn {
+    background-color: #28a745; 
+    color: white;
+}
+#unit-info #saveUnitNameBtn:hover {
+    background-color: #218838;
+}
+
+#unit-info h4 {
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 3px;
+}
+
+.regiments-detailed-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.8em;
+    max-height: 150px; 
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    background-color: #fdfdfd;
+}
+
+.regiments-detailed-list li {
+    padding: 6px 8px;
+    border-bottom: 1px dashed #eee;
+}
+.regiments-detailed-list li:last-child {
+    border-bottom: none;
+}
+
+.regiments-detailed-list li strong {
+    color: #0056b3; 
+}
+
+#player-info h4 { 
+    margin-bottom: 4px; 
+}
+
+#playerResourcesGrid {
+    display: flex;
+    flex-direction: column; 
+    gap: 2px; 
+    font-size: 0.9em;
+    padding: 5px;
+    background-color: #f8f9fa; 
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.resource-labels,
+.resource-values {
+    display: flex; 
+    justify-content: space-around; 
+}
+
+.resource-labels span {
+    flex: 1; 
+    text-align: center;
+    font-weight: 500; 
+    color: #555;
+    padding-bottom: 2px; 
+}
+
+.resource-values span {
+    flex: 1; 
+    text-align: center;
+    font-weight: bold; 
+    color: #333;
+    min-width: 30px; 
+}
+
+/* Asegurar que el game-container y body ocupen toda la pantalla para móvil */
+/* html, body { -- DUPLICADO, YA ESTÁ ARRIBA Y MEJOR DEFINIDO
+    height: 100%;
+    overflow: hidden; 
+} */
+
+/* ESTILOS PARA ELEMENTOS FLOTANTES */
+.floating-btn {
+    position: fixed; /* Cambiado de absolute para que sea relativo a la ventana */
+    z-index: 100; 
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s ease; /* Añadido transform para hover */
+}
+.floating-btn:hover {
+    background-color: rgba(0, 0, 0, 0.8);
+    transform: scale(1.05); /* Efecto hover sutil */
+}
+
+.floating-btn.top-left {
+    top: 15px;
+    left: 15px;
+}
+.floating-btn.bottom-right {
+    bottom: 20px;
+    right: 20px;
+}
+
+/* Estilos específicos para el botón de terminar turno flotante */
+#floatingEndTurnBtn {
+    /* Hereda la mayoría de .floating-btn y .bottom-right si se aplican esas clases */
+    /* Si solo usas el ID y no las clases, define aquí position, right, z-index */
+    /* position: fixed; */
+    /* right: 20px; */
+    /* z-index: 1050; */
+    bottom: 70px;     /* Ajustado: altura del panel contextual (~55px) + margen (~15px) */
+    
+    background-color: transparent !important; 
+    color: white;                         
+    border: none;                         
+    padding: 10px;                        
+    font-size: 30px; /* Tamaño para ► */                     
+    line-height: 1;                       
+    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.7); 
+    box-shadow: none !important; 
+    /* cursor: pointer; -- Heredado de .floating-btn */
+    /* transition: ...; -- Heredado de .floating-btn */
+}
+
+#floatingEndTurnBtn:hover {
+    background-color: transparent !important; 
+    transform: scale(1.1); /* Sobreescribe o complementa el hover de .floating-btn */
+}
+
+#floatingEndTurnBtn:active {
+    background-color: transparent !important; 
+    transform: translateY(1px) scale(1.05);
+    box-shadow: none !important; 
+}
+
+
+.floating-panel { /* Panel de Menú Flotante, si se decide usarlo así */
+    position: fixed; 
+    z-index: 90; 
+    background-color: rgba(245, 245, 245, 0.95); 
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 15px;
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    /* Ejemplo de posicionamiento si se usa (ajustar según botón que lo abre) */
+    /* top: 70px; */
+    /* left: 10px; */
+    /* width: 260px; */
+    display: none; /* Controlado por JS */
+}
+
+/* Panel de Menú Flotante (si el #floatingMenuPanel usa la clase .floating-panel) */
+#floatingMenuPanel { /* Si este es tu ID para el panel de menú flotante */
+    top: 70px; /* Debajo del botón de menú, por ejemplo */
+    left: 10px;
+    width: 260px; 
+    /* display: none; Ya heredado de .floating-panel */
+}
+#floatingMenuPanel h4 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1em;
+    color: #333;
+}
+#floatingMenuPanel #playerResourcesGrid_float { 
+    font-size: 0.85em;
+    padding: 8px;
+    margin-bottom: 10px;
+}
+#floatingMenuPanel button, #floatingMenuPanel .button-like-label {
+    width: 100%;
+    display: block;
+    margin-bottom: 8px;
+    padding: 10px;
+    text-align: left; 
+    background-color: #e9ecef;
+    color: #333;
+    border: 1px solid #ddd;
+}
+#floatingMenuPanel button:hover, #floatingMenuPanel .button-like-label:hover {
+    background-color: #dee2e6;
+}
+
+/* === INICIO: NUEVOS ESTILOS PARA CONTEXTUAL INFO PANEL COMO BARRA INFERIOR (REEMPLAZO) === */
+#contextualInfoPanel {
+    position: fixed; 
+    bottom: 0;      
+    left: 0;        
+    width: 100%;    
+    background-color: rgba(30, 30, 30, 0.97); 
+    color: white; 
+    padding: 8px 10px; 
+    box-sizing: border-box; 
+    display: flex; 
+    justify-content: space-around; 
+    align-items: center; 
+    z-index: 1000; 
+    min-height: 55px; 
+    overflow-x: auto; 
+    border-top: 1px solid #444;
+    transition: transform 0.25s ease-out, opacity 0.25s ease-out, visibility 0.25s;
+    transform: translateY(100%); 
+    opacity: 0;
+    visibility: hidden;
+}
+
+#contextualInfoPanel.visible {
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+}
+
+#contextualInfoPanel button {
+    background-color: #4F4F4F;
+    color: #E0E0E0;
+    border: 1px solid #666;
+    padding: 7px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin: 0 4px;
+    font-size: 0.85em;
+    white-space: nowrap;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+#contextualInfoPanel button:hover {
+    background-color: #6A6A6A;
+    border-color: #888;
+}
+
+#contextualInfoPanel p, 
+#contextualInfoPanel h3, 
+#contextualInfoPanel h4 {
+    margin: 0 8px;
+    white-space: nowrap;
+    font-size: 0.85em;
+}
+/* === FIN: ESTILOS PARA CONTEXTUAL INFO PANEL === */
+
+
+/* === ESTILO MEJORADO PARA EL PANEL DE MENSAJES === */
+#gameMessagesMobile {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%); /* Centrado horizontal */
+    width: 80%;
+    max-width: 600px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 8px 12px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    font-size: 0.9em;
+    text-align: center;
+    z-index: 2000;
+    pointer-events: none; /* Para que no se pueda hacer clic en él */
+    transition: opacity 0.5s ease-in-out; /* Transición suave para el texto */
+    opacity: 1; /* Siempre visible */
+}
+
+#gameMessagesMobile.fade-out {
+    opacity: 0;
+}
+
+#gameMessagesMobile p {
+    margin: 0;
+    padding: 0;
+}
+
+#gameMessagesMobile.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1); /* Estado final */
+    transition: opacity 0.4s ease-in-out, transform 0.3s ease-out, visibility 0s linear 0s;
+}
+
+
+/* ELIMINAR O MODIFICAR ESTILOS DEL SIDEBAR ANTIGUO */
+#sidebar {
+    display: none !important; /* Ocultar el sidebar antiguo */
+}
+
+/* Estilos para el modo de depuración de vecinos */
+.hex.highlight-debug-start {
+    background-color: yellow !important;
+    border: 3px solid black !important;
+    z-index: 999;
+}
+
+.hex.highlight-debug {
+    background-color: cyan !important;
+    border: 2px dashed red !important;
+    z-index: 998;
+}
+
+.game-log-container {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    width: 300px;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: 5px;
+    padding: 10px;
+    z-index: 5000;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column-reverse; /* Los mensajes nuevos aparecen abajo y empujan los viejos hacia arriba */
+}
+
+.log-message {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 5px 8px;
+    margin-top: 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* === Estilos para el Modal de Ayuda (welcomeHelpModal) === */
+.help-modal-content {
+    max-width: 700px;
+    max-height: 90vh; /* Limitar altura para que sea scrollable en pantallas pequeñas */
+    overflow-y: auto; /* Permitir scroll si el contenido es largo */
+    background-color: #f0f2f5;
+    border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    padding: 30px; /* Más padding para que respire */
+    position: relative; /* Para el botón de cerrar */
+}
+
+.help-modal-content h2 {
+    font-size: 2.2em;
+    color: #0056b3;
+}
+
+.help-modal-content h3 {
+    font-size: 1.4em;
+    color: #4a5568;
+    margin-top: 25px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 5px;
+}
+
+.help-modal-content p {
+    font-size: 1em;
+    line-height: 1.5;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.help-modal-content b {
+    font-weight: bold;
+    color: #007bff;
+}
+
+.help-modal-content ul {
+    list-style: disc;
+    margin-left: 20px;
+    margin-bottom: 15px;
+}
+
+.help-modal-content li {
+    margin-bottom: 5px;
+}
+
+/* Ajuste general para botones dentro de este modal */
+.help-modal-content button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+    font-weight: bold;
+}
+
+.help-modal-content button:hover {
+    background-color: #218838;
+}
+
+/* Checkbox para no mostrar de nuevo */
+#doNotShowAgainCheckbox {
+    transform: scale(1.2); /* Agrandar un poco el checkbox */
+    margin-right: 8px !important;
+}

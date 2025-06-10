@@ -1,0 +1,581 @@
+Estoy creando un juego de estrategia por turnos ambientado entre el año 1500 a.c. y 1800 d.c.
+para Navegador en windows y Teléfono movil.
+combinando elementos de estrategia con una interfaz gráfica sencilla y fácilmente jugable.
+Cuando esté terminado tendrá los modos de juego	multijugador, y un jugador
+El jugador da vida a un Rey a cargo de una ciudad que tendrá que dominar el terreno y luchar sus batallas 
+en un modo "campaña" a través de diferentes mapas, y un modo "Escaramuza" una partida sola.
+Para ganar el jugador debe conquistar la ciudad del enemigo. 
+El juego se desarrolla en un tablero de celdas hexagonales que representa el campo de batalla, y pueden tener recursos. 
+En una primera fase se despliegan las divisiones que representan las unidades de los dos bandos
+Cada tipo de unidad tiene asignados unos valores y capacidades determinadas de acuerdo con su función.
+Con cada batalla que luchas, las unidades adquieren mayor experiencia, y se gana oro. 
+Existirá un arbol de conocimiento para investigar las distintas unidades. 
+
+En este momento el juego apenas empieza y tiene muchas cosas sin hacer. 
+
+Hay dos grandes grupos distintos, En cuanto a Diseño y en cuanto a funcionamiento. 
+
+A. En cuanto a Diseño General de la Interfaz Móvil:
+
+1. El tablero es fijo en pantallas grandes quizá se ve completo, pero en una pantalla de celular solo se alcanza a ver una parte del tablero.
+Esto he intentado hacerlo funcionar, pero yo no lo consigo.
+
+2. El tablero es demasiado pequeño, quizá podríamos tener una opción para definir el nivel del tablero, este sería pequeño y Agregar
+dos nuevas opciones, mediano que sea el doble y grande que sea el doble del mediano. 
+
+3. Hoy al iniciar escaramuza, tiene dos botones que hacen lo mismo, dejar solo uno: 
+
+    Jugador 2: donde hay varias opciones de IA.
+    Nivel IA Jugador 2: donde hay varias opciones de IA.
+
+4. Al iniciar la partida poner una opción para mostrar ayuda y si es así que nos aparezca un texto con información en pantalla. 
+
+
+B. En cuanto a Funcionalidades que faltan por mejorar: 
+
+1. Hay un popup de más para la IA este espacio lo podríamos ocupar para el punto 5 preguntando si mostrar ayuda o no. 	(punto 3 del diseño general)
+
+2. Arbol de Tecnología. donde al principio solo se tenga la infantería ligera y no se pueda construir en terrenos.
+
+3. Cargar y configurar las campañas y los escenarios. equivalente a cargar una partida. y seguir una secuencia.
+Tener un modo de diseño donde pueda crear una campaña, y los escenarios, y diseñarlos, guardarlo y tenerlo disponibles como campañas.
+3.1 En las campañas continuamos con las unidades y recursos que teníamos en el escenario anterior. 
+3.2 En las campañas en la fase de despliegue, podemos reforzar las unidades si tenemos oro disponible.
+
+4. Efecto Bloqueo, una unidad no puede saltar a una unidad enemiga y colocarse detrás, pero si puede hacerlo con una amiga.
+
+4. Desarrollar la IA automática. solo crea las unidades iniciales y no combate los siguientes turnos que de hecho se asignan como si fueran de humano.
+
+6. Poder ver la composición de las unidades enemigas.
+
+7. cuando pases por encima de las estadísticas de una unidad ver un detalle de las mimas (Ataque, Defensa, ...)
+
+8. se perdio la función de ganar oro cuando se logran victorias.
+
+9. Agregar Arbol de tecnologías.
+
+10. Al terminar la partida poner un resumen de la misma. 
+
+11. Agregar Consola para Escribir texto.
+
+12. Agregar trucos escritos en la consola que te creen una unidad o te den Oro.
+
+13. Las unidades consumen comida y cuando no tienen pierden 1 unidad por turno. Además las comida les llega si están en una casilla junto a un camino unido a una ciudad o fortaleza propia.
+
+El juego lo estoy desarrollando en GitHub: 
+
+	https://rubsrueda.github.io/GGneral/
+	
+	si quieres y sabes como podría darte acceso a los archivos.
+
+	Actualmente la estructura de archivos son: 
+	Index.html
+	Style.css
+
+	y los archivos js que tengo son: 
+
+	aiLogic.js
+	boardManager.js
+	CampaignManager.js
+	constants.js
+	domElements.js
+	gameFlow.js
+	main.js
+	modalLogic.js
+	saveLoad.js
+	state.js
+	uiUpdates.js
+	unit_Actions.js
+	utils.js
+	worldMapData.js
+
+	aparte están las carpetas de: 
+
+	images
+	maps
+	saves
+	scenarios
+
+
+¡Excelente proyecto! Un juego de estrategia por turnos con esa ambientación tiene mucho potencial. La combinación de navegador y móvil es ambiciosa pero muy acertada hoy en día.
+Vamos a desglosar tus puntos y te daré ideas y enfoques para cada uno. Veo que ya tienes una estructura de archivos JS bastante organizada, lo cual es un muy buen punto de partida.
+A. En cuanto a Diseño General de la Interfaz Móvil:
+A1. Tablero fijo vs. móvil (Scroll/Pan):
+Este es un desafío clásico. La solución más común y efectiva es implementar el "paneo" (scrolling) del mapa.
+Concepto: El tablero completo existe lógicamente, pero la pantalla del móvil actúa como una "ventana" a una porción del mismo. El usuario puede arrastrar el dedo para mover esta ventana.
+Implementación (HTML/CSS/JS):
+Contenedor CSS:
+Tendrás un div contenedor (<div id="map-viewport">) con dimensiones fijas (ej. width: 100vw; height: 80vh; overflow: hidden; position: relative;).
+Dentro de este, el tablero real (<div id="game-board">) tendrá dimensiones mayores (ej. width: 2000px; height: 1500px; position: absolute;).
+Renderizado del Tablero: Tu boardManager.js renderizará los hexágonos dentro de #game-board.
+Control de Paneo (JavaScript):
+Añade event listeners para touchstart, touchmove, y touchend al #map-viewport.
+En touchstart, guarda la posición inicial del toque (startX, startY) y la posición actual del scroll del tablero (initialScrollX, initialScrollY).
+En touchmove, calcula la diferencia del toque (deltaX = currentTouchX - startX, deltaY = currentTouchY - startY).
+Actualiza la posición del #game-board usando transform: translate(newX, newY); donde newX = initialScrollX + deltaX y newY = initialScrollY + deltaY.
+Asegúrate de que el tablero no se pueda arrastrar más allá de sus límites.
+Considera usar requestAnimationFrame para un paneo más suave.
+Zoom (Opcional pero recomendado):
+Implementar pinch-to-zoom es más complejo pero muy útil en móviles. Escucha eventos gesturestart, gesturechange, gestureend o maneja dos touchmove simultáneos para calcular el cambio de escala.
+Aplica la escala con transform: scale(factor) translate(X,Y);. El translate también deberá ajustarse para que el zoom se centre en el punto entre los dedos.
+Archivos Implicados: boardManager.js (para saber los límites del tablero), uiUpdates.js o un nuevo mobileInputManager.js (para los handlers de touch), style.css (para los contenedores).
+A2. Botón "Reforzar" unidad:
+Visibilidad Condicional: Ya lo tienes en uiUpdates.js o unit_Actions.js. Asegúrate de que solo aparezca si la unidad seleccionada es propia y puede ser reforzada (y si hay oro, según B3.2).
+Diseño Móvil: Un botón claro, bien posicionado (inferior es común, pero cuidado con los gestos del sistema operativo del móvil). Considera un ícono intuitivo + texto breve.
+A3. Botón "Construir" Estructura:
+Visibilidad Condicional: uiUpdates.js. Aparece si:
+Se selecciona un hexágono vacío propio.
+O se selecciona una unidad propia constructora en un hexágono propio.
+Acción: Al pulsarlo, podría abrir un pequeño modal o un sub-menú con las estructuras disponibles para construir (filtrado por tecnología disponible y recursos).
+A4. Mostrar información de la unidad enemiga al seleccionarla:
+Panel de Información: Cuando se selecciona una unidad enemiga (unit_Actions.js o boardManager.js detecta el click/tap):
+uiUpdates.js muestra un panel (puede ser el mismo que para unidades propias, pero sin botones de acción).
+Contenido: Tipo de unidad, salud actual/máxima, ataque, defensa, movimiento, experiencia (si es visible para el jugador). Icono de la unidad.
+Móvil: Este panel no debe ser demasiado grande. Podría ser un overlay semi-transparente o una sección fija en la UI.
+A5. Ayuda al inicio:
+Modal Inicial: modalLogic.js puede manejar esto.
+Al iniciar main.js o gameFlow.js (antes de la primera partida o al cargar la app).
+Pregunta: "¿Mostrar tutorial/ayuda inicial?" (Sí/No).
+Si "Sí": Muestra un modal con texto explicativo básico, controles, objetivo del juego.
+Opción: "No volver a mostrar este mensaje" (guardar en localStorage).
+B. En cuanto a Funcionalidades que faltan por mejorar:
+B1. Popup de más para la IA / Usar para ayuda:
+¡Buena idea! Reutiliza el mecanismo del popup.
+En gameFlow.js, al inicio de una partida, antes de que la IA haga su primer movimiento (o incluso antes de configurar el tablero para el primer turno), usa modalLogic.js para mostrar el popup de ayuda si el usuario lo configuró así (ver A5).
+B2. Árbol de Tecnología (inicio infantería ligera, no construir terrenos):
+Esto es fundamental para la progresión.
+Estructura de Datos (constants.js o nuevo technologyTree.js):
+// technologyTree.js
+export const technologies = {
+    BASIC_INFANTRY: {
+        name: "Infantería Básica",
+        cost: 0, // Oro o puntos de investigación
+        unlocksUnits: ["LIGHT_INFANTRY"],
+        unlocksAbilities: [],
+        requirements: [] // Tecnologías previas necesarias
+    },
+    BASIC_CONSTRUCTION: {
+        name: "Construcción Rudimentaria",
+        cost: 100,
+        unlocksUnits: [], // Podría desbloquear al "Constructor" si no es inicial
+        unlocksAbilities: ["BUILD_ROAD", "BUILD_FARM"], // Habilidad de construir en terrenos
+        unlocksStructures: ["FARM", "ROAD"], // Estructuras que se pueden construir
+        requirements: ["BASIC_INFANTRY"] // Ejemplo
+    },
+    // ... más tecnologías
+};
+
+export const playerState = { // En state.js
+    researchedTechnologies: ["BASIC_INFANTRY"],
+    // ...
+}
+Use code with caution.
+JavaScript
+Lógica de Desbloqueo (gameFlow.js, unit_Actions.js):
+Al inicio, state.js solo tendrá BASIC_INFANTRY en researchedTechnologies.
+Las acciones de construir unidades o estructuras deben verificar si la tecnología requerida está en playerState.researchedTechnologies.
+El botón "Construir" (A3) solo mostrará estructuras desbloqueadas.
+Interfaz del Árbol: Un modal o pantalla aparte donde se visualiza el árbol, se ven los costos y se pueden "comprar" tecnologías si se tienen los recursos (oro, puntos de investigación). uiUpdates.js y modalLogic.js.
+B3. Cargar y configurar campañas y escenarios:
+Esto es un módulo grande. CampaignManager.js y saveLoad.js son clave.
+Definición de Campañas y Escenarios (scenarios folder, maps folder):
+Escenario (JSON):
+// escenario1_bosque_emboscada.json
+{
+    "name": "Emboscada en el Bosque Negro",
+    "mapFile": "maps/bosque_negro.json", // Referencia al archivo del mapa
+    "description": "Tus exploradores han caído en una trampa...",
+    "objectives": { "type": "CONQUER_CITY", "targetCityId": "enemy_capital_01" },
+    "playerStart": {
+        "gold": 500,
+        "units": [
+            { "type": "LIGHT_INFANTRY", "x": 5, "y": 5, "experience": 0 },
+            { "type": "ARCHER", "x": 6, "y": 5, "experience": 50 } // Si vienen de otro escenario
+        ]
+    },
+    "enemyStart": { // ... unidades enemigas
+    },
+    "availableReinforcements": ["LIGHT_INFANTRY", "ARCHER"], // Unidades que se pueden comprar en despliegue
+    "initialPlayerTechnologies": ["BASIC_INFANTRY"] // Tecnologías con las que empieza el jugador en este escenario
+}
+Use code with caution.
+Json
+Campaña (JSON):
+// campania_el_ascenso_del_rey.json
+{
+    "name": "El Ascenso del Rey Rúben",
+    "description": "Lleva a tu tribu a la gloria.",
+    "scenarios": [
+        "scenarios/escenario1_bosque_emboscada.json",
+        "scenarios/escenario2_asedio_rio_blanco.json"
+    ]
+}
+Use code with caution.
+Json
+CampaignManager.js:
+loadCampaign(campaignFile): Carga la lista de escenarios.
+startNextScenario(): Carga el siguiente escenario de la campaña. Pasa el estado del jugador (unidades, oro, tecnologías) del escenario anterior.
+getCurrentScenarioData(): Devuelve los datos del escenario actual.
+saveLoad.js:
+Guardar estado de campaña (qué escenario es el actual, estado del jugador).
+Guardar estado de partida (en medio de un escenario).
+B3.1 Continuidad Unidades/Recursos:
+Cuando un escenario termina con victoria, CampaignManager.js guarda el estado de las unidades supervivientes (HP, XP) y el oro restante.
+Al cargar el siguiente escenario, estos datos se usan para poblar playerStart (o se combinan con los definidos en el JSON del escenario).
+B3.2 Reforzar en Despliegue (Campañas):
+Fase de Despliegue: Antes de que comience el turno 1.
+Se muestran las unidades actuales (heredadas).
+Se permite:
+Comprar nuevas unidades (de availableReinforcements en el JSON del escenario y desbloqueadas por tecnología) si hay oro.
+Fusionar unidades dañadas para reforzarlas (si ya tienes esa mecánica).
+Posicionar las unidades en casillas de despliegue válidas.
+Modo Diseño:
+Esto es un mini-editor. Necesitarás una UI para:
+Seleccionar un tamaño de mapa.
+Pintar tipos de terreno en hexágonos.
+Colocar unidades iniciales (jugador y enemigo).
+Definir recursos en hexágonos.
+Establecer objetivos.
+Guardar como JSON (formato similar al de arriba).
+Este es un gran añadido, podrías usar una librería de UI simple (como Svelte o Vue para esta parte si se vuelve compleja) o hacerlo con HTML/JS puro.
+B4. Efecto Bloqueo (Zone of Control - ZOC):
+Lógica en unit_Actions.js o boardManager.js (al calcular movimientos válidos):
+Cuando una unidad se mueve, no puede terminar su movimiento en una casilla que esté adyacente a una unidad enemiga Y detrás de ella (desde la perspectiva de la unidad que se mueve).
+Es más simple: una unidad no puede pasar a través de una casilla ocupada por un enemigo.
+Si quieres permitir el "salto" sobre unidades amigas pero no enemigas:
+Al calcular rutas de movimiento (si usas A* o similar), las casillas con enemigos son intransitables. Las casillas con amigos son transitables pero no se puede terminar el movimiento en ellas (a menos que sea para fusionar/reforzar).
+Si el movimiento es de 1 casilla:
+isValidMove(targetX, targetY, movingUnit):
+let targetCell = getCell(targetX, targetY);
+if (targetCell.unit && targetCell.unit.owner !== movingUnit.owner) return false; // No puedes moverte a una casilla ocupada por enemigo.
+// Tu lógica actual de si puede saltar detrás de una unidad enemiga implica que si una unidad A está en (0,0) y una enemiga B en (1,0), A no puede moverse a (2,0) si (2,0) está vacía.
+// Esto se llama "Zone of Control" (ZOC). Las unidades enemigas adyacentes pueden impedir el paso a través de las casillas que controlan.
+// Tendrías que marcar las 6 casillas adyacentes a un enemigo como "controladas". No se puede mover de una casilla controlada por un enemigo X a otra casilla controlada por el mismo enemigo X, o por otro enemigo Y, a menos que ataques. Es complejo.
+// Más simple: si para llegar de A a C tienes que pasar por B (enemigo), no puedes.
+
+
+B5. Desarrollar la IA automática:
+
+aiLogic.js es tu amigo.
+Turno de la IA (gameFlow.js llama a aiLogic.executeTurn()):
+Fase de Producción (Opcional): Si la IA tiene ciudades/constructores, decide qué construir/investigar. Simple: si tiene X oro y puede construir Y unidad, la construye.
+Fase de Acciones de Unidades:
+Iterar por cada unidad de la IA.
+Para cada unidad, tomar una decisión:
+Objetivo: Conquistar la ciudad del jugador. Objetivo secundario: destruir unidades del jugador.
+
+Lógica Simple (por unidad):
+¿Puede atacar? Si hay unidades enemigas adyacentes, atacar a la más "valiosa" o "débil".
+¿No puede atacar, pero puede moverse para atacar? Calcular movimientos y ver si alguno permite atacar.
+¿No puede atacar ahora? Moverse hacia la unidad enemiga más cercana, o hacia la ciudad enemiga.
+¿Unidad constructora? Moverse a un sitio para construir o construir algo útil (camino hacia el frente, granja si los recursos son bajos).
+
+Mejoras Graduales:
+Ponderación: Asignar puntuaciones a las acciones (atacar a X da 10 puntos, moverse a Y da 5 puntos).
+Evitar Peligro Obvio: No moverse a una casilla donde pueda ser atacado por múltiples unidades si hay alternativas más seguras.
+
+Uso de Terreno: Preferir casillas defensivas.
+Asignación de Turnos: gameFlow.js debe cambiar state.currentPlayer y luego, si es la IA, llamar a aiLogic.js. La IA debe realizar sus acciones y luego señalar el fin de su turno para que gameFlow.js devuelva el control al jugador humano. No debería simplemente "asignarse como si fuera humano" en el sentido de esperar input.
+
+
+B6. Poder ver la composición de las unidades enemigas:
+Esto está ligado a A4. Cuando seleccionas una unidad enemiga, el panel de información debe mostrar sus estadísticas.
+Si te refieres a un listado general de todas las unidades que tiene el enemigo en el mapa (incluso las no visibles), eso sería una característica de "scouting" o un truco. Generalmente, solo ves lo que tus unidades ven (Fog of War, que no has mencionado aún pero es común).
+Si no hay Fog of War, entonces al seleccionar una unidad enemiga, muestras toda su info.
+
+B7. Detalle estadísticas al pasar por encima (tooltip):
+Desktop: Evento mouseover en el display de estadísticas de una unidad. Muestra un pequeño div (tooltip) con Ataque: X (bonos: +Y por terreno, +Z por moral), Defensa: A (bonos: ...) etc.
+Móvil: mouseover no existe. Se puede usar un "toque largo" (long press) o un segundo toque en la estadística para mostrar el tooltip.
+Implementación: uiUpdates.js. El tooltip se posiciona cerca del cursor/dedo.
+B8. Se perdió la función de ganar oro cuando se logran victorias:
+Victoria de Batalla (eliminar unidad enemiga):
+En unit_Actions.js, cuando una unidad ataca y destruye a otra:
+state.playerGold += enemyUnit.goldValue; // o una cantidad fija/calculada
+uiUpdates.updateGoldDisplay();
+Victoria de Escenario:
+En gameFlow.js, cuando se cumple la condición de victoria del escenario:
+state.playerGold += scenarioVictoryBonusGold;
+uiUpdates.updateGoldDisplay();
+B9. Agregar Árbol de tecnologías: (Ya cubierto en B2)
+B10. Al terminar la partida poner un resumen de la misma:
+Modal de Fin de Partida (modalLogic.js, uiUpdates.js):
+Activado por gameFlow.js al detectar victoria/derrota.
+Mostrar:
+"¡VICTORIA!" / "DERROTA"
+Turnos jugados.
+Unidades perdidas (propias y enemigas).
+Unidades creadas.
+Oro ganado/perdido.
+XP ganada por unidades supervivientes.
+Botones: "Volver al Menú Principal", "Siguiente Escenario" (si es campaña), "Jugar de Nuevo".
+Recolección de Estadísticas: state.js necesitará acumular estas estadísticas durante la partida.
+B11. Agregar Consola para Escribir texto:
+UI:
+Un input type="text" para escribir comandos.
+Un div (scrollable) para mostrar la salida de la consola / historial de comandos.
+Puede estar oculta por defecto y mostrarse con una tecla (ej. ~) o un botón.
+JS (consoleManager.js o similar):
+Escucha el submit del input.
+Parsea el comando.
+Ejecuta la acción correspondiente.
+B12. Agregar trucos escritos en la consola:
+En el parser de consoleManager.js:
+function parseCommand(commandText) {
+    const [command, ...args] = commandText.toLowerCase().split(' ');
+    switch (command) {
+        case "gold":
+            const amount = parseInt(args[0]);
+            if (!isNaN(amount)) {
+                state.playerGold += amount;
+                uiUpdates.updateGoldDisplay();
+                logToConsole(`Oro añadido: ${amount}`);
+            } else {
+                logToConsole("Uso: gold <cantidad>");
+            }
+            break;
+        case "addunit":
+            // addunit <unitType> <x> <y> <owner_player_id_or_ai_id>
+            // Ejemplo: addunit LIGHT_INFANTRY 5 5 player
+            if (args.length >= 3) {
+                const unitType = args[0].toUpperCase();
+                const x = parseInt(args[1]);
+                const y = parseInt(args[2]);
+                // Lógica para crear la unidad (llamar a una función en unit_Actions.js o boardManager.js)
+                // boardManager.placeUnit(unitType, x, y, owner);
+                logToConsole(`Unidad ${unitType} creada en ${x},${y}`);
+            } else {
+                logToConsole("Uso: addunit <tipo> <x> <y>");
+            }
+            break;
+        // ... más trucos
+        default:
+            logToConsole(`Comando desconocido: ${command}`);
+    }
+}
+Use code with caution.
+JavaScript
+B13. Las unidades consumen comida y cuando no tienen pierden 1 unidad por turno. Comida llega por camino a ciudad/fortaleza:
+Nuevo Recurso: Comida (state.js):
+state.playerFood = 100;
+state.playerFoodIncome = 10; // De granjas, etc.
+state.playerFoodConsumption = 0; // Calculado cada turno
+Unidades (constants.js):
+Cada tipo de unidad tiene foodConsumption: 1 (o más).
+Edificios (constants.js):
+FARM: { providesFood: 5 }
+Lógica de Suministro (Fin de Turno en gameFlow.js):
+Calcular Ingreso de Comida: Sumar toda la comida de granjas conectadas a ciudades/fortalezas.
+state.playerFood += state.playerFoodIncome;
+Calcular Consumo de Comida:
+Iterar todas las unidades del jugador.
+Para cada unidad, verificar si está "en suministro":
+Usar A* o BFS (Breadth-First Search) desde la posición de la unidad para encontrar un camino hacia una ciudad o fortaleza propia, usando solo casillas con "camino" o adyacentes a ciudades/fortalezas. boardManager.js podría tener isUnitSupplied(unit).
+Si está en suministro, consume comida: state.playerFood -= unit.foodConsumption;
+Si no está en suministro Y state.playerFood <= 0 (o un umbral de "sin reservas"):
+La unidad sufre atrición: pierde salud, o si es un stack de unidades, pierde 1 "hombre". unit.takeAttritionDamage(1);
+Si la unidad llega a 0 HP/hombres, se elimina.
+Actualizar UI: uiUpdates.updateFoodDisplay();
+Acceso a Archivos:
+Como IA, no puedo acceder directamente a tus archivos locales ni interactuar con GitHub de esa manera. Sin embargo, si copias y pegas fragmentos de código relevantes (especialmente de los JS que mencionas) cuando tengas preguntas específicas sobre una implementación, podré ayudarte mucho mejor.
+Recomendaciones Generales Adicionales:
+Version Control (Git): Ya usas GitHub, ¡excelente! Haz commits pequeños y frecuentes con mensajes claros. Usa ramas para nuevas funcionalidades (git checkout -b feature/mobile-scrolling).
+Divide y Vencerás: La lista es larga. Prioriza. Implementa una cosa, pruébala bien, y luego pasa a la siguiente.
+Yo empezaría por A1 (Scroll/Pan Móvil), ya que es fundamental para la jugabilidad en móvil.
+Luego B2/B9 (Árbol de Tecnología básico) y B8 (Recuperar Oro), porque afectan la progresión central.
+Después, B5 (IA básica) para que el juego sea mínimamente jugable contra la máquina.
+Testing: Prueba en un navegador de escritorio con las herramientas de desarrollador para simular móviles. Y, si puedes, prueba directamente en un dispositivo móvil de vez en cuando.
+Frameworks/Librerías: Por ahora, parece que estás con JavaScript puro, lo cual está bien. Si la UI se vuelve muy compleja, podrías considerar una librería ligera de componentes (como Svelte, Preact, o incluso Vue/React si estás familiarizado) pero solo si realmente lo necesitas para no añadir complejidad innecesaria. Para el tablero hexagonal, ya debes tener tu propia lógica, lo cual es bueno.
+¡Es un proyecto muy interesante y tienes una buena base! No dudes en preguntar si te atascas en algún punto específico o quieres discutir alternativas de implementación. ¡Mucho ánimo!
+
+empecemos por el primer punto A1: Scroll/Pan del Tablero en Móvil
+
+
+Nuevos: 
+
+c1. En el modelo de jugadores que los turnos tengan un tiempo limite, configurable 2horas por ejemplo, y que se pueda cambiar en la partida. 
+por mutuo acuerdo, por ejemplo de 12 a 9 de la mañana y después de cada 2 horas. 
+
+
+c1. Las unidades que tengan artillería tendrán una función de cobertura si están al lado de una unidad del jugador atacada, estas atacarán a la unidad atacante, antes de que 
+empiece la batalla entre la unidad atacante y la atacada.
+
+c1. En la partida Escaramuza, y el mapa base, Ampliar el tablero a de los actuales 12 x 15 (180) a 36 x 45 (1620)
+con el diseño de la península ibérica agregando las islas baleares, el norte de áfrica y las islas canarias.
+
+c1. Experiencia: El tope de experiencia es 500 y esta va subiendo en 1 por turno y en 5 por cada batalla y en 25 por cada unidad enemiga a la que gana.
+
+c2. Poder configurar el idioma deseado: 
+
+    Español
+    Inglés
+    Francés
+    Alemán
+    Ruso
+    Chino mandarín
+    Hindi
+    Árabe
+    Bengalí
+    Urdu
+
+c3. Pantalla Inicial: 
+
+    Mensaje de aceptación de condiciones. 
+
+
+
+c4. Cambiar el panel para crear unidades. 
+crear nuevo botón y panel para consultar unidades. 
+El botón actual es muy grande visualmente es muy plano y no queda bien.
+
+
+me gustaría estructurarlo con esta imagen en mente: 
+
+Infanteria
+
+    ligera      Pesada  Arquero     Arcabucero
+
+Caballería
+
+    ligera      Pesada      Arquero a Caballo   Arcabuz a Caballo
+
+Artillería
+
+    Cañones     Morteros    Obuses
+
+y poner más bien las imagenes, para reducir el ancho y alto.
+
+Poner el costo total / el oro disponible.
+y las estadísticas agregadas 
+
+y al final el botón "Comprar"
+
+
+
+c5. cuando inicias un escenario poner el mensaje de introducción de la batalla concreta. 
+
+Fecha: Primavera, 711 d.C.
+Lugar: Gibraltar (Jabal Tāriq - "Montaña de Tariq").
+Evento Clave: Desembarco de Tariq ibn Ziyad.
+Texto Introductorio:
+"Año 711. Las disputas internas por el trono visigodo han debilitado fatalmente el reino. Aprovechando este caos, y quizás invitado por una de las facciones, el general bereber Tariq ibn Ziyad, lugarteniente de Musa ibn Nusayr, gobernador omeya del norte de África, cruza el estrecho con un ejército de bereberes y árabes. Desembarca en el promontorio que llevará su nombre, Gibraltar. Su misión inicial podría ser de reconocimiento o apoyo, pero pronto se convertirá en una conquista."
+
+C6. Modificadores de Combate (Factores que influyen):
+Terreno: Proporciona bonificaciones defensivas significativas. Un bosque, ciudad o colina da más protección que un campo abierto. Algunos terrenos también penalizan el ataque.
+Experiencia (Experience): Las unidades ganan estrellas de experiencia al combatir. Unidades más experimentadas son más efectivas tanto en ataque como en defensa.
+Acorazamiento (Entrenchment): Las unidades que no se mueven ni atacan durante un turno ganan niveles de atrincheramiento, lo que aumenta su defensa.
+Fuerza Actual de la Unidad: Una unidad con menos de 10 SP tendrá valores de ataque y defensa reducidos proporcionalmente.
+Apoyo (Support):
+Artillería: Si una unidad de artillería está dentro del alcance y no ha actuado, puede proporcionar fuego de apoyo a una unidad amiga que ataca, aumentando la efectividad del ataque.
+Cazas (Air Superiority): Tener superioridad aérea en la zona puede dar bonificaciones a tus unidades terrestres y penalizar las enemigas.
+Bombarderos Tácticos: Pueden atacar directamente a unidades terrestres, causando daño y supresión.
+Líderes (Heroes): Ocasionalmente, una unidad puede obtener un "héroe" que mejora sus estadísticas.
+Supresión (Suppression): El resultado más común del combate, además del daño. Una unidad suprimida tiene sus capacidades de combate reducidas (ataque, defensa, movimiento) y no puede contraatacar. Si está muy suprimida, puede verse forzada a retirarse.
+Clima: Puede afectar el movimiento (barro, nieve) y la efectividad de las unidades aéreas (nublado, lluvia).
+
+Resolución del Combate (Simplificado):
+Cuando una unidad ataca a otra, el juego calcula un "valor de ataque efectivo" para el atacante y un "valor de defensa efectivo" para el defensor, aplicando todos los modificadores mencionados.
+Iniciativa: La unidad con mayor iniciativa "dispara" primero. Si ambas tienen la misma, el combate es simultáneo.
+Cálculo de "Impactos": El juego realiza una especie de "tirada de dados" interna (generador de números aleatorios - RNG) para cada "disparo", modificada por los valores efectivos. Esto determina cuántos "impactos" se logran.
+Daño: Cada impacto exitoso generalmente reduce 1 SP del objetivo.
+Supresión: Los impactos también causan supresión. Cuantos más impactos, más supresión.
+Contraataque: Si el defensor no fue destruido o suprimido por el primer disparo (si el atacante tuvo mayor iniciativa), puede contraatacar, y el proceso se repite para él.
+
+Predicción de Bajas:
+Antes de confirmar un ataque, Panzer General muestra una predicción de bajas para ambas unidades. Esto te da una idea de cuántos SP es probable que pierda cada unidad y cuánta supresión se infligirá. Por ejemplo, podría mostrar "2-1", significando que se espera que el atacante inflija 2 SP de daño y reciba 1 SP de daño.
+Esta predicción NO es 100% certera debido al elemento aleatorio (RNG), pero suele ser una buena guía. Un resultado de "0-0" puede significar que no se espera daño, pero sí supresión.
+
+Determinación de Pérdidas Específicas:
+Las pérdidas (reducción de SP) son el resultado directo de los "impactos" calculados. Si una unidad con 10 SP recibe 3 impactos, su fuerza se reduce a 7 SP.
+No hay un número fijo de unidades perdidas por bando. Depende enteramente de las estadísticas de las unidades involucradas, el terreno, la experiencia, el apoyo, la supresión y un componente de azar.
+Overkill: Si una unidad con 1 SP restante es atacada por una unidad que inflige 5 "impactos", la unidad objetivo es destruida, pero los 4 "impactos" sobrantes no se transfieren a otras unidades.
+Importancia de la Supresión: A menudo, el objetivo no es destruir una unidad enemiga en un solo ataque (especialmente si es fuerte o está bien atrincherada), sino suprimirla para que sea menos efectiva y más vulnerable a ataques posteriores.
+
+Terrenos y características: 
+
+Terreno Despejado / Llanuras (Clear / Plains):
+Movimiento: Coste bajo (generalmente 1 MP para infantería, 1-2 para la mayoría de vehículos en Panzer General 1, aunque esto varía ligeramente entre versiones). Es el terreno más fácil para moverse.
+Defensa: Mínima o ninguna bonificación defensiva. Las unidades aquí son muy vulnerables.
+Línea de Visión (LoS): Sin obstrucciones.
+Notas: Ideal para el movimiento rápido de unidades blindadas y motorizadas. Malo para la defensa.
+Bosque (Forest):
+Movimiento: Coste alto, especialmente para vehículos. La infantería se mueve mejor.
+Defensa: Buena bonificación defensiva, especialmente para la infantería. Los vehículos blindados pueden ser más vulnerables aquí si son emboscados por infantería antitanque.
+Línea de Visión (LoS): Bloquea la línea de visión. Bueno para ocultar unidades y preparar emboscadas.
+Notas: La infantería y las unidades antitanque se defienden bien aquí. Los tanques pueden tener dificultades para atacar unidades en bosques.
+Colinas (Hills):
+Movimiento: Coste moderado.
+Defensa: Bonificación defensiva moderada. Las unidades en colinas suelen tener ventaja de línea de visión sobre las unidades en terreno más bajo.
+Línea de Visión (LoS): Puede bloquear la LoS hacia hexágonos más bajos o proporcionar una LoS extendida.
+Notas: Buen terreno defensivo y para posicionar artillería.
+Montañas (Mountains):
+Movimiento: Coste muy alto, a menudo intransitable para la mayoría de los vehículos. Solo la infantería especializada (montaña) se mueve bien.
+Defensa: Excelente bonificación defensiva, especialmente para la infantería.
+Línea de Visión (LoS): Bloquea fuertemente la LoS y proporciona una gran ventaja de visión desde la cima.
+Notas: Difícil de atacar, pero también difícil de atravesar.
+Ciudades / Pueblos (City / Town):
+Movimiento: Coste alto para vehículos, moderado para infantería.
+Defensa: Excelente bonificación defensiva, especialmente para la infantería. Son puntos defensivos fuertes. En el video, Kalisz y Lodz son objetivos clave.
+Línea de Visión (LoS): Bloquea la LoS.
+Notas: Las ciudades son objetivos estratégicos importantes (a menudo Puntos de Victoria). La infantería es clave para tomarlas y defenderlas. "RUGGED DEFENSE!" suele aparecer aquí.
+Ríos (Rivers):
+Movimiento: Coste muy alto o intransitables sin un puente. Las unidades pueden tardar un turno completo o más en cruzar.
+Defensa: Las unidades en un río (cruzando) son extremadamente vulnerables. Defender detrás de un río otorga una gran ventaja defensiva al defensor en la orilla.
+Línea de Visión (LoS): No bloquea la LoS.
+Notas: Los puentes son puntos de estrangulamiento críticos y objetivos tácticos. Las unidades de ingenieros pueden construir puentes o ayudar a cruzar. En el video se ven varios ríos, como el Oder y el Warta.
+Carreteras (Roads):
+Movimiento: Coste muy bajo (a menudo 0.5 MP o similar). Permiten un movimiento muy rápido a través de otros tipos de terreno.
+Defensa: Ninguna bonificación defensiva.
+Línea de Visión (LoS): Sin obstrucciones.
+Notas: Cruciales para avances rápidos y la logística (suministro).
+Terreno Escarpado / Irregular (Rough / Broken Ground):
+Movimiento: Coste moderado a alto. Más difícil que las llanuras pero más fácil que los bosques densos o montañas.
+Defensa: Moderada bonificación defensiva. En el video, cuando un tanque ataca a un cañón antitanque, aparece el mensaje "RUGGED DEFENSE!", lo que indica este tipo de terreno o similar.
+Línea de Visión (LoS): Puede obstruir parcialmente.
+Notas: Puede ralentizar a los vehículos y ofrecer cobertura a la infantería.
+Pantano / Marisma (Swamp / Marsh):
+Movimiento: Coste muy alto, especialmente para vehículos pesados que pueden quedar atascados.
+Defensa: Moderada bonificación defensiva, pero las unidades suelen estar muy expuestas.
+Línea de Visión (LoS): Generalmente abierto, pero el movimiento lento es el principal factor.
+Notas: A evitar por unidades blindadas si es posible.
+Aeródromos (Airfields):
+Movimiento: Generalmente coste bajo, como terreno despejado.
+Defensa: La bonificación defensiva depende del terreno subyacente (si está en una ciudad, bosque, etc.).
+Línea de Visión (LoS): Abierto.
+Notas: Esencial para operar, reabastecer y reparar unidades aéreas. Capturar aeródromos enemigos es un objetivo estratégico importante.
+Fortificaciones / Bunkers (Fortifications / Bunkers):
+Movimiento: Las unidades no se mueven dentro del hexágono fortificado, sino que lo ocupan.
+Defensa: Muy alta bonificación defensiva. Son extremadamente difíciles de tomar sin artillería pesada, bombarderos o unidades de ingenieros.
+Línea de Visión (LoS): Depende de la estructura, pero suelen ofrecer buena visibilidad.
+Principios Generales del Terreno en Panzer General:
+Cobertura y Ocultación: Los bosques, ciudades y colinas ofrecen cobertura, reduciendo el daño recibido y dificultando ser visto.
+Canalización: Los ríos, montañas y bosques densos pueden canalizar los movimientos de las unidades, creando frentes predecibles y puntos defensivos fuertes.
+Movilidad: Las carreteras son vitales para la velocidad. Las unidades blindadas y motorizadas son rápidas en terreno abierto y carreteras, pero lentas y vulnerables en bosques, pantanos o montañas.
+Ventaja Defensiva: Defender en terreno ventajoso (ciudad, bosque, colina, detrás de un río) es crucial y puede permitir a una fuerza inferior resistir a una superior.
+Atrincheramiento: Las unidades que no se mueven ni atacan se atrincheran, aumentando su bonificación defensiva. Esto se suma a la bonificación del terreno.
+
+Notas: 
+
+icon: Ruta a una imagen para el nodo (ej. images/tech/hunting.png). Necesitarás crear estas imágenes.
+
+Ayuda para crear las imágenes:
+
+Como IA, no puedo crear archivos de imagen directamente. Pero puedo darte ideas:
+Estilo: Mantén un estilo consistente. La imagen de referencia usa iconos 3D isométricos simples y coloridos.
+Tamaño: Algo como 40x40 o 50x50 píxeles (como definiste en el CSS) es un buen punto de partida.
+Formato: PNG con transparencia es ideal para que se integren bien con el fondo del nodo.
+Herramientas:
+Editores de Gráficos Vectoriales (recomendado para iconos): Inkscape (gratis), Adobe Illustrator, Figma (tiene plan gratuito). Te permiten escalar sin pérdida de calidad.
+Editores de Raster: GIMP (gratis), Photoshop, Krita.
+Recursos de Iconos Online: Busca en sitios como Flaticon, Iconfinder, Noun Project (revisa las licencias, algunas requieren atribución o son de pago). Puedes encontrar iconos base y modificarlos.
+Generadores de Iconos con IA: Hay herramientas que generan imágenes a partir de texto, podrías probarlas para obtener ideas o bases.
+Conceptos para los iconos (basados en tu árbol de referencia y los que definimos):
+Organization: Personas estilizadas, un diagrama de flujo simple, un escudo.
+Hunting: Un arco y flecha, una lanza, una huella de animal.
+Fishing: Un pez, un anzuelo, un pequeño bote.
+Farming: Un tallo de trigo, una hoz, un granero simple.
+Mining: Un pico, un yunque, una gema o mineral.
+Construction: Un martillo y clavos, ladrillos, un puente simple.
+Archery: Un blanco con una flecha, un carcaj.
+Riding: La silueta de un caballo.
+
+
