@@ -133,7 +133,7 @@ function openCreateDivisionModal() {
         let canRecruit = gameState.cities.some(city => 
             city.owner === gameState.currentPlayer && 
             board[city.r]?.[city.c] && 
-            (board[city.r][city.c].isCapital || board[city.r][city.c].structure === "Fortaleza") && // Corregido c.c a city.c
+            (board[city.r][city.c].isCapital || board[city.r][c.c].structure === "Fortaleza") && // Corregido c.c a city.c
             !getUnitOnHex(city.r, city.c) 
         );
         if (!canRecruit) {

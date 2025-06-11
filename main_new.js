@@ -1,8 +1,7 @@
 // main.js
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
-// ¡IMPORTANTE! Ya NO hay 'import' aquí. initDebugConsole será una función global.
-// import { initDebugConsole } from './debugConsole.js';
+import { initDebugConsole } from './debugConsole.js';
 
 function onHexClick(r, c) {
     // --- MODO DE DEPURACIÓN VISUAL ---
@@ -91,7 +90,8 @@ function onHexClick(r, c) {
 function initApp() {
     console.log("main.js: DOMContentLoaded -> initApp INICIADO.");
 
-    // 1. Inicializar elementos DOM (asegurarse de que existan)
+    // 1. Inicializar elementos DOM
+    // Esta lógica de inicialización de elementos DOM y los selectores de nivel de IA
     if (typeof initializeDomElements === "function") {
         initializeDomElements();
         console.log("main.js: initializeDomElements() llamado.");
@@ -127,8 +127,8 @@ function initApp() {
             gameState.playerTypes.player2 = player2TypeSelect.value;
             if (player2TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player2 = player2TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player2')) { delete gameState.playerAiLevels.player2; } }
 
-            const selectedResourceLevel = resourceLevelSelect.value;
-            const selectedBoardSize = boardSizeSelect.value;
+            const selectedResourceLevel = resourceLevelSelect.value; // Esta línea existía
+            const selectedBoardSize = boardSizeSelect.value;       // Esta línea existía
             const selectedInitialUnits = initialUnitsCountSelect.value; 
             gameState.deploymentUnitLimit = selectedInitialUnits === "unlimited" ? Infinity : parseInt(selectedInitialUnits);
             
@@ -143,6 +143,7 @@ function initApp() {
 
             // Actualizaciones de UI y poblar regimientos para el modal
             if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === 'function') { UIManager.updateAllUIDisplays(); } else { console.warn("main.js: UIManager.updateAllUIDisplays no definida."); }
+            // if (typeof populateAvailableRegimentsForModal === "function") { populateAvailableRegimentsForModal(); } else { console.error("CRITICAL: populateAvailableRegimentsForModal no definida."); }
             
             logMessage(`Fase de Despliegue. Jugador 1 (Límite: ${gameState.deploymentUnitLimit === Infinity ? 'Ilimitado' : gameState.deploymentUnitLimit}).`);
         });
@@ -161,13 +162,18 @@ function initApp() {
     if (floatingCreateDivisionBtn) {
         floatingCreateDivisionBtn.addEventListener('click', () => {
             console.log("%c[DEBUG BOTÓN CREAR - CLICK DETECTADO]", "background: #222; color: #bada55; font-size: 1.2em;"); 
+
+            // === CAMBIO CLAVE: Ahora solo llama a openCreateDivisionModal ===
+            // openCreateDivisionModal ahora gestiona la llamada a openCreateDivisionModalVisual
             if (typeof openCreateDivisionModal === "function") {
                 openCreateDivisionModal(); 
                 console.log(`[DEBUG BOTÓN CREAR] openCreateDivisionModal fue llamada.`);
             } else {
                 console.error("CRÍTICO: openCreateDivisionModal no está definida.");
             }
+            // Ocultar el menú flotante si estaba abierto (tu lógica original)
             if (floatingMenuPanel) floatingMenuPanel.style.display = 'none';
+            // ===============================================================
         });
     }
 
@@ -191,20 +197,16 @@ function initApp() {
         });
     } else { console.warn("main.js: floatingTechTreeBtn no encontrado, no se pudo añadir listener."); }
 
-    // === LLAMADA A LA FUNCIÓN GLOBAL DE INICIALIZACIÓN DE LA CONSOLA ===
-    // initDebugConsole() será una función global debido al orden de carga de scripts.
-    if (typeof initDebugConsole === "function") {
-        initDebugConsole(); 
-        console.log("main.js: initDebugConsole() llamado.");
-    } else {
-        console.error("CRÍTICO: initDebugConsole no está definida. La consola de depuración no se inicializará.");
-    }
+    // INICIALIZAR LA CONSOLA DE DEPURACIÓN AQUÍ ===
+    initDebugConsole(); 
+    console.log("main.js: initDebugConsole() llamado.");
 
     // 6. Lógica de Bienvenida / Ayuda al inicio de la aplicación
     if (typeof showWelcomeHelpModal === "function") {
-        showWelcomeHelpModal(); 
+        showWelcomeHelpModal(); // Llama a la función para mostrar el modal de bienvenida
     } else {
         console.error("main.js: showWelcomeHelpModal no está definida. Mostrando menú principal por defecto.");
+        // Fallback: mostrar el menú principal si no hay modal de ayuda.
         if (typeof showScreen === "function" && mainMenuScreenEl) {
             showScreen(mainMenuScreenEl);
         } else {

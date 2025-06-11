@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Console Button</title>
+    <style>
+        .floating-btn {
+            position: fixed;
+            width: 60px; height: 60px;
+            background-color: blue;
+            color: white;
+            text-align: center; line-height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container" style="background-color: lightgray; padding: 20px; height: 300px; display: block;">
+        <h1>Testing Button</h1>
+        <button id="floatingConsoleBtn" class="floating-btn" style="top: 10px; left: 10px;">TEST</button>
+    </div>
+
+    <script>
+        // Un script simple para verificar que el botón existe y se puede manipular
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('floatingConsoleBtn');
+            if (btn) {
+                btn.textContent = 'FOUND';
+                btn.style.backgroundColor = 'green';
+                console.log('Button found in DOM and manipulated!');
+            } else {
+                console.error('Button NOT found in DOM!');
+            }
+        });
+    </script>
+</body>
+</html>

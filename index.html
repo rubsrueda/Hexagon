@@ -153,6 +153,7 @@
         <div id="gameBoard"></div>
 
         <button id="floatingMenuBtn" class="floating-btn top-left">⋮</button>
+        <!-- ¡EL BOTÓN floatingConsoleBtn YA NO ESTÁ AQUÍ EN EL HTML! Se inyecta con JS. -->
         <button id="floatingTechTreeBtn" class="floating-btn top-right">💡</button> <!-- BOTÓN DE TECNOLOGÍA AQUÍ -->
         <button id="floatingEndTurnBtn" class="floating-btn bottom-right">►</button>
         <button id="floatingCreateDivisionBtn" class="floating-btn bottom-left" style="display: none; font-size: 20px;">➕</button> 
@@ -229,6 +230,7 @@
     <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
+    <!-- Asegurarse de que el orden de carga es CRÍTICO para scripts clásicos -->
     <script src="constants.js"></script>
     <script src="state.js"></script>
     <script src="technologyTree.js"></script> 
@@ -236,18 +238,34 @@
     <script src="maps/tactical_britain_coast_map.js"></script>
     <script src="scenarios/britain_defense_scenario.js"></script>
 
-    <script src="domElements.js"></script> <!-- Debe cargarse ANTES de los scripts que usan sus variables -->
+    <!-- domElements.js debe cargar ANTES que scripts que usan sus variables -->
+    <script src="domElements.js"></script> 
     <script src="utils.js"></script>
-    <script src="cheats.js"></script>
+
+    <!-- cheats.js y debugConsole.js ya NO son módulos -->
+    <!-- cheats.js debe ir antes de debugConsole.js para que 'Cheats' sea global cuando debugConsole.js lo use -->
+    <script src="cheats.js"></script> 
+    <script src="debugConsole.js"></script>
+
+    <!-- El resto de scripts principales -->
     <script src="uiUpdates.js"></script>
     <script src="techScreenUI.js"></script>
     <script src="boardManager.js?v=1"></script>
-    <script src="unit_Actions.js"></script> <!-- O unitActions.js -->
+    <script src="unit_Actions.js"></script>
     <script src="modalLogic.js"></script>
     <script src="aiLogic.js"></script>
     <script src="gameFlow.js"></script>
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>
+    
+    <!-- main.js debe ir al final, para que initDebugConsole() esté definida globalmente cuando main.js la llame -->
     <script src="main.js"></script>
+
+    <!-- La consola de depuración (el div HTML) también debe estar al final del body -->
+    <div id="debug-console" style="display: none;">
+        <div id="console-output"></div>
+        <input type="text" id="console-input" placeholder="Escribe un comando...">
+    </div>  
+
 </body>
 </html>

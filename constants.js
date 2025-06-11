@@ -64,10 +64,50 @@ const RESOURCE_MULTIPLIERS = {
 };
 
 const TERRAIN_TYPES = {
-    plains: { name: "Llanuras", defenseBonus: 0 },
-    forest: { name: "Bosque", defenseBonus: 1 },
-    hills: { name: "Colinas", defenseBonus: 1 },
-    // ... y cualquier otro terreno que uses ...
+    plains: {
+        name: "Llanura",
+        movementCostMultiplier: 1.0, // Costo normal
+        defenseBonus: 0,             // Sin bonus de defensa
+        rangedDefenseBonus: 0,       // Sin bonus extra para ataques a distancia
+        meleeAttackBonus: 0,         // Sin bonus de ataque cuerpo a cuerpo
+        resourceYieldMultiplier: 1.0,
+        visionPenalty: 0,
+        isImpassableForLand: false,  // Las unidades terrestres pueden pasar
+        minMovement: 0               // No afecta el movimiento mínimo
+    },
+    forest: {
+        name: "Bosque",
+        movementCostMultiplier: 2.0, // Más lento (ej. 2 PM por hex)
+        defenseBonus: 1,             // +1 defensa general
+        rangedDefenseBonus: 2,       // +2 defensa extra contra ataques a distancia (total +3)
+        meleeAttackBonus: 0,
+        resourceYieldMultiplier: 1.0,
+        visionPenalty: 0.5,          // Penalización a la visión
+        isImpassableForLand: false,
+        minMovement: 1               // Movimiento mínimo de 1 (si una unidad tiene 0.5 de mov, se le da 1)
+    },
+    hills: {
+        name: "Colinas",
+        movementCostMultiplier: 2.0, // Más lento (ej. 2 PM por hex)
+        defenseBonus: 1,             // +1 defensa general
+        rangedDefenseBonus: 0,       // Sin bonus extra contra ataques a distancia
+        meleeAttackBonus: 1,         // +1 ataque para unidades cuerpo a cuerpo
+        resourceYieldMultiplier: 1.1, // Ligeramente más recursos (piedra)
+        visionPenalty: 0,
+        isImpassableForLand: false,
+        minMovement: 1               // Movimiento mínimo de 1
+    },
+    water: {
+        name: "Agua", 
+        movementCostMultiplier: Infinity, // Intransitable para unidades terrestres
+        defenseBonus: 0,             // No se defiende aquí
+        rangedDefenseBonus: 0,
+        meleeAttackBonus: 0,
+        resourceYieldMultiplier: 0,
+        visionPenalty: 0,
+        isImpassableForLand: true,   // ¡Intransitable!
+        minMovement: 0               // No aplica
+    },
 };
 
 const AI_RESOURCE_PRIORITY = {
@@ -78,7 +118,7 @@ const AI_RESOURCE_PRIORITY = {
     'madera': 10      // Menor prioridad
 };
 
-const REINFORCE_COST_PER_HP_PERCENT = 1.1
+const REINFORCE_COST_PER_HP_PERCENT = 1.2
 
 const ATTRITION_DAMAGE_PER_TURN = 1; // Salud o efectivos que se pierden por atrición
 const ATTRITION_FOOD_SHORTAGE_THRESHOLD = 0; // Si la comida llega a este valor, se aplica atrición a unidades no suministradas

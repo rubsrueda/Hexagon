@@ -78,6 +78,7 @@ function initializeDomElements() {
 
     // Inicialización de elementos principales y de menú
     floatingTechTreeBtn = document.getElementById('floatingTechTreeBtn');
+    floatingConsoleBtn = document.getElementById('floatingConsoleBtn');
     mainMenuScreenEl = document.getElementById('mainMenuScreen');
     setupScreen = document.getElementById('setupScreen');
     worldMapScreenEl = document.getElementById('worldMapScreen');

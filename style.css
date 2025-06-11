@@ -122,16 +122,18 @@ body {
 }
 
 /* Clases específicas para cada tipo de terreno */
-/* .hex.plains {
-    background-image: url('images/terrain/green_plain.png');
-    /* Opcional: un color de fondo si la imagen tiene transparencias o no carga */
-    /* background-color: #90ee90;
-} */
-
-
+/* Colores de fondo de los hexágonos por tipo de terreno */
+.hex.plains {
+    background-color:#90EE90; /* Amarillo suave para Llanura (Amarillo original era muy fuerte) */
+}
 .hex.forest {
-    background-image: url('images/terrain/forest.png');
-    /* background-color: #228B22; */
+    background-color: #6B8E23; /* Verde oliva/bosque para Bosque (más natural que el verde brillante) */
+}
+.hex.hills {
+    background-color: #A9A9A9; /* Gris más claro para Colinas (Gris original era oscuro) */
+}
+.hex.water {
+    background-color: #87CEEB; /* Azul cielo/claro para Agua (más suave que el azul brillante) */
 }
 
 .hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
@@ -1050,4 +1052,73 @@ body {
 #doNotShowAgainCheckbox {
     transform: scale(1.2); /* Agrandar un poco el checkbox */
     margin-right: 8px !important;
+}
+
+#debug-console {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 200px; /* Ajusta la altura según sea necesario */
+    background-color: rgba(0, 0, 0, 0.8); /* Fondo oscuro semitransparente */
+    color: #00FF00; /* Texto verde neón, clásico de consola */
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    z-index: 10000; /* Asegura que esté por encima de todo */
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    box-sizing: border-box;
+    border-top: 1px solid #00FF00;
+}
+
+#console-output {
+    flex-grow: 1;
+    overflow-y: auto; /* Permite scroll si hay mucho texto */
+    margin-bottom: 10px;
+    white-space: pre-wrap; /* Mantiene saltos de línea y espacios */
+    word-wrap: break-word; /* Rompe palabras largas */
+}
+
+#console-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #00FF00;
+    background-color: rgba(0, 0, 0, 0.9);
+    color: #00FF00;
+    box-sizing: border-box;
+}
+
+#console-input::placeholder {
+    color: #007700; /* Color más tenue para el placeholder */
+}
+
+/* Colores para mensajes de consola */
+.console-info { color: #00FF00; } /* Verde */
+.console-success { color: #00FF00; } /* Verde */
+.console-error { color: #FF0000; } /* Rojo */
+.console-warning { color: #FFFF00; } /* Amarillo */
+.console-command { color: #00FFFF; } /* Cyan para los comandos ejecutados */
+
+/* Clase para el botón de consola (flotante, creado dinámicamente con estilos forzados) */
+/* Esta regla CSS ahora es secundaria, los estilos inyectados directamente en JS tienen !important. */
+.floating-btn.force-console-button { 
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s ease;
+    /* Estos estilos serán sobreescritos por los inyectados en JS si los de JS tienen !important */
+    /* Pero puedes dejarlos como valores por defecto si los de JS fallaran. */
+    /* top: 15px; */ 
+    /* left: 80px; */ 
+    /* width: 50px; */ 
+    /* height: 50px; */
+    /* font-size: 16px; */ 
+    /* border-radius: 50%; */ 
+    /* background-color: rgba(100, 100, 0, 0.7); */ 
+    /* color: white; */
+    /* box-shadow: 0 2px 5px rgba(0,0,0,0.3); */
+}
+
+.floating-btn.force-console-button:hover {
+    background-color: rgba(255, 0, 0, 0.7); /* Hover sutil en rojo */
+    transform: scale(1.05);
 }
