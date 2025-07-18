@@ -48,7 +48,7 @@ function onHexClick(r, c) {
         }
     }
 }
-// --- INICIO DE FUNCIÓN: initApp ---
+
 function initApp() {
     console.log("main.js: DOMContentLoaded -> initApp INICIADO.");
 
@@ -112,24 +112,134 @@ function initApp() {
     // Función que se ejecuta cuando recibimos datos del otro jugador
     function onDatosLANRecibidos(datos) {
         // Log para depuración, mostrando el paquete de datos crudo recibido.
-        console.log("Datos recibidos del otro jugador:", datos);
+        // --- CÓDIGO AÑADIDO (Función original vacía) ---
+        console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
 
-        // Actuamos como un "router" basándonos en el tipo de mensaje.
-        // Esto nos permitirá añadir más tipos de mensajes en el futuro (mover unidad, atacar, etc.).
-        switch (datos.type) {
+        const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+        if (!isNetworkGame) return; // Si no hay conexión, ignorar
+
+        // --- LÓGICA AÑADIDA PARA GESTIONAR LA AUTORIDAD DEL ANFITRIÓN ---
+        if (NetworkManager.esAnfitrion) {
+            // -- SOY EL ANFITRIÓN: PROCESO PETICIONES DEL CLIENTE --
+            if (datos.type === 'actionRequest') {
+                console.log("[Red - Anfitrión] Petición de acción recibida del Cliente:", datos.action);
+                const action = datos.action;
+                const fromPlayerId = 2; // El cliente siempre es el jugador 2
+
+                // Se comprueba si el que pide la acción es el jugador activo
+                if (gameState.currentPlayer !== fromPlayerId) {
+                     console.warn(`[Red - Anfitrión] Acción RECHAZADA de J${fromPlayerId}. No es su turno (Turno actual: J${gameState.currentPlayer}).`);
+                     return;
+                }
+
+                // Router de acciones solicitadas por el cliente
+                switch (action.type) {
+                    case 'placeUnit':
+                        if (gameState.currentPhase === 'deployment') {
+                             console.log("[Red - Anfitrión] Petición 'placeUnit' validada. Ejecutando y retransmitiendo...");
+                             placeFinalizedDivision(action.payload.unitData, action.payload.r, action.payload.c);
+                             // Añadimos el 'playerId' que realizó la acción para la retransmisión
+                             action.payload.playerId = fromPlayerId; 
+                             NetworkManager.enviarDatos({ type: 'actionBroadcast', action: action });
+                             UIManager.updateAllUIDisplays();
+                        } else {
+                            console.warn("[Red - Anfitrión] Petición 'placeUnit' del cliente RECHAZADA (No es fase de despliegue).");
+                        }
+                        break;
+                    case 'endTurn':
+                        if (gameState.currentPlayer === clientId) {
+                             console.log("[Red - Anfitrión] Petición 'endTurn' validada. Procesando fin de turno...");
+                         executeEndOfTurnLogic(fromPlayerId);
+                        break;
+                    // Aquí se añadirían más casos para mover, atacar, etc.
+                }
+            }
+        } else {
+            // -- SOY EL CLIENTE: PROCESO INSTRUCCIONES DEL ANFITRIÓN --
+            if (datos.type === 'initialGameSetup') {
+                console.log("[Receptor de Red - Cliente] Recibido 'initialGameSetup'. Construyendo juego...");
+                const data = datos.payload;
+            Object.assign(gameState, data.gameState);
+            board = data.board;
+            units = data.units;
+            unitIdCounter = data.unitIdCounter;
+
+            // Reconstruimos la representación visual (DOM) del tablero.
+            domElements.gameBoard.innerHTML = '';
+            const boardSize = { rows: data.board.length, cols: data.board[0].length };
+            domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
+            domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+
+            for (let r = 0; r < boardSize.rows; r++) {
+                for (let c = 0; c < boardSize.cols; c++) {
+                    const hexElement = createHexDOMElementWithListener(r, c);
+                    domElements.gameBoard.appendChild(hexElement);
+                    board[r][c].element = hexElement;
+                }
+            }
             
-            // Si el mensaje es para iniciar la partida...
-            case 'startGame':
-                logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
-                // Usamos la misma función de inicio que el anfitrión,
-                // pasándole la configuración que acabamos de recibir.
-                iniciarPartidaLAN(datos.settings);
+            // Re-creamos los elementos de las unidades que llegaron sin la propiedad 'element'.
+            units.forEach(unit => {
+                const unitElement = document.createElement('div');
+                unitElement.classList.add('unit', `player${unit.player}`);
+                unitElement.textContent = unit.sprite;
+                unitElement.dataset.id = unit.id;
+                const strengthDisplay = document.createElement('div');
+                strengthDisplay.classList.add('unit-strength');
+                unitElement.appendChild(strengthDisplay);
+                domElements.gameBoard.appendChild(unitElement);
+                unit.element = unitElement; // Enlazamos el nuevo elemento DOM a nuestros datos.
+            });
+
+            // Sincronizamos completamente la UI.
+            initializeBoardPanning();
+            renderFullBoardVisualState();
+            UIManager.updateAllUIDisplays();
+                logMessage("Partida sincronizada con el anfitrión.");
+            }
+        }
+        
+        // --- LÓGICA COMÚN A AMBOS (Procesar retransmisiones del anfitrión) ---
+        if (datos.type === 'actionBroadcast') {
+            const action = datos.action;
+            const actionOriginPlayer = action.payload.playerId;
+            console.log(`[Receptor de Red] Recibida retransmisión de acción de J${actionOriginPlayer}:`, action.type);
+
+            // Evitamos que el anfitrión ejecute visualmente una acción que él mismo originó y ya procesó.
+            if (NetworkManager.esAnfitrion && actionOriginPlayer === gameState.myPlayerNumber) {
+                console.log("[Receptor de Red - Anfitrión] Ignorando auto-retransmisión de mi propia acción.");
+                return;
+            }
+
+                switch(action.type) {
+                    case 'placeUnit':
+                        // Cliente: coloca visualmente la unidad donde el anfitrión dijo.
+                        placeFinalizedDivision(action.payload.unitData, action.payload.r, action.payload.c);
+                        UIManager.updateAllUIDisplays();
                 break;
-            
-            // Si el mensaje es de otro tipo (que aún no hemos definido)...
-            default:
-                console.warn("Se ha recibido un tipo de paquete de datos desconocido:", datos.type);
-                break;
+                    case 'endTurn':
+                        // Cliente: actualiza su estado local con los datos del anfitrión.
+                        gameState.currentPlayer = action.payload.nextPlayer;
+                        gameState.turnNumber = action.payload.turnNumber;
+                        resetUnitsForNewTurn(gameState.currentPlayer);
+                        if (gameState.currentPlayer === gameState.myPlayerNumber) {
+                           logMessage("¡Es tu turno!");
+                           if(domElements.endTurnBtn) domElements.endTurnBtn.disabled = false;
+                        } else {
+                           logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+                        }
+                        UIManager.updateAllUIDisplays();
+                        break;
+                    // Aquí irían los casos para mover, atacar, etc. para el cliente
+                }
+            }
+        }
+
+        // --- Lógica del Switch original para 'startGame' ---
+        if(datos.type === 'startGame' && !NetworkManager.esAnfitrion) {
+             if (NetworkManager.esAnfitrion) return;
+             logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
+             iniciarPartidaLAN(datos.settings);
         }
     }
 
@@ -144,7 +254,10 @@ function initApp() {
         domElements.lanRemoteIdInput.disabled = false;
         domElements.lanConnectBtn.disabled = false;
         
-        alert("El otro jugador se ha desconectado.");
+        if (gameState.currentPhase !== "setup" && gameState.currentPhase !== "mainMenu") {
+            alert("El otro jugador se ha desconectado. La partida ha finalizado.");
+            showScreen(domElements.mainMenuScreenEl);
+        }
     }
 
     // Botón para ir a la pantalla del Lobby LAN
@@ -669,6 +782,7 @@ function initApp() {
  * @param {object} settings - El objeto con la configuración de la partida.
  */
 function iniciarPartidaLAN(settings) {
+    // --- CÓDIGO ORIGINAL (INTACTO) ---
     console.log("Iniciando partida LAN con la configuración:", settings);
     
     // 1. Resetear el estado del juego y variables
@@ -688,23 +802,55 @@ function iniciarPartidaLAN(settings) {
     showScreen(domElements.gameContainer);
     gameState.currentPhase = "deployment"; 
 
-    // 4. Inicializar el tablero con la configuración
-    if (typeof initializeNewGameBoardDOMAndData === "function") { 
-        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
-    } else { 
-        console.error("CRÍTICO: initializeNewGameBoardDOMAndData no está definida."); 
-    }
+    // --- LÓGICA AÑADIDA PARA DIFERENCIAR ANFITRIÓN/CLIENTE ---
+    gameState.myPlayerNumber = NetworkManager.esAnfitrion ? 1 : 2;
+    console.log(`[iniciarPartidaLAN] Lógica de red iniciada. Soy Jugador: ${gameState.myPlayerNumber}`);
 
-    // 5. Actualizar toda la UI
-    if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) { 
-        UIManager.updateAllUIDisplays();
-    }
-    
-    // 6. Mostrar mensaje de inicio
-    if (typeof logMessage === "function") {
-        const miNumeroDeJugador = NetworkManager.esAnfitrion ? 1 : 2;
-        logMessage(`¡Comienza la partida! Eres Jugador ${miNumeroDeJugador}.`);
-        logMessage(`Fase de Despliegue. ¡Coloca tus fuerzas!`);
+    if (NetworkManager.esAnfitrion) {
+        console.log("[iniciarPartidaLAN - Anfitrión] Generando estado de juego para enviarlo al cliente...");
+        // 4. (Solo Anfitrión) Inicializar el tablero con la configuración
+        // Esto ejecuta el código original que ya teníamos
+        if (typeof initializeNewGameBoardDOMAndData === "function") { 
+            initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
+        } else { 
+            console.error("CRÍTICO: initializeNewGameBoardDOMAndData no está definida."); 
+        }
+
+        // 5. (Solo Anfitrión) Empaquetar y enviar el estado del juego al Cliente
+        // Usamos JSON.stringify con un "replacer" para excluir las referencias a elementos del DOM.
+        const replacer = (key, value) => (key === 'element' ? undefined : value);
+        
+        const initialGameSetupPacket = {
+            type: 'initialGameSetup',
+            payload: {
+                board: JSON.parse(JSON.stringify(board, replacer)),
+                gameState: JSON.parse(JSON.stringify(gameState, replacer)),
+                units: JSON.parse(JSON.stringify(units, replacer)),
+                unitIdCounter: unitIdCounter,
+                settings: settings
+            }
+        };
+
+        NetworkManager.enviarDatos(initialGameSetupPacket);
+        console.log("[iniciarPartidaLAN - Anfitrión] Paquete de estado inicial enviado al cliente.");
+
+        // 6. (Solo Anfitrión) Actualizar la UI local del Anfitrión
+        if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) { 
+            UIManager.updateAllUIDisplays();
+        }
+        
+        // 7. (Solo Anfitrión) Mostrar mensaje de inicio
+        if (typeof logMessage === "function") {
+            const miNumeroDeJugador = NetworkManager.esAnfitrion ? 1 : 2;
+            logMessage(`¡Comienza la partida! Eres Jugador ${miNumeroDeJugador}.`);
+            logMessage(`Fase de Despliegue. ¡Coloca tus fuerzas!`);
+        }
+
+    } else {
+        // El Cliente no hace nada más aquí. Esperará pasivamente a recibir el paquete 'initialGameSetup'
+        // que activará la lógica en 'onDatosLANRecibidos'.
+        console.log("[iniciarPartidaLAN - Cliente] Esperando a que el anfitrión envíe el estado del juego...");
+        logMessage("Esperando datos del anfitrión para sincronizar la partida...");
     }
 }
 

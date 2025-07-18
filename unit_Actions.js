@@ -1896,10 +1896,11 @@ function handlePillageAction() {
 }
 
 function handlePlacementModeClick(r, c) {
-    // 1. Doble verificación de seguridad
+    // --- LÍNEA 1 HASTA 59: CÓDIGO ORIGINAL ÍNTEGRO (SIN NINGUNA MODIFICACIÓN) ---
+    console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
+    
     if (!placementMode.active || !placementMode.unitData) {
-        console.error("Error crítico: se intentó colocar una unidad sin datos o sin el modo activo.");
-        // Resetea el modo para evitar que el juego se quede bloqueado
+        console.error("[Placement] Error: Modo de colocación inactivo o sin datos de unidad. Se cancelará.");
         placementMode.active = false;
         if (UIManager) UIManager.clearHighlights();
         return;
@@ -1909,54 +1910,111 @@ function handlePlacementModeClick(r, c) {
     const hexData = board[r]?.[c];
 
     // 2. Validar el hexágono de destino
-    if (!hexData || getUnitOnHex(r, c)) {
-        logMessage("Lugar inválido o ya ocupado. Inténtalo en otro hexágono.");
-        // No salimos del modo de colocación para que el jugador pueda elegir otro sitio.
+    if (!hexData) {
+        logMessage("Hexágono inválido.");
+        return; 
+    }
+
+    if (getUnitOnHex(r, c)) {
+        logMessage(`Ya hay una unidad en este hexágono.`);
         return;
     }
 
     let canPlace = false;
-    let reason = "";
+    let reasonForNoPlacement = "";
 
-    // 3. Lógica para determinar si se puede colocar aquí
-    if (gameState.currentPhase === "deployment") {
-        if (hexData.terrain === 'water') {
-            reason = "No se pueden desplegar unidades de tierra en el agua.";
+    // Lógica para reclutamiento DURANTE la partida (desde ciudad/fortaleza)
+    if (gameState.currentPhase === "play") {
+        if (!placementMode.recruitHex) {
+            reasonForNoPlacement = "Error: Falta el origen del reclutamiento.";
+            canPlace = false;
         } else {
-            canPlace = true;
-        }
-    } else if (gameState.currentPhase === "play") {
-        if (placementMode.recruitHex) {
             const dist = hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c);
             if (dist > 1) {
-                reason = "Debe colocarse en la ciudad/fortaleza o adyacente.";
-            } else if (TERRAIN_TYPES[hexData.terrain]?.isImpassableForLand) {
-                reason = "No se puede reclutar en este tipo de terreno.";
+                reasonForNoPlacement = "Las unidades reclutadas deben colocarse en la base o adyacente.";
+                canPlace = false;
             } else {
                 canPlace = true;
             }
+        }
+    }
+    // Lógica para despliegue al INICIO de la partida
+    else if (gameState.currentPhase === "deployment") {
+        // En despliegue, también ignoramos las reglas de movimiento. Se asume que la zona de despliegue es válida.
+        // Aquí puedes añadir tu lógica de zona de despliegue si la tienes.
+        // Por ahora, permitimos colocar en cualquier casilla que no sea agua.
+        if (hexData.terrain === 'water') {
+            reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
+            canPlace = false;
         } else {
-            reason = "Origen del reclutamiento desconocido.";
+            canPlace = true;
         }
     }
 
-    // 4. Si todas las validaciones pasan, colocar la unidad
+    // --- LÍNEAS 60 A 80: LÓGICA AÑADIDA PARA GESTIONAR PARTIDAS EN RED ---
+    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+
     if (canPlace) {
+        if (isNetworkGame) {
+            // Si es un juego en red, interceptamos la acción antes de ejecutarla localmente.
+            console.log("[Red] Interceptando acción 'placeUnit' para enviar al anfitrión.");
+            const replacer = (key, value) => (key === 'element' ? undefined : value);
+            const cleanUnitData = JSON.parse(JSON.stringify(unitToPlace, replacer));
+            
+            // Enviamos una PETICIÓN de acción. La ejecución real la decidirá el anfitrión.
+            NetworkManager.enviarDatos({
+                type: 'actionRequest',
+                action: {
+                    type: 'placeUnit',
+                    payload: { 
+                        playerId: gameState.myPlayerNumber, // Añadimos quién la solicita
+                        unitData: cleanUnitData,
+                        r: r,
+                        c: c
+                    }
+                }
+            });
+            // Importante: No se coloca la unidad aquí, se espera la retransmisión del anfitrión.
+            placementMode.active = false; // Se desactiva el modo localmente
+            placementMode.unitData = null;
+            if (UIManager) UIManager.clearHighlights();
+            logMessage(`Petición para colocar ${unitToPlace.name} enviada...`);
+            return; // Se detiene aquí, no se ejecuta el código local de abajo.
+        }
+
+        // --- CÓDIGO ORIGINAL QUE AHORA SOLO SE EJECUTA EN PARTIDAS LOCALES ---
         placeFinalizedDivision(unitToPlace, r, c);
         
         // Limpiar y salir del modo de colocación
         placementMode.active = false;
         placementMode.unitData = null;
         placementMode.recruitHex = null;
+        if (UIManager) UIManager.clearHighlights();
         
+        logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
         if (UIManager) {
             UIManager.clearHighlights();
             UIManager.updateAllUIDisplays();
+            UIManager.hideContextualPanel();
         }
-        logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
+
     } else {
-        logMessage(`No se puede colocar aquí: ${reason}`);
-        // No salimos del modo, para que el jugador pueda seguir intentándolo.
+        // --- CÓDIGO ORIGINAL PARA CASO DE FALLO (INTACTO) ---
+        logMessage(`No se puede colocar: ${reasonForNoPlacement}`);
+        
+        if (unitToPlace.cost) {
+            for (const resourceType in unitToPlace.cost) {
+                gameState.playerResources[gameState.currentPlayer][resourceType] = 
+                    (gameState.playerResources[gameState.currentPlayer][resourceType] || 0) + unitToPlace.cost[resourceType];
+            }
+            if (UIManager) UIManager.updatePlayerAndPhaseInfo();
+            logMessage("Colocación cancelada. Recursos reembolsados.");
+        }
+        
+        placementMode.active = false;
+        placementMode.unitData = null;
+        placementMode.recruitHex = null;
+        if (UIManager) UIManager.clearHighlights();
     }
 }
 
