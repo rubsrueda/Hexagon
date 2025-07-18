@@ -6,6 +6,8 @@ console.log("techScreenUI.js CARGADO");
 function openTechTreeScreen() {
     const screen = document.getElementById('techTreeScreen');
     const container = document.getElementById('techTreeContainer'); 
+
+     console.log("--- LOG ESTADO --- techScreenUI.js -> openTechTreeScreen INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
     
     if (!screen || !container || !TECHNOLOGY_TREE_DATA || !gameState || !gameState.playerResources) {
         console.error("openTechTreeScreen: Faltan dependencias.");
@@ -155,6 +157,7 @@ function closeTechTreeScreen() {
     const screen = document.getElementById('techTreeScreen');
     if (screen) screen.style.display = 'none';
     console.log("[TechTree] Pantalla del árbol de tecnologías cerrada.");
+    console.log("--- LOG ESTADO --- techScreenUI.js -> closeTechTreeScreen FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
 }
 
 // ===== FUNCIÓN MODIFICADA PARA USAR UIManager.showMessageTemporarily =====
@@ -162,9 +165,19 @@ function closeTechTreeScreen() {
 
 function attemptToResearch(techId) {
     console.log(`[AttemptResearch DEBUG] =======================================`);
+    console.log("--- LOG ESTADO --- techScreenUI.js -> attemptToResearch INICIO: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
     console.log(`[AttemptResearch DEBUG] Iniciando intento para: ${techId}`);
     
     const techToResearch = TECHNOLOGY_TREE_DATA[techId];
+    
+    if (!techToResearch || !gameState || !gameState.playerResources || !gameState.playerResources[gameState.currentPlayer]) {
+        console.error("attemptToResearch: Faltan datos críticos para la investigación.");
+        if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
+            UIManager.showMessageTemporarily("Error interno al investigar.", 4000, true);
+        }
+        return;
+    }
+
     if (!techToResearch) {
         console.error(`[AttemptResearch DEBUG] ERROR: Datos de tecnología no encontrados para ID: ${techId}`);
         if (typeof UIManager !== 'undefined' && UIManager.showMessageTemporarily) {
@@ -262,9 +275,15 @@ function attemptToResearch(techId) {
     console.log(`[AttemptResearch DEBUG] Refrescando árbol y UI general.`);
 
     refreshTechTreeContent();
+
+    if (typeof populateAvailableRegimentsForModal === "function") {
+        populateAvailableRegimentsForModal();
+    }
+
     if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
         UIManager.updateAllUIDisplays();
     }
+    console.log("--- LOG ESTADO --- techScreenUI.js -> attemptToResearch DESPUÉS DE PUSH: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
     console.log(`[AttemptResearch DEBUG] FIN de intento para: ${techId}`);
     console.log(`[AttemptResearch DEBUG] =======================================`);
 }

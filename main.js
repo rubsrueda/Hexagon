@@ -1,217 +1,497 @@
 // main.js
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
-// ¡IMPORTANTE! Ya NO hay 'import' aquí. initDebugConsole será una función global.
-// import { initDebugConsole } from './debugConsole.js';
-
 function onHexClick(r, c) {
-    // --- MODO DE DEPURACIÓN VISUAL ---
-    if (typeof VISUAL_DEBUG_MODE !== 'undefined' && VISUAL_DEBUG_MODE) {
-        console.clear();
-        console.log(`--- DEBUG MODE: Clic en (${r}, ${c}) ---`);
-
-        document.querySelectorAll('.hex.highlight-debug, .hex.highlight-debug-start').forEach(h => {
-            h.classList.remove('highlight-debug', 'highlight-debug-start');
-        });
-
-        if (board[r]?.[c]?.element) {
-            const startHexEl = board[r][c].element;
-            startHexEl.classList.add('highlight-debug-start');
-            console.log("Hexágono de inicio resaltado en amarillo.");
+    // --- ESTA ES LA CORRECCIÓN MÁS IMPORTANTE ---
+    // El "Guardia de Seguridad" que comprueba el modo de colocación ANTES que nada.
+    if (placementMode.active) {
+        // Si estamos en modo colocación, delegamos toda la lógica a esta función
+        // y nos detenemos inmediatamente con 'return'.
+        if (typeof handlePlacementModeClick === "function") {
+            handlePlacementModeClick(r, c);
+        } else {
+            console.error("Error crítico: handlePlacementModeClick no está definido.");
         }
-
-        const neighbors = getHexNeighbors(r, c);
-        console.log(`getHexNeighbors para (${r}, ${c}) devuelve:`, JSON.parse(JSON.stringify(neighbors)));
-
-        neighbors.forEach(n => {
-            const hexEl = board[n.r]?.[n.c]?.element;
-            if (hexEl) {
-                hexEl.classList.add('highlight-debug');
-            } else {
-                console.warn(`Vecino inválido o sin elemento: (${n.r}, ${n.c})`);
-            }
-        });
-        console.log(`${neighbors.length} vecinos resaltados en cian.`);
         return; 
     }
-    // --- FIN DEL MODO DE DEPURACIÓN ---
+    // --- FIN DE LA CORRECCIÓN ---
 
-    // --- LÓGICA NORMAL DEL JUEGO ---
-    console.log(`%cON_HEX_CLICK: (${r},${c}) - Fase: ${gameState?.currentPhase || 'N/A'}, Selected: ${selectedUnit?.name || 'null'}`, "color: blue;");
-
-    if (gameState?.justPanned) return;
-    if (placementMode.active) {
-        if (typeof handlePlacementModeClick === "function") handlePlacementModeClick(r, c);
+    // El resto de verificaciones (paneo, fin de partida) se mantienen.
+    if (gameState?.justPanned || !gameState || gameState.currentPhase === "gameOver") {
+        if (gameState) gameState.justPanned = false;
         return;
     }
-    if (!gameState || gameState.currentPhase === "gameOver") {
-        logMessage("La partida ya ha terminado.");
-        if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) UIManager.hideContextualPanel();
-        return;
-    }
+    
     const hexDataClicked = board[r]?.[c];
     if (!hexDataClicked) return;
-    if (gameState.currentPhase === "play" && hexDataClicked.visibility?.[`player${gameState.currentPlayer}`] === 'hidden') {
-        logMessage("Hexágono oculto por niebla de guerra.");
-        if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) UIManager.hideContextualPanel();
-        return;
-    }
+    
+    const clickedUnit = getUnitOnHex(r, c);
 
-    const clickedUnitObject = typeof getUnitOnHex === "function" ? getUnitOnHex(r, c) : null;
-    let actionTaken = false;
-
+    // El resto del código que maneja la selección y acciones normales, que ya habíamos arreglado, se mantiene.
     if (selectedUnit) {
-        actionTaken = typeof handleActionWithSelectedUnit === "function" ?
-            handleActionWithSelectedUnit(r, c, clickedUnitObject) : false;
-        
+        const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
         if (!actionTaken) {
-            if (clickedUnitObject && clickedUnitObject.id !== selectedUnit.id) {
-                selectUnit(clickedUnitObject);
-            } else if (!clickedUnitObject) {
-                deselectUnit();
+            deselectUnit();
+            if (clickedUnit) {
+                selectUnit(clickedUnit);
+                UIManager.showUnitContextualInfo(clickedUnit, clickedUnit.player === gameState.currentPlayer);
+            } else {
+                UIManager.showHexContextualInfo(r, c, hexDataClicked);
             }
         }
-    } else {
-        if (clickedUnitObject) {
-            selectUnit(clickedUnitObject);
+    } else { 
+        if (clickedUnit) {
+            selectUnit(clickedUnit);
+            UIManager.showUnitContextualInfo(clickedUnit, clickedUnit.player === gameState.currentPlayer);
+        } else {
+            UIManager.showHexContextualInfo(r, c, hexDataClicked);
         }
     }
-
-    if (selectedUnit) {
-        UIManager.showUnitContextualInfo(selectedUnit, selectedUnit.player === gameState.currentPlayer);
-    } else if (clickedUnitObject) {
-        UIManager.showUnitContextualInfo(clickedUnitObject, false);
-    } else {
-        UIManager.showHexContextualInfo(r, c, hexDataClicked);
-    }
-
-    console.log(`%cON_HEX_CLICK_FIN: selectedUnit final: ${selectedUnit?.name || 'null'}`, "color: blue;");
 }
-
+// --- INICIO DE FUNCIÓN: initApp ---
 function initApp() {
     console.log("main.js: DOMContentLoaded -> initApp INICIADO.");
 
-    // 1. Inicializar elementos DOM (asegurarse de que existan)
-    if (typeof initializeDomElements === "function") {
-        initializeDomElements();
-        console.log("main.js: initializeDomElements() llamado.");
-        // Lógica de Player1 AI Level
-        if (player1TypeSelect && player1AiLevelDiv) {
-            if (player1TypeSelect.value.startsWith('ai_')) { player1AiLevelDiv.style.display = 'block'; } else { player1AiLevelDiv.style.display = 'none'; }
-            player1TypeSelect.addEventListener('change', () => { if (player1TypeSelect.value.startsWith('ai_')) { player1AiLevelDiv.style.display = 'block'; } else { player1AiLevelDiv.style.display = 'none'; } });
-        }
-        // Lógica de Player2 AI Level (ya simplificada en HTML)
-        if (player2TypeSelect) { 
-            // No hay lógica de display para player2AiLevelDiv aquí ya que se eliminó del HTML
-        }
+    if (typeof domElements === 'undefined' || !domElements.domElementsInitialized) {
+         console.error("main.js: CRÍTICO: domElements no está definido o no se ha inicializado completamente. Abortando initApp.");
+         return;
+    }
+     console.log("main.js: domElements está definido e inicializado.", domElements);
+
+    if (typeof addModalEventListeners === "function") { 
+         addModalEventListeners(); 
+    } else { 
+        console.error("main.js: CRÍTICO: addModalEventListeners no está definida (de modalLogic.js). Modales no funcionarán correctamente."); 
+    }
+    
+    if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.setDomElements === 'function') {
+        UIManager.setDomElements(domElements); 
     } else {
-        console.error("CRITICAL MAIN INIT ERROR: initializeDomElements no definida..."); return;
+        console.error("main.js: CRÍTICO: UIManager o UIManager.setDomElements no definido.");
     }
 
-    // 2. Añadir listeners generales de modales (de modalLogic.js)
-    if (typeof addModalEventListeners === "function") { addModalEventListeners(); console.log("main.js: addModalEventListeners() llamado."); } else { console.warn("main.js: addModalEventListeners no está definida (de modalLogic.js)."); }
-    
-    // 3. Añadir listeners del menú principal (campaña/escaramuza de campaignManager.js)
-    if (typeof setupMainMenuListeners === "function") { setupMainMenuListeners(); console.log("main.js: setupMainMenuListeners() llamado."); } else { console.warn("main.js: setupMainMenuListeners no está definida (de campaignManager.js)."); }
+    if (typeof setupMainMenuListeners === "function") { 
+         setupMainMenuListeners(); 
+    } else { 
+        console.error("main.js: CRÍTICO: setupMainMenuListeners no está definida (de campaignManager.js). Menús no funcionarán."); 
+    }
 
-    // 4. Listener para el botón 'Empezar Juego' (Escaramuza)
-    if (startGameBtn) {
-        startGameBtn.addEventListener('click', () => {
+    if (domElements.floatingBuildBtn) {
+                domElements.floatingBuildBtn.addEventListener('click', (event) => {
+                    // <<== CORRECCIÓN CLAVE: Detenemos la propagación del evento ==>>
+                    // Esto evita que otros listeners (como el que cierra el panel) se activen.
+                    event.stopPropagation();
+                    console.log("[DEBUG Botón Construir] click detectado.");
+
+                    // Si hay una unidad seleccionada, establece el hexágono de construcción
+                    if (selectedUnit) {
+                        hexToBuildOn = { r: selectedUnit.r, c: selectedUnit.c };
+                        console.log(`Modo construcción iniciado por unidad seleccionada en (${hexToBuildOn.r}, ${hexToBuildOn.c}).`);
+                    }
+                    
+                    if (hexToBuildOn) {
+                        if (typeof openBuildStructureModal === "function") {
+                            openBuildStructureModal();
+                        } else {
+                            console.error("CRÍTICO: La función openBuildStructureModal no está definida en modalLogic.js");
+                        }
+                    } else {
+                        console.warn("[DEBUG Botón Construir] No se puede construir. No hay unidad ni hexágono seleccionado.");
+                        if (UIManager) UIManager.showMessageTemporarily("No hay una acción de construcción válida.", 3000, true);
+                    }
+                });
+            } else { 
+                console.warn("main.js: floatingBuildBtn no encontrado, no se pudo añadir listener."); 
+            }
+
+    if (domElements.floatingPillageBtn) {
+        domElements.floatingPillageBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            handlePillageAction();
+        });
+    } else {
+        console.warn("main.js: floatingPillageBtn no encontrado, no se pudo añadir listener.");
+    }
+
+    if (domElements.player1TypeSelect && domElements.player1AiLevelDiv) {
+        if (domElements.player1TypeSelect.value.startsWith('ai_')) { domElements.player1AiLevelDiv.style.display = 'block'; } else { domElements.player1AiLevelDiv.style.display = 'none'; }
+        domElements.player1TypeSelect.addEventListener('change', () => { if (domElements.player1TypeSelect.value.startsWith('ai_')) { domElements.player1AiLevelDiv.style.display = 'block'; } else { domElements.player1AiLevelDiv.style.display = 'none'; } });
+    } else { console.warn("main.js: domElements.player1TypeSelect o domElements.player1AiLevelDiv no encontrados para lógica de AI level."); }
+
+    if (domElements.player2TypeSelect) { 
+    } else { console.warn("main.js: domElements.player2TypeSelect no encontrado."); }
+
+    if (domElements.startGameBtn) {
+        domElements.startGameBtn.addEventListener('click', () => {
             console.log("main.js: Botón 'Empezar Juego (Escaramuza)' clickeado.");
-            resetGameStateVariables(); 
+            if (typeof resetGameStateVariables === "function") resetGameStateVariables();
+            else { console.error("main.js: resetGameStateVariables no definida."); return; }
+
             gameState.isCampaignBattle = false; gameState.currentScenarioData = null; gameState.currentMapData = null;
 
-            // Configurar tipos de jugador y niveles de IA
-            gameState.playerTypes.player1 = player1TypeSelect.value; 
-            if (player1TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player1 = player1TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player1')) { delete gameState.playerAiLevels.player1; } }
-            gameState.playerTypes.player2 = player2TypeSelect.value;
-            if (player2TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player2 = player2TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player2')) { delete gameState.playerAiLevels.player2; } }
+             if (!domElements.player1TypeSelect || !domElements.player2TypeSelect) {
+                  console.error("main.js: Faltan elementos de selección de jugador para iniciar partida."); return;
+             }
+            
+             // Leer y guardar las civilizaciones seleccionadas
+            if (!domElements.player1Civ || !domElements.player2Civ) {
+                console.error("main.js: Elementos de selección de civilización no encontrados. Usando 'ninguna' por defecto.");
+                // gameState.playerCivilizations ya se inicializa con 'ninguna', así que no hace falta hacer nada aquí.
+            } else {
+                // ESTA PARTE ES TU CÓDIGO ORIGINAL, RESPETADO.
+                console.log("[DIAGNÓSTICO] Elemento domElements.player1Civ:", domElements.player1Civ);
+                console.log("[DIAGNÓSTICO] Elemento domElements.player2Civ:", domElements.player2Civ);
+                gameState.playerCivilizations[1] = domElements.player1Civ.value;
+                gameState.playerCivilizations[2] = domElements.player2Civ.value;
 
-            const selectedResourceLevel = resourceLevelSelect.value;
-            const selectedBoardSize = boardSizeSelect.value;
-            const selectedInitialUnits = initialUnitsCountSelect.value; 
+                // ESTA ES LA ÚNICA ADICIÓN: UN LOG PARA CONFIRMAR.
+                console.log('%c[CIV INIT en main.js] Civilizaciones establecidas -> J1: ' + gameState.playerCivilizations[1] + ', J2: ' + gameState.playerCivilizations[2], "background: #222; color: #bada55");
+            }
+            // Mantenemos tu log original también.
+            console.log(`[CIV DEBUG] Civilización J1: ${gameState.playerCivilizations[1]}, Civilización J2: ${gameState.playerCivilizations[2]}`);
+            
+            gameState.playerTypes.player1 = domElements.player1TypeSelect.value; 
+            if (domElements.player1TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player1 = domElements.player1TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player1')) { delete gameState.playerAiLevels.player1; } }
+            gameState.playerTypes.player2 = domElements.player2TypeSelect.value;
+            if (domElements.player2TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player2 = domElements.player2TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player2')) { delete gameState.playerAiLevels.player2; } }
+
+             if (!domElements.resourceLevelSelect || !domElements.boardSizeSelect || !domElements.initialUnitsCountSelect) {
+                  console.error("main.js: Faltan elementos de configuración de partida para iniciar."); return;
+             }
+            const selectedResourceLevel = domElements.resourceLevelSelect.value;
+            const selectedBoardSize = domElements.boardSizeSelect.value;
+            const selectedInitialUnits = domElements.initialUnitsCountSelect.value; 
             gameState.deploymentUnitLimit = selectedInitialUnits === "unlimited" ? Infinity : parseInt(selectedInitialUnits);
             
             console.log("Iniciando Partida Rápida (Escaramuza):", "P1:", gameState.playerTypes.player1, gameState.playerAiLevels?.player1 || "", "P2:", gameState.playerTypes.player2, gameState.playerAiLevels?.player2 || "");
 
-            // Transición de UI y preparación del tablero
-            if (typeof showScreen === "function" && typeof gameContainer !== 'undefined') { showScreen(gameContainer); } else { if (typeof setupScreen !== 'undefined') setupScreen.style.display = 'none'; if (typeof gameContainer !== 'undefined') gameContainer.style.display = 'flex'; console.warn("main.js: showScreen no definida o gameContainer no disponible, usando fallback de display."); }
-            gameState.currentPhase = "deployment";
+             if (typeof showScreen === "function" && domElements.gameContainer) {
+                  showScreen(domElements.gameContainer); 
+             } else { 
+                 console.error("main.js: CRÍTICO: showScreen (de campaignManager) o domElements.gameContainer no disponibles para transición de pantalla.");
+                 if (typeof domElements.setupScreen !== 'undefined') domElements.setupScreen.style.display = 'none';
+                 if (typeof domElements.gameContainer !== 'undefined') domElements.gameContainer.style.display = 'flex';
+             }
+            gameState.currentPhase = "deployment"; 
 
             console.log("MAIN.JS --- DEBUG ---> ANTES de llamar a initializeNewGameBoardDOMAndData");
-            if (typeof initializeNewGameBoardDOMAndData === "function") { initializeNewGameBoardDOMAndData(selectedResourceLevel, selectedBoardSize); console.log("MAIN.JS --- DEBUG ---> DESPUÉS de llamar a initializeNewGameBoardDOMAndData (si fue función)"); } else { console.error("CRITICAL: initializeNewGameBoardDOMAndData NO es una función."); console.log("MAIN.JS --- DEBUG ---> initializeNewGameBoardDOMAndData NO FUE UNA FUNCION"); }
+            if (typeof initializeNewGameBoardDOMAndData === "function") { 
+                 initializeNewGameBoardDOMAndData(selectedResourceLevel, selectedBoardSize); 
+                 console.log("MAIN.JS --- DEBUG ---> DESPUÉS de llamar a initializeNewGameBoardDOMAndData (si fue función)"); 
+            } else { 
+                 console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función (de boardManager.js). No se puede inicializar el tablero."); 
+                 console.log("MAIN.JS --- DEBUG ---> initializeNewGameBoardDOMAndData NO FUE UNA FUNCION"); 
+            }
 
-            // Actualizaciones de UI y poblar regimientos para el modal
-            if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === 'function') { UIManager.updateAllUIDisplays(); } else { console.warn("main.js: UIManager.updateAllUIDisplays no definida."); }
+            if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === "function") { 
+                 UIManager.updateAllUIDisplays();
+            } else { console.warn("main.js: UIManager.updateAllUIDisplays no definida."); }
             
-            logMessage(`Fase de Despliegue. Jugador 1 (Límite: ${gameState.deploymentUnitLimit === Infinity ? 'Ilimitado' : gameState.deploymentUnitLimit}).`);
+             if (typeof logMessage === "function") {
+            const player1CivName = CIVILIZATIONS[gameState.playerCivilizations[1]]?.name || 'Desconocida';
+            logMessage(`Fase de Despliegue. Jugador 1 (${player1CivName}) | Límite: ${gameState.deploymentUnitLimit === Infinity ? 'Ilimitado' : gameState.deploymentUnitLimit}.`);
+            }
+            else console.warn("main.js: logMessage no definida.");
         });
     } else { console.warn("main.js: startGameBtn no encontrado."); }
 
-    // 5. Listeners para botones flotantes y acciones de juego (Fin Turno, Menú, etc.)
-    if (floatingEndTurnBtn) { floatingEndTurnBtn.addEventListener('click', () => { if (typeof handleEndTurn === "function") handleEndTurn(); else console.error("main.js Error: handleEndTurn no definida."); }); } else { console.warn("main.js: floatingEndTurnBtn no encontrado."); }
-    if (floatingMenuBtn && floatingMenuPanel) { floatingMenuBtn.addEventListener('click', () => { const isVisible = floatingMenuPanel.style.display === 'block' || floatingMenuPanel.style.display === 'flex'; floatingMenuPanel.style.display = isVisible ? 'none' : 'block'; if (!isVisible && typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === "function") { UIManager.updatePlayerAndPhaseInfo(); } if (isVisible && typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") UIManager.hideContextualPanel(); }); } else { console.warn("main.js: floatingMenuBtn o floatingMenuPanel no encontrado."); }
-    if (closeContextualPanelBtn && contextualInfoPanel) { closeContextualPanelBtn.addEventListener('click', () => { if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") UIManager.hideContextualPanel(); else if (contextualInfoPanel) contextualInfoPanel.style.display = 'none'; }); } else { console.warn("main.js: closeContextualPanelBtn o contextualInfoPanel no encontrado."); }
-    if (saveGameBtn_float) { saveGameBtn_float.addEventListener('click', () => { if (typeof handleSaveGame === "function") handleSaveGame(); else console.error("main.js Error: handleSaveGame no definida."); }); }
-    if (loadGameInput_float) { loadGameInput_float.addEventListener('click', (event) => { event.target.value = null; }); loadGameInput_float.addEventListener('change', (event) => { if (typeof handleLoadGame === "function") handleLoadGame(event); else console.error("main.js Error: handleLoadGame no definida.");}); }
-    if (concedeBattleBtn_float) { concedeBattleBtn_float.addEventListener('click', () => { logMessage("Batalla concedida."); if (gameState.isCampaignBattle && typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === 'function') { campaignManager.handleTacticalBattleResult(false, gameState.currentCampaignTerritoryId); } else { gameState.currentPhase = "gameOver"; if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === "function") UIManager.updateAllUIDisplays(); alert("Has concedido la escaramuza."); if (typeof showScreen === "function" && mainMenuScreenEl) showScreen(mainMenuScreenEl); } }); }
-    if (backToMainFromBattleBtn) { backToMainFromBattleBtn.addEventListener('click', () => { if (confirm("¿Seguro que quiere salir y volver al menú principal? El progreso de esta batalla no se guardará.")) { if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") UIManager.hideContextualPanel(); if (floatingMenuPanel) floatingMenuPanel.style.display = 'none'; if (gameState.isCampaignBattle && typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === "function") { campaignManager.handleTacticalBattleResult(false, gameState.currentCampaignTerritoryId); } else { gameState.currentPhase = "gameOver"; if (typeof showScreen === "function" && mainMenuScreenEl) showScreen(mainMenuScreenEl); } } }); }
+    if (domElements.floatingEndTurnBtn) { 
+        domElements.floatingEndTurnBtn.addEventListener('click', () => { 
+            if (typeof handleEndTurn === "function") handleEndTurn();
+            else console.error("main.js Error: handleEndTurn no definida."); 
+        }); 
+    } else { console.warn("main.js: floatingEndTurnBtn no encontrado."); }
 
-    // Listener para ABRIR el modal de crear división (desde el botón flotante)
-    if (floatingCreateDivisionBtn) {
-        floatingCreateDivisionBtn.addEventListener('click', () => {
-            console.log("%c[DEBUG BOTÓN CREAR - CLICK DETECTADO]", "background: #222; color: #bada55; font-size: 1.2em;"); 
-            if (typeof openCreateDivisionModal === "function") {
-                openCreateDivisionModal(); 
-                console.log(`[DEBUG BOTÓN CREAR] openCreateDivisionModal fue llamada.`);
-            } else {
-                console.error("CRÍTICO: openCreateDivisionModal no está definida.");
+    
+    if (domElements.floatingMenuBtn && domElements.floatingMenuPanel) { 
+        domElements.floatingMenuBtn.addEventListener('click', () => { 
+            const isVisible = domElements.floatingMenuPanel.style.display === 'block' || domElements.floatingMenuPanel.style.display === 'flex'; 
+            domElements.floatingMenuPanel.style.display = isVisible ? 'none' : 'block'; 
+            if (!isVisible && typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === "function") { 
+                 UIManager.updatePlayerAndPhaseInfo(); 
             }
-            if (floatingMenuPanel) floatingMenuPanel.style.display = 'none';
+            if (isVisible && typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") {
+                 UIManager.hideContextualPanel();
+            }
+        }); 
+    } else { console.warn("main.js: floatingMenuBtn o floatingMenuPanel no encontrado."); }
+
+    if (domElements.floatingSplitBtn) {
+        domElements.floatingSplitBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (selectedUnit && (selectedUnit.regiments?.length || 0) > 1) {
+                if (typeof openAdvancedSplitUnitModal === "function") {
+                    openAdvancedSplitUnitModal(selectedUnit);
+                }
+            }
+        });
+    }
+    
+    if (domElements.closeContextualPanelBtn && domElements.contextualInfoPanel) { 
+        domElements.closeContextualPanelBtn.addEventListener('click', () => { 
+            if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") {
+                 UIManager.hideContextualPanel();
+            } else if (domElements.contextualInfoPanel) {
+                 domElements.contextualInfoPanel.style.display = 'none';
+                 if(typeof UIManager !== 'undefined' && typeof UIManager.hideAllActionButtons === 'function') UIManager.hideAllActionButtons();
+                 if (typeof selectedUnit !== 'undefined') selectedUnit = null;
+                 if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
+            }
+        }); 
+    } else { console.warn("main.js: closeContextualPanelBtn o contextualInfoPanel no encontrado."); }
+
+    if (domElements.saveGameBtn_float) { 
+        domElements.saveGameBtn_float.addEventListener('click', () => { 
+            if (typeof handleSaveGame === "function") handleSaveGame();
+            else console.error("main.js Error: handleSaveGame no definida."); 
+        }); 
+    }
+
+    if (domElements.loadGameInput_float) { 
+        domElements.loadGameInput_float.addEventListener('click', (event) => { event.target.value = null; }); 
+        domElements.loadGameInput_float.addEventListener('change', (event) => { 
+            if (typeof handleLoadGame === "function") handleLoadGame(event);
+            else console.error("main.js Error: handleLoadGame no definida.");
+        }); 
+    }
+
+    if (domElements.concedeBattleBtn_float) { 
+        domElements.concedeBattleBtn_float.addEventListener('click', () => { 
+             if (typeof logMessage === "function") logMessage("Batalla concedida.");
+             else console.warn("main.js: logMessage no definida.");
+
+            if (gameState.isCampaignBattle && typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === 'function') {
+                 campaignManager.handleTacticalBattleResult(false, gameState.currentCampaignTerritoryId); 
+            } else { 
+                 gameState.currentPhase = "gameOver"; 
+                 if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === "function") UIManager.updateAllUIDisplays();
+                 else console.warn("main.js: UIManager.updateAllUIDisplays no definida.");
+
+                 alert("Has concedido la escaramuza."); 
+                 if (typeof showScreen === "function" && domElements.mainMenuScreenEl) showScreen(domElements.mainMenuScreenEl);
+                 else console.error("main.js: showScreen (de campaignManager) o domElements.mainMenuScreenEl no disponibles.");
+            } 
+        }); 
+    }
+
+    if (domElements.backToMainFromBattleBtn) { 
+        domElements.backToMainFromBattleBtn.addEventListener('click', () => { 
+            if (confirm("¿Seguro que quiere salir y volver al menú principal? El progreso de esta batalla no se guardará.")) { 
+                 if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") UIManager.hideContextualPanel();
+                 else {
+                      if (domElements.contextualInfoPanel) domElements.contextualInfoPanel.style.display = 'none';
+                      if(typeof UIManager !== 'undefined' && typeof UIManager.hideAllActionButtons === 'function') UIManager.hideAllActionButtons();
+                      if (typeof selectedUnit !== 'undefined') selectedUnit = null; 
+                      if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null; 
+                 }
+                if (domElements.floatingMenuPanel) domElements.floatingMenuPanel.style.display = 'none'; 
+                
+                if (gameState.isCampaignBattle && typeof campaignManager !== 'undefined' && typeof campaignManager.handleTacticalBattleResult === "function") {
+                     campaignManager.handleTacticalBattleResult(false, gameState.currentCampaignTerritoryId); 
+                } else { 
+                     gameState.currentPhase = "gameOver"; 
+                     if (typeof showScreen === "function" && domElements.mainMenuScreenEl) showScreen(domElements.mainMenuScreenEl);
+                     else console.error("main.js: showScreen (de campaignManager) o domElements.mainMenuScreenEl no disponibles.");
+                } 
+            } 
+        }); 
+    }
+    
+  // Reemplaza el bloque if (domElements.floatingCreateDivisionBtn) { ... } completo por este:
+
+    if (domElements.floatingCreateDivisionBtn) {
+        domElements.floatingCreateDivisionBtn.addEventListener('click', () => {
+            // Log inicial para saber que el clic fue registrado
+            console.log("%c[+] Botón 'Crear División' presionado.", "color: #28a745; font-weight: bold;"); 
+            
+            // Verificación de seguridad para asegurar que las variables globales existen
+            if (typeof gameState === 'undefined' || typeof placementMode === 'undefined') {
+                console.error("main.js: CRÍTICO: gameState o placementMode no definidos. Abortando acción.");
+                return;
+            }
+
+            // Determinar el contexto: ¿estamos en despliegue inicial o reclutando en una ciudad?
+            const isRecruitingInPlayPhase = gameState.currentPhase === 'play' && typeof hexToBuildOn !== 'undefined' && hexToBuildOn !== null;
+            
+            if (isRecruitingInPlayPhase) {
+                // Si estamos en juego y se ha seleccionado un hexágono de reclutamiento válido
+                placementMode.recruitHex = { r: hexToBuildOn.r, c: hexToBuildOn.c }; 
+                console.log(`[+] MODO: Reclutamiento en partida. Origen: hex (${placementMode.recruitHex.r},${placementMode.recruitHex.c}).`);
+            } else if (gameState.currentPhase === 'deployment') {
+                // Si estamos en la fase de despliegue inicial
+                placementMode.recruitHex = null; 
+                console.log("[+] MODO: Despliegue inicial de partida.");
+            } else {
+                // Si se pulsa en un momento no válido (ni despliegue, ni hex de reclutamiento seleccionado)
+                console.warn(`[!] ADVERTENCIA: Botón de crear división presionado en un contexto no válido. Fase: ${gameState.currentPhase}.`);
+                logMessage("No se puede crear una unidad en este momento.");
+                return; // Detenemos la acción
+            }
+
+            // Llamamos a la función que abre el nuevo modal.
+            // Se elimina la condición errónea que buscaba 'openCreateDivisionModal'.
+            if (typeof openUnitManagementModal === "function") {
+                console.log("[>] Llamando a openUnitManagementModal() para mostrar la nueva interfaz...");
+                openUnitManagementModal(); 
+            } else {
+                // Este error solo debería aparecer si modalLogic.js no se ha cargado o la función no existe.
+                console.error("main.js: CRÍTICO: La función 'openUnitManagementModal' no está definida en modalLogic.js.");
+            }
+        });
+    } else { 
+        // Este log solo aparece si el botón no se encontró en el DOM al iniciar.
+        console.warn("main.js: floatingCreateDivisionBtn no encontrado."); 
+    }
+
+    if (domElements.floatingWikiBtn) {
+        domElements.floatingWikiBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (typeof openWikiModal === "function") {
+                openWikiModal();
+            } else {
+                console.error("Error: La función openWikiModal no está definida en modalLogic.js");
+            }
         });
     }
 
-    // Listener para Tecnología
-    if (floatingTechTreeBtn) {
-        floatingTechTreeBtn.addEventListener('click', () => {
+    if (domElements.closeWikiModalBtn) {
+        domElements.closeWikiModalBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (domElements.wikiModal) {
+                domElements.wikiModal.style.display = 'none';
+            }
+        });
+    }
+
+    if (domElements.floatingTechTreeBtn) {
+        domElements.floatingTechTreeBtn.addEventListener('click', () => {
             if (typeof openTechTreeScreen === "function") {
                 openTechTreeScreen();
-                if (floatingMenuPanel && floatingMenuPanel.style.display !== 'none') {
-                    floatingMenuPanel.style.display = 'none';
+                if (domElements && domElements.floatingMenuPanel && domElements.floatingMenuPanel.style.display !== 'none') {
+                    domElements.floatingMenuPanel.style.display = 'none';
                 }
-                if (contextualInfoPanel && contextualInfoPanel.classList.contains('visible')) {
+                if (domElements && domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
                     if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
                         UIManager.hideContextualPanel();
                     }
+                } else {
+                     if(typeof UIManager !== 'undefined' && typeof UIManager.hideAllActionButtons === 'function') UIManager.hideAllActionButtons(); 
+                     if (domElements && domElements.floatingCreateDivisionBtn) {
+                    if (gameState && gameState.currentPhase !== "deployment") {
+                        domElements.floatingCreateDivisionBtn.style.display = 'none';
+                    }
+                 }
                 }
             } else {
-                console.error("main.js: La función openTechTreeScreen no está definida.");
+                console.error("main.js: CRÍTICO: openTechTreeScreen no está definida (de techScreenUI.js).");
                 alert("La pantalla de tecnologías aún no está disponible.");
             }
         });
     } else { console.warn("main.js: floatingTechTreeBtn no encontrado, no se pudo añadir listener."); }
 
-    // === LLAMADA A LA FUNCIÓN GLOBAL DE INICIALIZACIÓN DE LA CONSOLA ===
-    // initDebugConsole() será una función global debido al orden de carga de scripts.
     if (typeof initDebugConsole === "function") {
         initDebugConsole(); 
-        console.log("main.js: initDebugConsole() llamado.");
     } else {
-        console.error("CRÍTICO: initDebugConsole no está definida. La consola de depuración no se inicializará.");
+        console.error("main.js: CRÍTICO: initDebugConsole no está definida (de debugConsole.js).");
     }
 
-    // 6. Lógica de Bienvenida / Ayuda al inicio de la aplicación
+    if (domElements.floatingUndoMoveBtn) {
+        domElements.floatingUndoMoveBtn.addEventListener('click', (event) => {
+            event.stopPropagation(); 
+            console.log("[DEBUG Botón Deshacer] click detectado");
+            if (typeof undoLastUnitMove === "function" && typeof selectedUnit !== 'undefined' && selectedUnit) {
+                 undoLastUnitMove(selectedUnit);
+                 if(typeof UIManager !== 'undefined' && typeof UIManager.updateSelectedUnitInfoPanel === 'function') UIManager.updateSelectedUnitInfoPanel();
+            } else {
+                 console.warn("[DEBUG Botón Deshacer] No se puede deshacer el movimiento.");
+                 if(typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') UIManager.showMessageTemporarily("No se puede deshacer el movimiento.", 3000, true);
+            }
+        });
+    } else { console.warn("main.js: floatingUndoMoveBtn no encontrado, no se pudo añadir listener."); }
+/*
+    if (domElements.floatingReinforceBtn) {
+        domElements.floatingReinforceBtn.addEventListener('click', (event) => {
+            event.stopPropagation(); 
+            if (!selectedUnit) {
+                console.warn("[DEBUG Botón Reforzar] Clic, pero no hay unidad seleccionada.");
+                return;
+            }
+            console.log("[DEBUG Botón Reforzar] click detectado");
+
+            if (typeof handleReinforceUnitAction === "function" && typeof selectedUnit !== 'undefined' && selectedUnit) {
+                 handleReinforceUnitAction(selectedUnit);
+                 if(typeof UIManager !== 'undefined' && typeof UIManager.updateSelectedUnitInfoPanel === 'function') UIManager.updateSelectedUnitInfoPanel();
+                 if(typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === 'function') UIManager.updatePlayerAndPhaseInfo(); 
+            } else {
+                 console.warn("[DEBUG Botón Reforzar] No se puede reforzar la unidad.");
+                 if(typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') UIManager.showMessageTemporarily("No se puede reforzar la unidad.", 3000, true);
+            }
+        });
+    } else { console.warn("main.js: floatingReinforceBtn no encontrado, no se pudo añadir listener."); }
+*/
+    if (domElements.floatingReinforceBtn) {
+        domElements.floatingReinforceBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            console.log("[DEBUG Botón Gestionar] click detectado");
+
+            // La lógica ahora es simple: si hay una unidad seleccionada, abre su modal de detalles.
+            // La función que abre el modal se encargará de mostrar acciones o no (modo consulta).
+            if (selectedUnit) {
+                if (typeof openUnitDetailModal === "function") {
+                    openUnitDetailModal(selectedUnit);
+                } else {
+                    console.error("CRÍTICO: La función 'openUnitDetailModal' no está definida en modalLogic.js.");
+                }
+            } else {
+                console.warn("[DEBUG Botón Gestionar] Clic, pero no hay unidad seleccionada.");
+            }
+        });
+    } else { console.warn("main.js: floatingReinforceBtn no encontrado, no se pudo añadir listener."); }
+
+    
+            
     if (typeof showWelcomeHelpModal === "function") {
+        console.log("main.js: Llamando a showWelcomeHelpModal().");
         showWelcomeHelpModal(); 
     } else {
-        console.error("main.js: showWelcomeHelpModal no está definida. Mostrando menú principal por defecto.");
-        if (typeof showScreen === "function" && mainMenuScreenEl) {
-            showScreen(mainMenuScreenEl);
+        console.error("main.js: CRÍTICO: showWelcomeHelpModal no está definida (de modalLogic.js).");
+        if (typeof showScreen === "function" && domElements && domElements.mainMenuScreenEl) {
+            showScreen(domElements.mainMenuScreenEl);
         } else {
-            console.error("main.js: showScreen (de campaignManager) o mainMenuScreenEl no disponibles para fallback.");
-            if (setupScreen) setupScreen.style.display = 'flex';
+            console.error("main.js: CRÍTICO: showScreen (de campaignManager) o domElements.mainMenuScreenEl no disponibles para fallback.");
+            if (domElements && domElements.setupScreen) domElements.setupScreen.style.display = 'flex';
+             else console.error("main.js: CRÍTICO: domElements.setupScreen no disponible.");
         }
-        logMessage("Bienvenido a Hex General Evolved.");
+        if (typeof logMessage === "function") logMessage("Bienvenido a Hex General Evolved.");
+        else console.warn("main.js: logMessage no definida.");
+    }
+
+    if (domElements.floatingManageBtn) {
+        domElements.floatingManageBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (selectedUnit) {
+                if (typeof openUnitDetailModal === "function") {
+                    openUnitDetailModal(selectedUnit);
+                }
+            }
+        });
+    }
+
+    if (domElements.disbandUnitBtn) {
+        domElements.disbandUnitBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (selectedUnit) {
+                if (typeof handleDisbandUnit === "function") {
+                    handleDisbandUnit(selectedUnit);
+                } else {
+                    console.error("Error: La función handleDisbandUnit no está definida.");
+                }
+            } else {
+                logMessage("No hay unidad seleccionada para disolver.", "error");
+            }
+        });
+    } else {
+        console.warn("main.js: disbandUnitBtn no encontrado, no se pudo añadir listener.");
     }
     
     console.log("main.js: initApp() FINALIZADO.");

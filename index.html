@@ -37,6 +37,7 @@
         <div class="modal-content" style="width: auto; min-width: 300px; max-width: 500px;">
             <h2>Hex General Evolved</h2>
             <button id="startCampaignBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Comenzar Campaña</button>
+            <button id="startTutorialBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial</button>
             <button id="startSkirmishBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
         </div>
     </div>
@@ -56,11 +57,38 @@
                     <option value="ai_hard">IA (Difícil)</option>
                 </select>
             </div>
+
+            <div>
+                <label for="player1Civ">Civilización J1:</label>
+                <select id="player1Civ">
+                    <option value="ninguna" selected>Ninguna</option>
+                    <option value="Roma">Roma</option>
+                    <option value="Grecia">Grecia</option>
+                    <option value="Cartago">Cartago</option>
+                    <option value="Egipto">Egipto</option>
+                    <option value="Galia">Galia</option>
+                    <option value="Germania">Germania</option>
+                    <option value="Britania">Britania</option>
+                    <option value="Iberia">Iberia</option>
+                    <option value="Persia">Persia</option>
+                    <option value="China">China</option>
+                    <option value="Vikingos">Vikingos</option>
+                    <option value="Mongol">Mongolia</option>
+                    <option value="Arábiga">Arabia</option>
+                    <option value="Mameluca">Sultanato Mameluco</option>
+                    <option value="Otomana">Imperio Otomano</option>
+                    <option value="Maya">Civilización Maya</option>
+                    <option value="Asiria">Asiria</option>
+                    <option value="Babilonia">Babilonia</option>
+                    <option value="Japón">Japón</option>
+                </select>
+            </div>
+
             <div id="player1AiLevelDiv" style="display:none;">
                 <label for="player1AiLevel">Nivel IA Jugador 1:</label>
                 <select id="player1AiLevel">
                     <option value="easy">Fácil</option>
-                    <option value="normal" selected>Normal</option>
+                    <option value="normal" selected>IA (Normal)</option>
                     <option value="hard">Difícil</option>
                 </select>
             </div>
@@ -74,6 +102,32 @@
                     <option value="ai_hard">IA (Difícil)</option>
                 </select>
             </div>
+
+            <div>
+            <label for="player2Civ">Civilización J2:</label>
+            <select id="player2Civ">
+                    <option value="ninguna" selected>Ninguna</option>
+                    <option value="Roma">Roma</option>
+                    <option value="Grecia">Grecia</option>
+                    <option value="Cartago">Cartago</option>
+                    <option value="Egipto">Egipto</option>
+                    <option value="Galia">Galia</option>
+                    <option value="Germania">Germania</option>
+                    <option value="Britania">Britania</option>
+                    <option value="Iberia">Iberia</option>
+                    <option value="Persia">Persia</option>
+                    <option value="China">China</option>
+                    <option value="Vikingos">Vikingos</option>
+                    <option value="Mongol">Mongolia</option>
+                    <option value="Arábiga">Arabia</option>
+                    <option value="Mameluca">Sultanato Mameluco</option>
+                    <option value="Otomana">Imperio Otomano</option>
+                    <option value="Maya">Civilización Maya</option>
+                    <option value="Asiria">Asiria</option>
+                    <option value="Babilonia">Babilonia</option>
+                    <option value="Japón">Japón</option>            
+            </select>
+        </div>
 
             <div>
                 <label for="resourceLevel">Nivel de Recursos:</label>
@@ -102,6 +156,8 @@
                     <option value="unlimited">Ilimitadas</option>
                 </select>
             </div>
+
+            
 
             <button id="startGameBtn">Empezar Juego</button>
             <button id="backToMainMenuBtn_fromSetup" style="margin-top:15px; background-color: #6c757d; width:auto; padding: 10px 15px;">Volver al Menú</button>
@@ -151,24 +207,21 @@
     <!-- ====================================================================== -->
     <div class="game-container" style="display: none;"> 
         <div id="gameBoard"></div>
-
-        <button id="floatingMenuBtn" class="floating-btn top-left">⋮</button>
-        <!-- ¡EL BOTÓN floatingConsoleBtn YA NO ESTÁ AQUÍ EN EL HTML! Se inyecta con JS. -->
-        <button id="floatingTechTreeBtn" class="floating-btn top-right">💡</button> <!-- BOTÓN DE TECNOLOGÍA AQUÍ -->
-        <button id="floatingEndTurnBtn" class="floating-btn bottom-right">►</button>
-        <button id="floatingCreateDivisionBtn" class="floating-btn bottom-left" style="display: none; font-size: 20px;">➕</button> 
         
         <div id="floatingMenuPanel" class="floating-panel top-left-panel" style="display: none;">
             <h4 id="floatingMenuTitle">Fase: - <br> Turno 1 - Jugador -</h4>
             <div id="playerResourcesGrid_float" class="playerResourcesGrid_common">
-                <div class="resource-labels">
-                    <span>Oro</span><span>Fe</span><span>Pi</span><span>Ma</span><span>Com</span><span>Inv</span>
-                </div>
+            <div class="resource-labels">
+            <span>Oro</span><span>Fe</span><span>Pi</span><span>Ma</span><span>Com</span><span>Inv</span><span>PR</span> <!-- Añadida etiqueta PR -->
+            </div>
                 <div class="resource-values">
-                    <span data-resource="oro">0</span><span data-resource="hierro">0</span>
-                    <span data-resource="piedra">0</span><span data-resource="madera">0</span>
+                    <span data-resource="oro">0</span>
+                    <span data-resource="hierro">0</span>
+                    <span data-resource="piedra">0</span>
+                    <span data-resource="madera">0</span>
                     <span data-resource="comida">0</span>
-                    <span data-resource="researchPoints">0</span> 
+                    <span data-resource="researchPoints">0</span>
+                    <span data-resource="puntosReclutamiento">0</span> <!-- Añadido span para el valor de PR -->
                 </div>
             </div>
             <button id="concedeBattleBtn_float" class="panel-button">Rendirse</button>
@@ -183,12 +236,8 @@
                 <h3 id="contextualTitle">Información</h3>
                 <button id="closeContextualPanelBtn" class="close-panel-btn">×</button>
             </div>
-            <div id="contextualContent">
-                <!-- Contenido generado por JS -->
-            </div>
-            <div id="contextualActions">
-                <!-- Botones de acción generados por JS -->
-            </div>
+            <div id="contextualContent"></div>
+            <div id="contextualActions"></div>
         </div>
 
         <div id="gameMessagesMobile" class="floating-messages bottom-center">
@@ -197,57 +246,230 @@
     </div> 
 
     <!-- ====================================================================== -->
-    <!-- =================== MODALES DE JUEGO TÁCTICO =================== -->
+    <!-- =================== MODAL DE DETALLES DE DIVISIÓN ==================== -->
     <!-- ====================================================================== -->
-    <div id="createDivisionModal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">×</span> <!-- Este close-button es genérico para todos los modales -->
-            <h3>Crear Nueva División</h3>
-            <label for="divisionNameInput">Nombre División:</label>
-            <input type="text" id="divisionNameInput" value="Nueva División"><br><br>
-            <h4>Regimientos Disponibles:</h4>
-            <ul id="availableRegimentsList"></ul>
-            <h4>Regimientos en esta División:</h4>
-            <ul id="currentDivisionRegimentsList"></ul>
-            <p>Coste Total: <span id="totalDivisionCostDisplay">0 Oro</span></p>
-            <p>Stats Agregados: <span id="totalDivisionStatsDisplay">0/0/0/0/0/0</span></p>
-            <button id="finalizeDivisionBtn">Finalizar y Colocar</button> <!-- ID CORRECTO -->
+    <div id="unitDetailModal" class="modal" style="display: none;">
+        <div class="modal-content unit-detail-content">
+            <span class="close-button" id="closeUnitDetailModalBtn">×</span>
+            <h3 id="unitDetailTitle">Detalles de la División</h3>
+            
+            <!-- Contenedor para las Estadísticas Principales -->
+            <div class="unit-main-stats">
+                <div class="stat-row">
+                    <span class="stat-label">Salud:</span>
+                    <div class="unit-total-health-bar-container">
+                        <div id="unitDetailTotalHealthBar" class="unit-total-health-bar"></div>
+                    </div>
+                    <span id="unitDetailTotalHealthText">2000 / 2000</span>
+                </div>
+                <div class="stat-row stat-summary">
+                    <span id="unitDetailCombatStats">A/D: 400/600</span>
+                    <span id="unitDetailMovementStats">Mov: 2</span>
+                    <span id="unitDetailVisionStats">Vis: 3</span>
+                </div>
+                <div class="stat-row">
+                    <span id="unitDetailMorale">Moral: 50/125 (Normal)</span>
+                    <span id="unitDetailXP">XP: 120/150 (Regular)</span>
+                </div>
+            </div>
+
+            <!-- Título para la sección de regimientos -->
+            <h4 class="regiment-section-title">Regimientos</h4>
+
+            <!-- Lista de Regimientos Detallada -->
+            <ul id="unitDetailRegimentList" class="regiments-list detailed-regiments-list">
+                <!-- Los regimientos se listarán aquí por JS -->
+            </ul>
+            
+            <!-- <<== NUEVO: Pie de página con el botón para disolver ==>> -->
+            <div id="unitDetailFooter" style="text-align: center; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 15px;">
+                <button id="disbandUnitBtn" class="button-danger">Disolver Unidad</button>
+            </div>
         </div>
     </div>
+    
+    <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE LA WIKI DEL JUEGO ===================== -->
+    <!-- ====================================================================== -->
+    <div id="wikiModal" class="modal" style="display: none;">
+        <div class="modal-content wiki-content">
+            <span class="close-button" id="closeWikiModalBtn">×</span>
+            <h2>Wiki del Juego</h2>
+            
+            <!-- Pestañas de Navegación -->
+            <div class="wiki-tabs">
+                <button class="wiki-tab-btn active" data-tab="regimientos">Regimientos</button>
+                <button class="wiki-tab-btn" data-tab="estructuras">Estructuras e Ingresos</button>
+                <button class="wiki-tab-btn" data-tab="tecnologias">Investigación</button>
+                <button class="wiki-tab-btn" data-tab="conceptos">Conceptos Clave</button>
+            </div>
+
+            <!-- Contenedor de Contenido de las Pestañas -->
+            <div class="wiki-tab-content">
+
+                <!-- Pestaña de Regimientos -->
+                <div id="wiki-tab-regimientos" class="wiki-page active">
+                    <p>Valoraciones de 1 a 5 estrellas (⭐) para Ataque, Defensa, Salud, Movimiento y Rango.</p>
+                    <div class="table-container">
+                        <table id="wikiRegimentsTable">
+                            <!-- El contenido se generará por JS -->
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pestaña de Estructuras e Ingresos -->
+                <div id="wiki-tab-estructuras" class="wiki-page">
+                    <h3>Estructuras</h3>
+                    <div class="table-container">
+                        <table id="wikiStructuresTable">
+                            <!-- El contenido se generará por JS -->
+                        </table>
+                    </div>
+                    <h3>Ingresos por Territorio (Base)</h3>
+                    <div class="table-container">
+                        <table id="wikiIncomeTable">
+                            <!-- El contenido se generará por JS -->
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pestaña de Tecnologías -->
+                <div id="wiki-tab-tecnologias" class="wiki-page">
+                    <p>Las tecnologías desbloquean nuevas unidades y estructuras.</p>
+                    <div class="table-container">
+                        <table id="wikiTechTable">
+                            <!-- El contenido se generará por JS -->
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Pestaña de Conceptos -->
+                <div id="wiki-tab-conceptos" class="wiki-page">
+                    <h3>Conceptos Clave del Juego</h3>
+                    <div id="wikiConceptsContent">
+                        <!-- El contenido se generará por JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- =================== MODALES DE JUEGO TÁCTICO ========================= -->
+    <!-- ====================================================================== -->
+
+    <!-- <<< INICIO DE LA MODIFICACIÓN: NUEVO MODAL DE GESTIÓN DE UNIDADES >>> -->
+    <div id="unitManagementModal" class="modal" style="display: none;">
+        <div class="modal-content unit-management-content">
+            <span class="close-button" id="closeUnitManagementModalBtn">×</span>
+            <h3 id="unitManagementTitle">Crear Nueva División</h3>
+            
+            <div class="unit-management-body">
+                <!-- Columna Izquierda: Selección de Regimientos -->
+                <div class="unit-selection-panel">
+                    <div id="unitCategoryTabs" class="category-tabs">
+                        <!-- Las pestañas de categoría se generarán por JS aquí -->
+                    </div>
+                    <div id="availableUnitsList" class="available-units-list">
+                        <!-- Las unidades de la categoría seleccionada se generarán por JS aquí -->
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Resumen de la División -->
+                <div class="division-summary-panel">
+                    <h4>Resumen de la División</h4>
+                    <div class="division-name-editor">
+                        <label for="divisionNameInput">Nombre:</label>
+                        <input type="text" id="divisionNameInput" value="Nueva División" maxlength="25">
+                    </div>
+                    <ul id="divisionCompositionList">
+                        <!-- El resumen de la composición se generará por JS aquí -->
+                    </ul>
+                    <div class="summary-details">
+                        <p><strong>Coste Total:</strong> <span id="divisionCostSummary">0 Oro</span></p>
+                        <p><strong>Stats Agregados:</strong> <span id="divisionStatsSummary">A:0 D:0 M:0</span></p>
+                        <p><strong>Regimientos:</strong> <span id="divisionRegimentCount">0 / 20</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer-actions">
+                <button id="cancelUnitManagementBtn" class="button-secondary">Cancelar</button>
+                <button id="finalizeUnitManagementBtn">Finalizar y Colocar</button>
+            </div>
+        </div>
+    </div>
+    <!-- <<< FIN DE LA MODIFICACIÓN >>> -->
 
     <div id="buildStructureModal" class="modal">
         <div class="modal-content">
-            <span class="close-button">×</span> <!-- Este close-button es genérico -->
+            <span class="close-button">×</span>
             <h3>Construir Estructura en (<span id="buildHexCoordsDisplay"></span>)</h3>
             <ul id="availableStructuresList"></ul>
-            <button id="confirmBuildBtn" disabled>Construir Seleccionado</button> <!-- ID CORRECTO -->
+            <button id="confirmBuildBtn">Construir Seleccionado</button>
         </div>
     </div>
 
+    <div id="advancedSplitUnitModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-button" id="closeAdvancedSplitModalBtn">×</span>
+            <h3>Dividir <span id="advancedSplitUnitNameDisplay"></span></h3>
+            <p style="font-size: 0.9em;">Mueve regimientos para formar una nueva unidad.</p>
+            <div class="split-regiment-container">
+                <div class="regiment-column">
+                    <h4>Unidad Original (<span id="originalUnitRegimentCount"></span>)</h4>
+                    <p>Stats: <span id="originalUnitPreviewStats"></span></p>
+                    <p>Salud: <span id="originalUnitPreviewHealth"></span></p>
+                    <ul id="originalUnitRegimentsList" class="regiments-list"></ul>
+                </div>
+                <div class="regiment-column">
+                    <h4>Nueva Unidad (<span id="newUnitRegimentCount"></span>)</h4>
+                    <input type="text" id="newSplitUnitNameInput" value="Nueva División" maxlength="20">
+                    <p>Stats: <span id="newUnitPreviewStats"></span></p>
+                    <p>Salud: <span id="newUnitPreviewHealth"></span></p>
+                    <ul id="newUnitRegimentsList" class="regiments-list"></ul>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="finalizeAdvancedSplitBtn">Confirmar División</button>
+                <button id="cancelAdvancedSplitBtn" style="background-color: #6c757d;">Cancelar</button>
+            </div>
+        </div>
+    </div>
     
     <div id="gameLogContainer" class="game-log-container"></div>
 
     <!-- ====================================================================== -->
+    <!-- ===================== BOTONES FLOTANTES INDIVIDUALES ================= -->
+    <!-- ====================================================================== -->
+    <button id="floatingMenuBtn">☰</button>
+    <button id="floatingTechTreeBtn">💡</button>
+    <button id="floatingEndTurnBtn">►</button>
+    <button id="floatingCreateDivisionBtn" style="display: none;">➕</button> 
+    <button id="floatingConsoleBtn">C</button>
+    <button id="floatingUndoMoveBtn" title="Deshacer Movimiento">↩</button>
+    <button id="floatingReinforceBtn" title="Reforzar Unidad">💪</button>
+    <button id="floatingSplitBtn" title="Dividir Unidad">✂</button>
+    <button id="floatingBuildBtn" title="Construir Estructura">🏗️</button>
+    <button id="floatingPillageBtn" title="Saquear Hexágono">💰</button>
+   <!-- <button id="floatingManageBtn" title="Gestionar División">⚙️</button> -->
+    <button id="floatingWikiBtn" title="Wiki del Juego">i</button>
+    <div id="combatPredictionPanel" style="display: none;"></div>
+
+    <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
-    <!-- Asegurarse de que el orden de carga es CRÍTICO para scripts clásicos -->
     <script src="constants.js"></script>
     <script src="state.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>
     <script src="maps/tactical_britain_coast_map.js"></script>
+    <script src="scenarios/tutorial_scenario.js"></script>
     <script src="scenarios/britain_defense_scenario.js"></script>
-
-    <!-- domElements.js debe cargar ANTES que scripts que usan sus variables -->
     <script src="domElements.js"></script> 
     <script src="utils.js"></script>
-
-    <!-- cheats.js y debugConsole.js ya NO son módulos -->
-    <!-- cheats.js debe ir antes de debugConsole.js para que 'Cheats' sea global cuando debugConsole.js lo use -->
     <script src="cheats.js"></script> 
     <script src="debugConsole.js"></script>
-
-    <!-- El resto de scripts principales -->
     <script src="uiUpdates.js"></script>
     <script src="techScreenUI.js"></script>
     <script src="boardManager.js?v=1"></script>
@@ -257,11 +479,8 @@
     <script src="gameFlow.js"></script>
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>
-    
-    <!-- main.js debe ir al final, para que initDebugConsole() esté definida globalmente cuando main.js la llame -->
     <script src="main.js"></script>
 
-    <!-- La consola de depuración (el div HTML) también debe estar al final del body -->
     <div id="debug-console" style="display: none;">
         <div id="console-output"></div>
         <input type="text" id="console-input" placeholder="Escribe un comando...">

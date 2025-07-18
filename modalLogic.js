@@ -1,686 +1,1342 @@
-// En modalLogic.js
+// modalLogic.js
 
-// Asegúrate de que las variables globales currentDivisionBuilder, hexToBuildOn, selectedStructureToBuild
-// están declaradas al principio del archivo CON 'let' en state.js (o un archivo similar que se cargue antes).
-// Si no están declaradas con `let` o `var` en un archivo global que se carga antes, 
-// podrían causar un problema de "variable no definida" en ciertas ejecuciones.
-
-// currentDivisionBuilder es para el constructor de unidades (divisiones)
-let currentDivisionBuilder = []; 
-// hexToBuildOn es el hexágono seleccionado en el mapa para construir una estructura
-let hexToBuildOn = null; 
-// selectedStructureToBuild es el tipo de estructura elegida en el modal de construcción
-let selectedStructureToBuild = null;
-
-// Función de inicialización de listeners. Solo esta función debería existir en el ámbito global.
 function addModalEventListeners() {
-    // Listeners para cerrar modales (botón 'x' y clic fuera)
+    console.log("modalLogic: addModalEventListeners INICIADO.");
 
-    if (closeTechTreeBtn) { // Asegúrate de que closeTechTreeBtn está definida globalmente en domElements.js
-        closeTechTreeBtn.addEventListener('click', () => {
-            if (typeof closeTechTreeScreen === 'function') { // Asegúrate de que closeTechTreeScreen existe en techScreenUI.js
-                closeTechTreeScreen();
-            } else {
-                console.error("modalLogic: closeTechTreeScreen no está definida para cerrar el árbol tecnológico.");
-                // Fallback directo si la función de cierre no existe:
-                const techTreeModal = document.getElementById('techTreeScreen');
-                if(techTreeModal) techTreeModal.style.display = 'none';
-            }
+    if (typeof domElements === 'undefined' || !domElements.domElementsInitialized) {
+         console.error("modalLogic: CRÍTICO: domElements no está definido o no se ha inicializado completamente.");
+         return;
+    }
+
+    if (domElements.closeTechTreeBtn) {
+        domElements.closeTechTreeBtn.addEventListener('click', (event) => { 
+            event.stopPropagation(); 
+            if (typeof closeTechTreeScreen === "function") closeTechTreeScreen();
+            else console.error("modalLogic: closeTechTreeScreen no definida.");
+        });
+    } else { 
+        console.warn("modalLogic: closeTechTreeBtn no encontrado en domElements."); 
+    }
+
+    if (domElements.closeAdvancedSplitModalBtn) {
+        domElements.closeAdvancedSplitModalBtn.addEventListener('click', (event) => { 
+            event.stopPropagation(); 
+            if (domElements.advancedSplitUnitModal) domElements.advancedSplitUnitModal.style.display = 'none';
+            if (typeof cancelPreparingAction === "function") cancelPreparingAction(); 
+            _unitBeingSplit = null; 
+        });
+    } 
+
+    if (domElements.cancelAdvancedSplitBtn) {
+        domElements.cancelAdvancedSplitBtn.addEventListener('click', (event) => { 
+            event.stopPropagation(); 
+            if (domElements.advancedSplitUnitModal) domElements.advancedSplitUnitModal.style.display = 'none';
+            if (typeof cancelPreparingAction === "function") cancelPreparingAction(); 
+            _unitBeingSplit = null; 
+        });
+    } 
+    
+    if (domElements.finalizeAdvancedSplitBtn) {
+        domElements.finalizeAdvancedSplitBtn.addEventListener('click', (event) => { 
+            event.stopPropagation(); 
+            if (typeof handleFinalizeSplit === "function") handleFinalizeSplit(); 
+            else console.error("modalLogic: La función handleFinalizeSplit no está definida.");
         });
     }
 
     document.querySelectorAll('.modal .close-button').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const modal = e.target.closest('.modal');
+        btn.addEventListener('click', function(event) {
+            event.stopPropagation();
+            const modal = this.closest('.modal');
             if (modal) {
                 modal.style.display = 'none';
-                if (modal === createDivisionModal) currentDivisionBuilder = [];
-                if (modal === buildStructureModal) selectedStructureToBuild = null;
-                if (modal === welcomeHelpModalEl) closeWelcomeHelpModal(); 
+                if (modal.id === 'advancedSplitUnitModal' || modal.id === 'createDivisionModal' || modal.id === 'buildStructureModal') {
+                    if (typeof cancelPreparingAction === "function") cancelPreparingAction();
+                }
             }
         });
     });
 
-    // Listener GLOBAL para cerrar modales al hacer clic fuera de ellos.
     window.addEventListener('click', (event) => {
-        // Si el clic es en un botón que abre un modal (ej. '➕' o '💡') o en un botón de acción dentro de un modal,
-        // NO HACEMOS NADA. Permitimos que esos botones gestionen su propia lógica.
-        // Esto es para evitar que un modal se abra y se cierre instantáneamente.
-        const isModalToggleButtonOrActionBtn = 
-            (floatingCreateDivisionBtn && event.target === floatingCreateDivisionBtn) || 
-            (floatingTechTreeBtn && event.target === floatingTechTreeBtn) ||
-            (startGameBtn && event.target === startGameBtn) ||
-            (startCampaignBtnEl && event.target === startCampaignBtnEl) ||
-            (startSkirmishBtnEl && event.target === startSkirmishBtnEl) ||
-            (startScenarioBattleBtnEl && event.target === startScenarioBattleBtnEl) ||
-            (closeScenarioBriefingBtnEl && event.target === closeScenarioBriefingBtnEl) ||
-            (closeWelcomeHelpBtn && event.target === closeWelcomeHelpBtn) ||
-            (confirmBuildBtn && event.target === confirmBuildBtn) || 
-            (finalizeDivisionBtn && event.target === finalizeDivisionBtn) ||
-            (event.target.tagName === 'BUTTON' && event.target.textContent.includes('Construir Estructura')) ||
-            (event.target.tagName === 'BUTTON' && event.target.textContent.includes('Crear División Aquí'));
-
-        if (isModalToggleButtonOrActionBtn) {
-            return;
-        }
-
-        // Iterar sobre todos los modales que pueden estar abiertos
-        // Asegúrate de que todas estas variables de modal están definidas en domElements.js
-        const modalsToManage = [
-            createDivisionModal, 
-            buildStructureModal, 
-            scenarioBriefingModalEl, 
-            welcomeHelpModalEl, 
-            techTreeScreen // <<== AÑADIR AQUI LA REFERENCIA AL MODAL DEL ARBOL
-        ].filter(m => m !== null && m !== undefined); // Filtrar posibles nulos
-
-        modalsToManage.forEach(modal => {
-            // Si el modal está visible (display: flex) Y el clic no fue dentro de él
-            if (modal.style.display === 'flex' && !modal.contains(event.target)) {
-                modal.style.display = 'none'; // Oculta el modal
-
-                // Lógica específica para limpiar el estado al cerrar
-                if (modal === createDivisionModal) {
-                    currentDivisionBuilder = [];
-                    if (divisionNameInput) divisionNameInput.value = "Nueva División"; 
-                } else if (modal === buildStructureModal) {
-                    selectedStructureToBuild = null;
-                    if (buildHexCoordsDisplay) buildHexCoordsDisplay.textContent = ""; 
-                } else if (modal === welcomeHelpModalEl) {
-                    if (typeof closeWelcomeHelpModal === 'function') closeWelcomeHelpModal();
-                }
-                // Para techTreeScreen y scenarioBriefingModal, modal.style.display = 'none'; es suficiente.
+        if (event.target.matches('.modal')) {
+            event.target.style.display = 'none';
+            if (event.target.id === 'advancedSplitUnitModal' || event.target.id === 'createDivisionModal' || event.target.id === 'buildStructureModal') {
+                if (typeof cancelPreparingAction === "function") cancelPreparingAction();
             }
-        });
+        }
     });
 
-    // Listeners para botones DENTRO de los modales (finalizar acciones)
-    if (finalizeDivisionBtn) finalizeDivisionBtn.addEventListener('click', handleFinalizeDivision);
-    else console.warn("modalLogic: finalizeDivisionBtn no encontrado.");
-    if (confirmBuildBtn) confirmBuildBtn.addEventListener('click', handleConfirmBuildStructure);
-    else console.warn("modalLogic: confirmBuildBtn no encontrado.");
-
-    // Listeners específicos para los botones dentro del modal de bienvenida.
-    if (closeWelcomeHelpBtn) {
-        closeWelcomeHelpBtn.addEventListener('click', closeWelcomeHelpModal);
-    }
-    if (startGameFromHelpBtn) {
-        startGameFromHelpBtn.addEventListener('click', () => {
-            closeWelcomeHelpModal();
-            if (typeof startSkirmishBtnEl !== 'undefined' && startSkirmishBtnEl) {
-                startSkirmishBtnEl.click(); 
-            } else {
-                console.error("No se pudo simular el clic en el botón de Escaramuza. Volviendo al menú principal.");
-                if (typeof showScreen === 'function' && typeof mainMenuScreenEl !== 'undefined') {
-                    showScreen(mainMenuScreenEl); 
-                }
-            }
-        });
-    }
-}
-
-// --- LÓGICA DEL MODAL DE CREACIÓN DE DIVISIÓN ---
-
-/**
- * Abre el modal de creación de división y prepara los datos.
- * Realiza validaciones previas si es necesario según la fase de juego.
- */
-function openCreateDivisionModal() {
-    console.log("%c[DEBUG MODAL - openCreateDivisionModal] Función de apertura y preparación de datos.", "background: #555; color: #fff;");
-
-    // Validaciones para la fase de juego
-    if (gameState.currentPhase === "play") {
-        let canRecruit = gameState.cities.some(city => 
-            city.owner === gameState.currentPlayer && 
-            board[city.r]?.[city.c] && 
-            (board[city.r][city.c].isCapital || board[city.r][city.c].structure === "Fortaleza") && // Corregido c.c a city.c
-            !getUnitOnHex(city.r, city.c) 
-        );
-        if (!canRecruit) {
-            logMessage("Debes controlar una Capital o Fortaleza VACÍA para crear unidades durante la partida.");
-            return; // Si no puede reclutar, no abre el modal.
-        }
-    } else if (gameState.currentPhase !== "deployment") { // No es despliegue ni play
-        logMessage("No se pueden crear unidades en esta fase del juego.");
-        return; // Sale si la fase no permite.
-    }
-    // Para la fase de despliegue, no hay validación `canRecruit` aquí, ya la hace updateActionButtonsBasedOnPhase.
-
-    // Reinicia el constructor de divisiones
-    currentDivisionBuilder = []; 
-    populateAvailableRegimentsForModal(); 
-    updateCreateDivisionModalDisplay(); 
-    if (divisionNameInput) divisionNameInput.value = `División P${gameState.currentPlayer} #${units.filter(u => u.player === gameState.currentPlayer).length + 1}`;
-    
-    // Muestra el modal
-    if (createDivisionModal) {
-        createDivisionModal.style.display = 'flex';
-        console.log(`%c[DEBUG MODAL] Modal de Creación de División visible.`, "color: yellow;");
+    if (domElements.closeUnitManagementModalBtn) {
+        domElements.closeUnitManagementModalBtn.addEventListener('click', closeUnitManagementModalAndCancel);
     } else {
-        console.error("CRÍTICO: Elemento #createDivisionModal no encontrado para abrir.");
+        console.warn("modalLogic: closeUnitManagementModalBtn no encontrado.");
     }
+
+    if (domElements.cancelUnitManagementBtn) {
+        domElements.cancelUnitManagementBtn.addEventListener('click', closeUnitManagementModalAndCancel);
+    } else {
+        console.warn("modalLogic: cancelUnitManagementBtn no encontrado.");
+    }
+
+    if (domElements.finalizeUnitManagementBtn) {
+        domElements.finalizeUnitManagementBtn.addEventListener('click', handleFinalizeDivision);
+    } else {
+        console.warn("modalLogic: finalizeUnitManagementBtn no encontrado.");
+    }
+
+    if (domElements.confirmBuildBtn) {
+        domElements.confirmBuildBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof handleConfirmBuildStructure === 'function') handleConfirmBuildStructure();
+            else console.error("modalLogic: handleConfirmBuildStructure no definida.");
+        });
+    } else console.warn("modalLogic: confirmBuildBtn (Construir Estructura) no encontrado.");
+    
+    if (domElements.closeWelcomeHelpBtn) {
+        domElements.closeWelcomeHelpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof closeWelcomeHelpModal === 'function') closeWelcomeHelpModal();
+            else console.error("modalLogic: closeWelcomeHelpModal no definida.");
+        });
+    } else console.warn("modalLogic: closeWelcomeHelpBtn no encontrado.");
+    
+    if (domElements.startGameFromHelpBtn) {
+        domElements.startGameFromHelpBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (typeof closeWelcomeHelpModal === 'function') closeWelcomeHelpModal();
+            else console.error("modalLogic: closeWelcomeHelpModal no definida para iniciar juego desde ayuda.");
+        });
+    } else console.warn("modalLogic: startGameFromHelpBtn no encontrado.");
+
+    console.log("modalLogic: addModalEventListeners FINALIZADO.");
 }
 
-/**
- * Rellena la lista de regimientos disponibles en el modal de creación de división
- * basándose en las tecnologías investigadas por el jugador actual.
- */
-function populateAvailableRegimentsForModal() {
-    if (!availableRegimentsListEl || typeof REGIMENT_TYPES === 'undefined' || !gameState || !gameState.playerResources || typeof TECHNOLOGY_TREE_DATA === 'undefined') {
-        console.error("populateAvailableRegimentsForModal: Faltan dependencias críticas. No se pueden cargar regimientos.");
-        if(availableRegimentsListEl) availableRegimentsListEl.innerHTML = '<li>Error: Componentes del juego no cargados.</li>';
+function openBuildStructureModal() {
+    // --- Log inicial ---
+    console.log("--- INICIO openBuildStructureModal ---");
+
+    if (!hexToBuildOn) {
+        console.error("  -> ERROR: hexToBuildOn es nulo. Saliendo.");
         return;
     }
+    const { r, c } = hexToBuildOn;
+    const hex = board[r]?.[c];
+    if (!hex) {
+        console.error(`  -> ERROR: No se encontró hexágono en board[${r}][${c}]. Saliendo.`);
+        return;
+    }
+    if (!domElements.buildStructureModal || !domElements.availableStructuresListModalEl) {
+        console.error("  -> ERROR: Elementos del DOM del modal no encontrados. Saliendo.");
+        return;
+    }
+
+    console.log(`  [Paso 1] Preparando modal para hex (${r},${c}). Estructura actual: ${hex.structure || 'Ninguna'}.`);
     
-    availableRegimentsListEl.innerHTML = ''; 
-    const currentPlayer = gameState.currentPlayer;
-    const playerResearchedTechs = gameState.playerResources[currentPlayer]?.researchedTechnologies || [];
+    // Preparar UI
+    domElements.buildHexCoordsDisplay.textContent = `${r},${c}`;
+    domElements.availableStructuresListModalEl.innerHTML = '';
+    selectedStructureToBuild = null;
+    domElements.confirmBuildBtn.disabled = true;
 
-    console.log(`%c[DEBUG REGIMENTS] INICIO: populateAvailableRegimentsForModal para Jugador ${currentPlayer}`, "background: #222; color: #bada55; font-size: 1em;");
-    console.log(`[DEBUG REGIMENTS] Tecnologías investigadas por el jugador ${currentPlayer}:`, playerResearchedTechs);
+    const playerResources = gameState.playerResources[gameState.currentPlayer];
+    const playerTechs = playerResources.researchedTechnologies || [];
+    let buildableOptions = [];
 
-    let unlockedUnitTypesByTech = new Set();
+    console.log("  [Paso 2] Empezando a iterar sobre todas las estructuras en STRUCTURE_TYPES...");
 
-    for (const techId of playerResearchedTechs) {
-        const techData = TECHNOLOGY_TREE_DATA[techId];
-        console.log(`[DEBUG REGIMENTS] Procesando tecnología investigada: ${techId}. Datos:`, techData);
-        if (techData && techData.unlocksUnits && Array.isArray(techData.unlocksUnits)) {
-            techData.unlocksUnits.forEach(unitTypeKey => {
-                unlockedUnitTypesByTech.add(unitTypeKey);
+    for (const structureId in STRUCTURE_TYPES) {
+        const structureInfo = STRUCTURE_TYPES[structureId];
+        console.log(`\n  --- Validando: ${structureId.toUpperCase()} ---`);
+        let isOptionForHex = false;
+        
+        // **VALIDACIÓN DE PROGRESIÓN (MEJORA o NUEVA)**
+        if (hex.structure) {
+            console.log(`    - Hex tiene estructura: "${hex.structure}". ¿Es "${structureId}" la siguiente mejora?`);
+            if (STRUCTURE_TYPES[hex.structure]?.nextUpgrade === structureId) {
+                isOptionForHex = true;
+                console.log(`      -> SÍ. Es una mejora válida.`);
+            } else {
+                console.log(`      -> NO. Se esperaba "${STRUCTURE_TYPES[hex.structure]?.nextUpgrade}", se está evaluando "${structureId}".`);
+            }
+        } else {
+            console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
+            if (structureInfo.buildableOn?.includes(hex.terrain)) {
+                isOptionForHex = true;
+                console.log(`      -> SÍ. El terreno es compatible.`);
+            } else {
+                 console.log(`      -> NO. Terreno no compatible. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
+            }
+        }
+
+        if (!isOptionForHex) {
+            console.log(`    - RESULTADO: ${structureId} NO es una opción para este hex. Saltando a la siguiente.`);
+            continue;
+        }
+
+        // Si es una opción, seguir validando los requisitos...
+        console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
+        let canBuild = true;
+
+        // **VALIDACIÓN DE TECNOLOGÍA**
+        if (structureInfo.requiredTech) {
+             console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
+             if (playerTechs.includes(structureInfo.requiredTech)) {
+                 console.log(`        -> SÍ. Tecnología encontrada.`);
+             } else {
+                 console.log(`        -> NO. Tecnología NO encontrada.`);
+                 canBuild = false;
+             }
+        } else {
+             console.log(`      - No requiere tecnología.`);
+        }
+
+        // **VALIDACIÓN DE COSTE**
+        if (structureInfo.cost && canBuild) {
+            console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
+            for (const resKey in structureInfo.cost) {
+                const amountNeeded = structureInfo.cost[resKey];
+                
+                if (resKey === 'Colono') {
+                    console.log(`        - Comprobando requisito: Colono`);
+                    if (selectedUnit) {
+                        console.log(`          - Unidad seleccionada: SÍ (${selectedUnit.name})`);
+                        if (selectedUnit.isSettler) {
+                             console.log(`          - ¿Es Colono?: SÍ`);
+                             if (selectedUnit.r === r && selectedUnit.c === c) {
+                                 console.log(`          - ¿Está en la casilla correcta?: SÍ`);
+                             } else {
+                                  console.log(`          - ¿Está en la casilla correcta?: NO. Unidad en (${selectedUnit.r},${selectedUnit.c})`);
+                                  canBuild = false;
+                             }
+                        } else {
+                             console.log(`          - ¿Es Colono?: NO`);
+                             canBuild = false;
+                        }
+                    } else {
+                         console.log(`          - Unidad seleccionada: NO`);
+                         canBuild = false;
+                    }
+
+                } else { // Recursos normales
+                    const playerAmount = playerResources[resKey] || 0;
+                     console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
+                    if (playerAmount < amountNeeded) {
+                        console.log(`          -> NO. Fondos insuficientes.`);
+                        canBuild = false;
+                    } else {
+                         console.log(`          -> SÍ. Fondos suficientes.`);
+                    }
+                }
+                if (!canBuild) break; // Si ya falló un requisito del coste, no seguir.
+            }
+        }
+        
+        console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
+
+        if (canBuild) {
+            buildableOptions.push({
+                type: structureId, name: structureInfo.name, sprite: structureInfo.sprite,
+                costStr: Object.entries(structureInfo.cost || {}).map(([k,v]) => `${v} ${k}`).join(', ') || "Gratis"
             });
         }
     }
+    
+    // --- Lógica final para poblar y mostrar el modal (sin cambios) ---
+    console.log(`\n  [Paso 3] Fin de la iteración. Opciones construibles encontradas: ${buildableOptions.length}`);
+    
+    if (buildableOptions.length === 0) {
+        domElements.availableStructuresListModalEl.innerHTML = '<li>No hay mejoras o construcciones disponibles aquí (o no tienes los requisitos).</li>';
+    } else {
+        buildableOptions.forEach(option => {
+            const li = document.createElement('li');
+            li.textContent = `${option.sprite} ${option.name} (Coste: ${option.costStr})`;
+            li.addEventListener('click', () => {
+                domElements.availableStructuresListModalEl.querySelectorAll('li').forEach(item => item.classList.remove('selected-structure'));
+                li.classList.add('selected-structure');
+                selectedStructureToBuild = option.type;
+                domElements.confirmBuildBtn.disabled = false;
+            });
+            domElements.availableStructuresListModalEl.appendChild(li);
+        });
 
-    console.log(`%c[DEBUG REGIMENTS] Tipos de unidades desbloqueadas TOTALES después de procesar techs:`, "background: #222; color: #bada55; font-size: 1em;", Array.from(unlockedUnitTypesByTech));
+        if (buildableOptions.length === 1) {
+            domElements.availableStructuresListModalEl.querySelector('li').click();
+        }
+    }
+
+    console.log("--- FIN openBuildStructureModal (Mostrando modal) ---");
+    domElements.buildStructureModal.style.display = 'flex';
+}
+
+function populateAvailableStructuresForModal(r, c) {
+    if (!domElements.availableStructuresListModalEl) return;
+    domElements.availableStructuresListModalEl.innerHTML = '';
+    selectedStructureToBuild = null;
+    domElements.confirmBuildBtn.disabled = true;
+
+    const hex = board[r]?.[c];
+    if (!hex || hex.isCity) {
+        domElements.availableStructuresListModalEl.innerHTML = '<li>No se puede construir aquí.</li>';
+        return;
+    }
+    
+    const playerResources = gameState.playerResources[gameState.currentPlayer];
+    // ===>>> CORRECCIÓN AQUÍ: Obtenemos las tecnologías investigadas del jugador <<<===
+    const playerTechs = playerResources.researchedTechnologies || [];
+    let structureOffered = false;
+    
+    for (const type in STRUCTURE_TYPES) {
+        const info = STRUCTURE_TYPES[type];
+        let canBuild = true;
+        let reason = "";
+
+        // ===>>> ¡NUEVA VALIDACIÓN DE TECNOLOGÍA! <<<===
+        if (info.requiredTech && !playerTechs.includes(info.requiredTech)) {
+            canBuild = false;
+            reason += `[Requiere ${TECHNOLOGY_TREE_DATA[info.requiredTech]?.name || info.requiredTech}]`;
+        }
+        // ===>>> FIN DE LA NUEVA VALIDACIÓN <<<===
+        
+        if (!info.buildableOn.includes(hex.terrain)) {
+            canBuild = false; reason += "[Terreno Incorrecto]";
+        }
+        if (info.requiresStructure && hex.structure !== info.requiresStructure) {
+            canBuild = false; reason += `[Requiere ${info.requiresStructure}]`;
+        } else if (!info.requiresStructure && hex.structure) {
+            canBuild = false; reason += "[Ya hay Estructura]";
+        }
+
+        let costStr = "";
+        for (const res in info.cost) {
+            costStr += `${info.cost[res]} ${res}, `;
+            if ((playerResources[res] || 0) < info.cost[res]) {
+                if (canBuild) reason += "[Fondos Insuficientes]";
+                canBuild = false;
+            }
+        }
+        costStr = costStr.slice(0, -2);
+        
+        const li = document.createElement('li');
+        li.textContent = `${info.sprite} ${type} (${costStr}) ${reason}`;
+        li.dataset.type = type;
+
+        if (canBuild) {
+            structureOffered = true;
+            li.classList.add('buildable-structure-option');
+            li.onclick = () => {
+                domElements.availableStructuresListModalEl.querySelectorAll('li').forEach(i => i.classList.remove('selected-structure'));
+                li.classList.add('selected-structure');
+                selectedStructureToBuild = type;
+                domElements.confirmBuildBtn.disabled = false;
+            };
+        } else {
+            li.style.cssText = "opacity:0.6; cursor:not-allowed;";
+        }
+        domElements.availableStructuresListModalEl.appendChild(li);
+    }
+    if (!structureOffered) {
+        domElements.availableStructuresListModalEl.innerHTML = '<li>No hay estructuras disponibles.</li>';
+    }
+}
+
+function handleConfirmBuildStructure() {
+    if (!selectedStructureToBuild || !hexToBuildOn) return;
+
+    const data = STRUCTURE_TYPES[selectedStructureToBuild];
+    const { r, c } = hexToBuildOn;
+    const playerRes = gameState.playerResources[gameState.currentPlayer];
+    const unitOnHex = getUnitOnHex(r,c); // Comprobamos si hay una unidad para el coste de Colono
+
+    // Volver a validar los costes justo antes de confirmar
+    for (const res in data.cost) {
+        if (res === 'Colono') {
+            if (!unitOnHex || !unitOnHex.isSettler) {
+                logMessage("Error: El Colono ya no está en la casilla.");
+                return;
+            }
+        } else {
+            if ((playerRes[res] || 0) < data.cost[res]) {
+                logMessage(`Error: Ya no tienes suficientes ${res}.`);
+                return;
+            }
+        }
+    }
+
+    // Deducir costes
+    for (const res in data.cost) {
+        if (res === 'Colono') {
+            // Consumir la unidad de colono
+            handleUnitDestroyed(unitOnHex, null); 
+            logMessage("¡El Colono ha establecido una nueva Aldea!");
+        } else {
+            playerRes[res] -= data.cost[res];
+        }
+    }
+    
+    // Construir la estructura
+    board[r][c].structure = selectedStructureToBuild;
+    logMessage(`${data.name} construido en (${r},${c}).`);
+
+    renderSingleHexVisuals(r, c);
+    UIManager.updatePlayerAndPhaseInfo();
+    domElements.buildStructureModal.style.display = 'none';
+    UIManager.hideContextualPanel();
+}
+
+function showWelcomeHelpModal() {
+    const doNotShow = localStorage.getItem('hexEvolvedDoNotShowHelp');
+    if (doNotShow === 'true') {
+        if (typeof showScreen === "function") showScreen(domElements.mainMenuScreenEl);
+        return;
+    }
+    if (!domElements.welcomeHelpModalEl || !TUTORIAL_MESSAGES) {
+        if (typeof showScreen === "function") showScreen(domElements.mainMenuScreenEl);
+        return;
+    }
+    domElements.welcomeHelpTitleEl.textContent = TUTORIAL_MESSAGES.title;
+    domElements.welcomeHelpSectionsEl.innerHTML = TUTORIAL_MESSAGES.sections.map(s => `<h3>${s.heading}</h3><p>${s.content}</p>`).join('');
+    domElements.welcomeHelpFooterEl.textContent = TUTORIAL_MESSAGES.footer;
+    domElements.welcomeHelpModalEl.style.display = 'flex';
+}
+
+function closeWelcomeHelpModal() {
+    if (domElements.welcomeHelpModalEl) {
+        domElements.welcomeHelpModalEl.style.display = 'none';
+        if (domElements.doNotShowAgainCheckbox.checked) {
+            localStorage.setItem('hexEvolvedDoNotShowHelp', 'true');
+        }
+        if (typeof showScreen === "function") showScreen(domElements.mainMenuScreenEl);
+    }
+}
+
+function openAdvancedSplitUnitModal(unit) {
+    if (!domElements.advancedSplitUnitModal || !unit) {
+        if (UIManager) UIManager.hideContextualPanel();
+        return;
+    }
+    _unitBeingSplit = unit;
+    
+    // Se crea un nuevo objeto que es una copia de todas las propiedades del regimiento original.
+    _tempOriginalRegiments = (unit.regiments || []).map(reg => {
+        return { ...reg }; 
+    });
+
+    _tempNewUnitRegiments = [];
+
+    if (domElements.advancedSplitUnitNameDisplay) domElements.advancedSplitUnitNameDisplay.textContent = unit.name;
+    updateAdvancedSplitModalDisplay();
+    domElements.advancedSplitUnitModal.style.display = 'flex';
+}
+
+function moveRegimentToNewUnit(index) {
+    if (index >= 0 && index < _tempOriginalRegiments.length) {
+        if (_tempNewUnitRegiments.length >= MAX_REGIMENTS_PER_DIVISION) return;
+        _tempNewUnitRegiments.push(_tempOriginalRegiments.splice(index, 1)[0]);
+        updateAdvancedSplitModalDisplay();
+    }
+}
+
+function moveRegimentToOriginalUnit(index) {
+    if (index >= 0 && index < _tempNewUnitRegiments.length) {
+        if (_tempOriginalRegiments.length >= MAX_REGIMENTS_PER_DIVISION) return;
+        _tempOriginalRegiments.push(_tempNewUnitRegiments.splice(index, 1)[0]);
+        updateAdvancedSplitModalDisplay();
+    }
+}
+
+function updateAdvancedSplitModalDisplay() {
+    if (!domElements.originalUnitRegimentsList || !domElements.newUnitRegimentsList) return;
+    
+    // Calcula los stats para ambas divisiones (original y nueva)
+    let originalStats = calculateRegimentStats(_tempOriginalRegiments, _unitBeingSplit.player);
+    let newStats = calculateRegimentStats(_tempNewUnitRegiments, _unitBeingSplit.player);
+    
+    // --- Panel de la Unidad Original ---
+    domElements.originalUnitRegimentCount.textContent = `(${_tempOriginalRegiments.length})`; // Solo el contador
+    domElements.originalUnitPreviewStats.textContent = `A/D: ${originalStats.attack}/${originalStats.defense}`; // Stats A/D
+    domElements.originalUnitPreviewHealth.textContent = `Salud: ${originalStats.maxHealth}`; // Salud
+    
+    domElements.originalUnitRegimentsList.innerHTML = '';
+    _tempOriginalRegiments.forEach((reg, i) => {
+        const li = document.createElement('li');
+        // <<== CAMBIO: Solo se muestra el sprite y la flecha. Se añade un 'title' para el tooltip. ==>>
+        li.innerHTML = `${reg.sprite} <span class="regiment-actions" title="Mover">➡️</span>`;
+        li.title = `${reg.type} (Salud: ${reg.health})`; // Tooltip con nombre y salud
+        li.onclick = () => moveRegimentToNewUnit(i);
+        domElements.originalUnitRegimentsList.appendChild(li);
+    });
+
+    // --- Panel de la Nueva Unidad ---
+    domElements.newUnitRegimentCount.textContent = `(${_tempNewUnitRegiments.length})`;
+    domElements.newUnitPreviewStats.textContent = `A/D: ${newStats.attack}/${newStats.defense}`;
+    domElements.newUnitPreviewHealth.textContent = `Salud: ${newStats.maxHealth}`;
+
+    domElements.newUnitRegimentsList.innerHTML = '';
+    _tempNewUnitRegiments.forEach((reg, i) => {
+        const li = document.createElement('li');
+        // <<== CAMBIO: Solo se muestra la flecha y el sprite. Se añade un 'title' para el tooltip. ==>>
+        li.innerHTML = `<span class="regiment-actions" title="Devolver">⬅️</span> ${reg.sprite}`;
+        li.title = `${reg.type} (Salud: ${reg.health})`;
+        li.onclick = () => moveRegimentToOriginalUnit(i);
+        domElements.newUnitRegimentsList.appendChild(li);
+    });
+
+    // Habilita/deshabilita el botón de finalizar
+    if (domElements.finalizeAdvancedSplitBtn) {
+        domElements.finalizeAdvancedSplitBtn.disabled = _tempOriginalRegiments.length === 0 || _tempNewUnitRegiments.length === 0;
+    }
+}
+
+// ========================================================================
+// === LÓGICA PARA EL NUEVO MODAL DE GESTIÓN DE UNIDADES ==================
+// ========================================================================
+
+// Abre el nuevo modal y prepara su estado inicial.
+function openUnitManagementModal() {
+    if (!domElements?.unitManagementModal) return;
+
+    currentDivisionBuilder = []; 
+    
+    const title = (placementMode.recruitHex) ? "Reclutar Nueva División" : "Preparar División para Despliegue";
+    domElements.unitManagementTitle.textContent = title;
+    domElements.divisionNameInput.value = `División ${units.filter(u => u.player === gameState.currentPlayer).length + 1}`;
+
+    populateUnitManagementCategories(); // Rellena las pestañas de categorías
+    updateDivisionSummary(); // Actualiza el panel de resumen (que estará vacío al principio)
+    
+    domElements.unitManagementModal.style.display = 'flex';
+}
+
+// Cierra el modal y cancela la acción de creación.
+function closeUnitManagementModalAndCancel() {
+    if (domElements.unitManagementModal) {
+        domElements.unitManagementModal.style.display = 'none';
+    }
+    placementMode.active = false;
+    placementMode.unitData = null;
+    placementMode.recruitHex = null;
+}
+
+// Crea las pestañas de categorías (Infantería, Caballería, etc.).
+function populateUnitManagementCategories() {
+    if (!domElements.unitCategoryTabs) return;
+    domElements.unitCategoryTabs.innerHTML = '';
+    const categories = [...new Set(Object.values(REGIMENT_TYPES).map(reg => reg.category))];
+
+    categories.forEach((category, index) => {
+        const tabBtn = document.createElement('button');
+        tabBtn.className = 'tab-btn';
+        tabBtn.dataset.category = category;
+        tabBtn.textContent = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        
+        tabBtn.addEventListener('click', () => {
+            document.querySelectorAll('.category-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+            tabBtn.classList.add('active');
+            populateAvailableUnitsForCategory(category);
+        });
+
+        if (index === 0) {
+            tabBtn.classList.add('active');
+            populateAvailableUnitsForCategory(category); // Muestra la primera categoría por defecto
+        }
+        domElements.unitCategoryTabs.appendChild(tabBtn);
+    });
+}
+
+// Muestra las unidades disponibles para la categoría seleccionada, validando tecnología.
+function populateAvailableUnitsForCategory(category) {
+    if (!domElements.availableUnitsList) return;
+    domElements.availableUnitsList.innerHTML = '';
+
+    const playerTechs = gameState.playerResources[gameState.currentPlayer]?.researchedTechnologies || [];
+    const unlockedUnits = new Set();
+    playerTechs.forEach(techId => {
+        const techData = TECHNOLOGY_TREE_DATA[techId];
+        if (techData?.unlocksUnits) {
+            techData.unlocksUnits.forEach(unitKey => unlockedUnits.add(unitKey));
+        }
+    });
+
+    let unitsInCategory = 0;
+    for (const type in REGIMENT_TYPES) {
+        const regiment = REGIMENT_TYPES[type];
+        if (regiment.category === category) {
+            if (unlockedUnits.has(type)) {
+                unitsInCategory++;
+                const unitEntry = document.createElement('div');
+                unitEntry.className = 'unit-entry';
+                unitEntry.innerHTML = `<span>${regiment.sprite} ${type}</span><div class="quantity-controls" data-type="${type}"><button class="quantity-btn minus">-</button><input type="number" class="quantity-input" value="0" min="0" readonly><button class="quantity-btn plus">+</button></div>`;
+                
+                const controls = unitEntry.querySelector('.quantity-controls');
+                const input = controls.querySelector('.quantity-input');
+                controls.querySelector('.plus').addEventListener('click', () => {
+                    addRegimentToBuilder(type);
+                    input.value = currentDivisionBuilder.filter(r => r.type === type).length;
+                });
+                controls.querySelector('.minus').addEventListener('click', () => {
+                    removeRegimentFromBuilder(type);
+                    input.value = currentDivisionBuilder.filter(r => r.type === type).length;
+                });
+                domElements.availableUnitsList.appendChild(unitEntry);
+            }
+        }
+    }
+    if (unitsInCategory === 0) {
+        domElements.availableUnitsList.innerHTML = '<p style="text-align:center; padding:10px;">No hay unidades disponibles.</p>';
+    }
+}
+
+// Añade un regimiento a la división en construcción.
+function addRegimentToBuilder(type) {
+    if (currentDivisionBuilder.length >= MAX_REGIMENTS_PER_DIVISION) {
+        logMessage(`Una división no puede tener más de ${MAX_REGIMENTS_PER_DIVISION} regimientos.`);
+        return;
+    }
+    if (REGIMENT_TYPES[type]) {
+        // En lugar de una copia superficial, creamos un clon profundo y completo.
+        // Cada regimiento será ahora un objeto totalmente independiente.
+        const newRegiment = JSON.parse(JSON.stringify(REGIMENT_TYPES[type]));
+        newRegiment.type = type; // Añadimos la propiedad 'type' que se pierde en la clonación del objeto anidado
+        currentDivisionBuilder.push(newRegiment);
+        
+        updateDivisionSummary();
+    }
+}
+
+// Quita el último regimiento del tipo especificado.
+function removeRegimentFromBuilder(type) {
+    const indexToRemove = currentDivisionBuilder.findLastIndex(reg => reg.type === type);
+    if (indexToRemove > -1) {
+        currentDivisionBuilder.splice(indexToRemove, 1);
+        updateDivisionSummary();
+    }
+}
+
+// Actualiza el panel de resumen de la derecha (costes, stats, etc.).
+function updateDivisionSummary() {
+    if (!domElements.divisionCompositionList) return;
+    
+    // Actualiza la lista de regimientos
+    const compositionCounter = {};
+    currentDivisionBuilder.forEach(reg => {
+        compositionCounter[reg.type] = (compositionCounter[reg.type] || 0) + 1;
+    });
+    domElements.divisionCompositionList.innerHTML = '';
+    for (const type in compositionCounter) {
+        const li = document.createElement('li');
+        li.textContent = `${compositionCounter[type]} x ${REGIMENT_TYPES[type].sprite} ${type}`;
+        domElements.divisionCompositionList.appendChild(li);
+    }
+    
+    // Calcula costes y stats
+    let totalCost = {};
+    currentDivisionBuilder.forEach(reg => {
+        for (const res in reg.cost) {
+            if (res !== 'upkeep') totalCost[res] = (totalCost[res] || 0) + reg.cost[res];
+        }
+    });
+    const stats = calculateRegimentStats(currentDivisionBuilder, gameState.currentPlayer);
+    
+    // Muestra la información
+    domElements.divisionCostSummary.textContent = `${totalCost.oro || 0} Oro, ${totalCost.puntosReclutamiento || 0} PR`;
+    domElements.divisionStatsSummary.textContent = `A:${stats.attack} D:${stats.defense} M:${stats.movement}`;
+    domElements.divisionRegimentCount.textContent = `${currentDivisionBuilder.length} / ${MAX_REGIMENTS_PER_DIVISION}`;
+    
+    // Habilita/deshabilita el botón final
+    const playerCanAfford = (gameState.playerResources[gameState.currentPlayer].oro >= (totalCost.oro || 0)) && (gameState.playerResources[gameState.currentPlayer].puntosReclutamiento >= (totalCost.puntosReclutamiento || 0));
+    domElements.finalizeUnitManagementBtn.disabled = currentDivisionBuilder.length === 0 || !playerCanAfford;
+}
+
+function handleFinalizeDivision() {
+    if (currentDivisionBuilder.length === 0) {
+        logMessage("Una división debe tener al menos un regimiento.");
+        return;
+    }
+
+    // 1. Calcular el coste total de la división
+    const finalCost = {};
+    currentDivisionBuilder.forEach(reg => {
+        for (const res in reg.cost) {
+            if (res !== 'upkeep') {
+                finalCost[res] = (finalCost[res] || 0) + reg.cost[res];
+            }
+        }
+    });
+
+    // 2. Validar que el jugador puede pagar
+    const playerRes = gameState.playerResources[gameState.currentPlayer];
+    for (const res in finalCost) {
+        if ((playerRes[res] || 0) < finalCost[res]) {
+            logMessage(`No tienes suficiente ${res} para crear esta división.`);
+            return;
+        }
+    }
+    
+    // 3. Deducir los recursos si puede pagar
+    for (const res in finalCost) {
+        playerRes[res] -= finalCost[res];
+    }
+    
+    // 4. Calcular los stats finales de la nueva división
+    const stats = calculateRegimentStats(currentDivisionBuilder, gameState.currentPlayer);
+
+    // 5. Crear el objeto de la nueva unidad CON TODAS SUS PROPIEDADES INICIALES
+    const newDivisionDataObject = {
+        id: `u${unitIdCounter++}`,
+        player: gameState.currentPlayer,
+        name: domElements.divisionNameInput.value.trim() || "Nueva División",
+        // <<== MODIFICACIÓN LÓGICA NECESARIA: Asignamos un ID único a cada regimiento para poder rastrearlo ==>>
+        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)).map((reg, index) => ({
+            ...reg,
+            // Asignamos el ID único aquí. Es crucial para el diagnóstico.
+            id: `r${Date.now()}${index}`
+        })),
+        
+        // Stats calculados
+        attack: stats.attack,
+        defense: stats.defense,
+        maxHealth: stats.maxHealth,
+        currentHealth: stats.maxHealth, // Nace con la salud al máximo
+        movement: stats.movement,
+        currentMovement: stats.movement, // Movimiento completo al nacer
+        visionRange: stats.visionRange,
+        attackRange: stats.attackRange,
+        initiative: stats.initiative,
+        sprite: stats.sprite,
+        
+        // Propiedades de estado y experiencia
+        level: 0,
+        experience: 0,
+        maxExperience: 500, // O el valor que tuvieras en constants.js
+        morale: 50,         // <-- LA LÍNEA CLAVE QUE FALTABA
+        maxMorale: 125,      // <-- AÑADIDO PARA CONSISTENCIA
+        isDemoralized: false,// <-- AÑADIDO PARA CONSISTENCIA
+        
+        // Propiedades de acción y posición
+        r: -1, 
+        c: -1,
+        element: null,
+        hasMoved: gameState.currentPhase === 'play',    // Si se crea en juego, no puede actuar
+        hasAttacked: gameState.currentPhase === 'play', // Si se crea en juego, no puede actuar
+        hasRetaliatedThisTurn: false,
+        
+        // Otras propiedades
+        cost: finalCost,
+        isSettler: currentDivisionBuilder.some(reg => reg.isSettler === true),
+        lastMove: null // Inicializar lastMove como nulo
+    };
+    
+    // 6. Activar el modo de colocación
+    placementMode.active = true;
+    placementMode.unitData = newDivisionDataObject;
+    
+    // 7. Ocultar el modal
+    if (domElements.unitManagementModal) {
+        domElements.unitManagementModal.style.display = 'none';
+    }
+    
+    logMessage(`División "${newDivisionDataObject.name}" lista. Haz clic para colocarla.`);
+    if (UIManager) UIManager.updatePlayerAndPhaseInfo();
+}
+
+function handleFinalizeSplit() {
+    if (!_unitBeingSplit || _tempOriginalRegiments.length === 0 || _tempNewUnitRegiments.length === 0) {
+        logMessage("División inválida: ambas unidades deben tener regimientos.");
+        return;
+    }
+    
+    if (domElements.advancedSplitUnitModal) domElements.advancedSplitUnitModal.style.display = 'none';
+
+    gameState.preparingAction = { 
+        type: 'split_unit', 
+        unitId: _unitBeingSplit.id, 
+        originalR: _unitBeingSplit.r, 
+        originalC: _unitBeingSplit.c,
+        newUnitRegiments: JSON.parse(JSON.stringify(_tempNewUnitRegiments)),
+        remainingOriginalRegiments: JSON.parse(JSON.stringify(_tempOriginalRegiments))
+    };
+
+    if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleSplitHexes) {
+        UIManager.highlightPossibleSplitHexes(_unitBeingSplit);
+    } 
+    if (typeof logMessage === "function") logMessage(`Haz clic en un hex adyacente para colocar la nueva unidad.`);
+    
+    _unitBeingSplit = null;
+    _tempOriginalRegiments = [];
+    _tempNewUnitRegiments = [];
+}
+
+/**
+ * Abre el modal de detalles de la división y lo rellena con la información de los regimientos.
+ * @param {object} unit - La unidad seleccionada para mostrar.
+ */
+function openUnitDetailModal(unit) {
+    if (!domElements.unitDetailModal || !unit) return;
+    
+    domElements.unitDetailTitle.textContent = `Gestión de: ${unit.name}`;
+    populateUnitDetailList(unit); // Llama a la función que crea la lista
+    domElements.unitDetailModal.style.display = 'flex';
+}
+
+/**
+ * Rellena la lista de regimientos en el modal de detalles.
+ * @param {object} unit - La unidad cuyos regimientos se van a mostrar.
+ */
+function populateUnitDetailList(unit) {
+    if (!unit) return;
+
+    // --- Rellenar Stats Principales de la División ---
+    const totalHealthPercentage = (unit.currentHealth / unit.maxHealth) * 100;
+    domElements.unitDetailTotalHealthBar.style.width = `${totalHealthPercentage}%`;
+    domElements.unitDetailTotalHealthText.textContent = `${unit.currentHealth} / ${unit.maxHealth}`;
+    
+    domElements.unitDetailCombatStats.textContent = `A/D: ${unit.attack}/${unit.defense}`;
+    domElements.unitDetailMovementStats.textContent = `Mov: ${unit.currentMovement || unit.movement}`;
+    domElements.unitDetailVisionStats.textContent = `Vis: ${unit.visionRange}`;
+    
+    // Moral
+    let moralStatus = "Normal", moralColor = "#f0f0f0";
+    if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
+    else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
+    else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
+    domElements.unitDetailMorale.innerHTML = `Moral: <strong style="color:${moralColor};">${unit.morale}/${unit.maxMorale || 125} (${moralStatus})</strong>`;
+
+    // Experiencia
+    const levelData = XP_LEVELS[unit.level || 0];
+    if (levelData) {
+        const nextLevelXP = levelData.nextLevelXp;
+        let xpText = `XP: ${levelData.currentLevelName}`;
+        if (nextLevelXP !== 'Max') {
+            xpText += ` (${unit.experience || 0} / ${nextLevelXP})`;
+        }
+        domElements.unitDetailXP.textContent = xpText;
+    }
+
+
+    // --- Rellenar la Lista de Regimientos ---
+    const listEl = domElements.unitDetailRegimentList;
+    listEl.innerHTML = ''; // Limpiar la lista
+
+    if (!unit.regiments || unit.regiments.length === 0) {
+        listEl.innerHTML = '<li>No hay regimientos en esta división.</li>';
+        return;
+    }
+    
+    // <<== MODIFICACIÓN: Comprobamos si la unidad es del jugador actual para el "modo consulta" ==>>
+    const isOwnUnit = unit.player === gameState.currentPlayer;
+
+    unit.regiments.forEach(reg => {
+        const regData = REGIMENT_TYPES[reg.type];
+        if (!regData) return; 
+
+        const maxHealth = regData.health;
+        const currentHealth = reg.health;
+        const healthPercentage = (currentHealth / maxHealth) * 100;
+        
+        const li = document.createElement('li');
+        li.className = 'regiment-detail-item';
+
+        let innerHTML = `
+            <span class="regiment-icon">${regData.sprite}</span>
+            <span class="regiment-name">${getAbbreviatedName(reg.type)}</span>
+            <div class="regiment-health-bar-container">
+                <div class="regiment-health-bar" style="width: ${healthPercentage}%;"></div>
+            </div>
+            <span class="regiment-health-text">${currentHealth}/${maxHealth}</span>
+        `;
+        
+        // <<== MODIFICACIÓN: El botón de reforzar solo se muestra si la unidad es propia y cumple condiciones ==>>
+        if (isOwnUnit && currentHealth < maxHealth && isHexSuppliedForReinforce(unit.r, unit.c, unit.player)) {
+            innerHTML += `<button class="reinforce-regiment-btn" title="Reforzar este regimiento (Coste en oro)">➕</button>`;
+        } else {
+             // Para unidades enemigas o unidades propias sanas/sin suministro, mostramos un hueco para mantener el alineado.
+             innerHTML += `<div class="reinforce-placeholder"></div>`;
+        }
+        
+        li.innerHTML = innerHTML;
+
+        // Añadir el listener al botón de reforzar solo si lo creamos
+        const reinforceBtn = li.querySelector('.reinforce-regiment-btn');
+        if (reinforceBtn) {
+            reinforceBtn.onclick = (e) => {
+                e.stopPropagation();
+                handleReinforceRegiment(unit, reg);
+            };
+        }
+        
+        listEl.appendChild(li);
+    });
+    
+    // <<== LÓGICA AÑADIDA PARA EL BOTÓN DE DISOLVER ==>>
+    if (domElements.disbandUnitBtn) {
+        const isOwnUnit = unit.player === gameState.currentPlayer;
+        const hex = board[unit.r]?.[unit.c];
+        // Se puede disolver si la unidad es propia y está en territorio propio
+        const canDisband = isOwnUnit && hex && hex.owner === unit.player;
+        
+        domElements.disbandUnitBtn.style.display = isOwnUnit ? 'inline-block' : 'none'; // Mostrar solo para unidades propias
+        domElements.disbandUnitBtn.disabled = !canDisband; // Deshabilitar si no está en territorio propio
+        domElements.disbandUnitBtn.title = canDisband ? "Disuelve esta unidad para recuperar recursos" : "La unidad debe estar en territorio propio para ser disuelta";
+    }
+}
+
+/**
+ * Gestiona la acción de reforzar un único regimiento.
+ * @param {object} division - La división a la que pertenece el regimiento.
+ * @param {object} regiment - El regimiento específico a reforzar.
+ */
+function handleReinforceRegiment(division, regiment) {
+    const regData = REGIMENT_TYPES[regiment.type];
+    const healthToRestore = regData.health - regiment.health;
+    if (healthToRestore <= 0) return;
+
+    // <<== NUEVO CÁLCULO DE COSTE: más realista. ==>>
+    // Costo para reforzar = (coste total del regimiento / salud total) * puntos de vida a curar * factor de sobrecoste
+    const reinforceCostMultiplier = 1.5; // Reforzar es un 50% más caro que reclutar.
+    const baseRegCost = regData.cost.oro || 0;
+    const costPerHp = baseRegCost / regData.health;
+    const totalCost = Math.ceil(costPerHp * healthToRestore * reinforceCostMultiplier);
+    
+    const playerRes = gameState.playerResources[division.player];
+    if (playerRes.oro < totalCost) {
+        logMessage(`Oro insuficiente. Necesitas ${totalCost} para reforzar.`, 'error');
+        return;
+    }
+
+    // Usamos el `confirm` de siempre para la interacción
+    if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+        playerRes.oro -= totalCost;
+        regiment.health = regData.health; // Restaurar salud del regimiento
+        
+        recalculateUnitHealth(division); // Actualizar la salud total de la división
+
+        logMessage(`${regiment.type} en ${division.name} ha sido reforzado.`);
+        
+        // Volvemos a poblar el modal para reflejar los cambios inmediatamente
+        populateUnitDetailList(division); 
+
+        // Actualizar la UI del juego principal
+        if (UIManager) {
+            UIManager.updatePlayerAndPhaseInfo();
+            UIManager.updateUnitStrengthDisplay(division);
+        }
+    }
+}
+
+// Añadir el listener para el botón de cerrar del nuevo modal
+document.addEventListener('DOMContentLoaded', () => {
+    if(domElements.closeUnitDetailModalBtn) {
+        domElements.closeUnitDetailModalBtn.addEventListener('click', () => {
+            if(domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+        });
+    }
+});
+
+// ======================================================================
+// =================== LÓGICA PARA LA WIKI INTERNA DEL JUEGO ==================
+// ======================================================================
+
+// --- FUNCIÓN PRINCIPAL PARA ABRIR Y GESTIONAR LA WIKI ---
+
+/**
+ * Abre el modal de la Wiki y rellena su contenido dinámicamente.
+ */
+function openWikiModal() {
+    if (!domElements.wikiModal) return;
+
+    // Rellenar cada pestaña con su contenido
+    populateWikiRegimentsTab();
+    populateWikiStructuresTab();
+    populateWikiTechTab();
+    populateWikiConceptsTab();
+    
+    // Configurar los listeners de las pestañas
+    const tabs = document.querySelectorAll('.wiki-tab-btn');
+    const pages = document.querySelectorAll('.wiki-page');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Desactivar todas las pestañas y páginas
+            tabs.forEach(t => t.classList.remove('active'));
+            pages.forEach(p => p.classList.remove('active'));
+            
+            // Activar la pestaña y página seleccionada
+            tab.classList.add('active');
+            const pageId = `wiki-tab-${tab.dataset.tab}`;
+            const pageToShow = document.getElementById(pageId);
+            if (pageToShow) {
+                pageToShow.classList.add('active');
+            }
+        });
+    });
+
+    // Forzar clic en la primera pestaña para mostrar su contenido por defecto
+    document.querySelector('.wiki-tab-btn[data-tab="regimientos"]').click();
+
+    // Mostrar el modal
+    domElements.wikiModal.style.display = 'flex';
+}
+
+// --- FUNCIONES AUXILIARES PARA RELLENAR CADA PESTAÑA ---
+
+/**
+ * Rellena la tabla de regimientos en la Wiki.
+ */
+function populateWikiRegimentsTab() {
+    const table = document.getElementById('wikiRegimentsTable');
+    if (!table) return;
+
+    let html = `
+        <thead>
+            <tr>
+                <th>Icono</th>
+                <th>Nombre</th>
+                <th>Coste</th>
+                <th>Upkeep</th>
+                <th>Ataque</th>
+                <th>Defensa</th>
+                <th>Salud</th>
+                <th>Mov.</th>
+                <th>Rango</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+
+    // Función auxiliar para puntuar con estrellas
+    const getStars = (value, max, higherIsBetter = true) => {
+        const score = (value / max) * 5;
+        const fullStars = Math.floor(score);
+        let stars = '⭐'.repeat(fullStars);
+        if (score - fullStars > 0.5) stars += '✨'; // Media estrella
+        return `<span class="wiki-stars" title="${value}">${stars}</span>`;
+    };
+
+    // Obtenemos los valores máximos para normalizar la puntuación de estrellas
+    const maxAttack = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.attack));
+    const maxDefense = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.defense));
+    const maxHealth = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.health));
+    const maxMovement = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.movement));
+    const maxRange = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.attackRange));
+
+    for (const type in REGIMENT_TYPES) {
+        const reg = REGIMENT_TYPES[type];
+        html += `
+            <tr>
+                <td class="wiki-regiment-icon">${reg.sprite}</td>
+                <td>${type}</td>
+                <td>${reg.cost.oro || 0} Oro, ${reg.cost.puntosReclutamiento || 0} PR</td>
+                <td>${reg.cost.upkeep || 0} Oro</td>
+                <td>${getStars(reg.attack, maxAttack)}</td>
+                <td>${getStars(reg.defense, maxDefense)}</td>
+                <td>${getStars(reg.health, maxHealth)}</td>
+                <td>${getStars(reg.movement, maxMovement)}</td>
+                <td>${getStars(reg.attackRange, maxRange)}</td>
+            </tr>
+        `;
+    }
+
+    html += `</tbody>`;
+    table.innerHTML = html;
+}
+
+/**
+ * Rellena las tablas de estructuras e ingresos en la Wiki.
+ */
+function populateWikiStructuresTab() {
+    const structuresTable = document.getElementById('wikiStructuresTable');
+    const incomeTable = document.getElementById('wikiIncomeTable');
+    if (!structuresTable || !incomeTable) return;
+
+    // Rellenar tabla de estructuras
+    let sHtml = `
+        <thead>
+            <tr>
+                <th>Icono</th>
+                <th>Nombre</th>
+                <th>Coste</th>
+                <th>Efectos</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+    for(const type in STRUCTURE_TYPES){
+        const s = STRUCTURE_TYPES[type];
+        const costStr = Object.entries(s.cost).map(([res, val]) => `${val} ${res}`).join(', ');
+        sHtml += `
+            <tr>
+                <td class="wiki-regiment-icon">${s.sprite}</td>
+                <td>${s.name}</td>
+                <td>${costStr}</td>
+                <td>${s.defenseBonus ? `+${s.defenseBonus} Defensa. ` : ''}${s.allowsRecruitment ? 'Permite reclutar. ' : ''}</td>
+            </tr>
+        `;
+    }
+    sHtml += `</tbody>`;
+    structuresTable.innerHTML = sHtml;
+
+    // Rellenar tabla de ingresos
+    let iHtml = `
+        <thead>
+            <tr>
+                <th>Fuente</th>
+                <th>Ingreso Base de Oro</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Hexágono Normal</td><td>${GOLD_INCOME.PER_HEX}</td></tr>
+            <tr><td>Camino</td><td>${GOLD_INCOME.PER_ROAD}</td></tr>
+            <tr><td>Fortaleza</td><td>${GOLD_INCOME.PER_FORT}</td></tr>
+            <tr><td>Ciudad</td><td>${GOLD_INCOME.PER_CITY}</td></tr>
+            <tr><td>Capital</td><td>${GOLD_INCOME.PER_CAPITAL}</td></tr>
+        </tbody>
+    `;
+    incomeTable.innerHTML = iHtml;
+}
+
+/**
+ * Rellena la tabla de tecnologías en la Wiki.
+ */
+function populateWikiTechTab() {
+    const table = document.getElementById('wikiTechTable');
+    if (!table) return;
+
+     let html = `
+        <thead>
+            <tr>
+                <th>Icono</th>
+                <th>Nombre</th>
+                <th>Coste (Inv.)</th>
+                <th>Desbloquea</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+    for(const id in TECHNOLOGY_TREE_DATA){
+        const t = TECHNOLOGY_TREE_DATA[id];
+        const unlocks = [...(t.unlocksUnits || []), ...(t.unlocksStructures || [])].join(', ');
+        html += `
+            <tr>
+                <td class="wiki-regiment-icon">${t.sprite}</td>
+                <td>${t.name}</td>
+                <td>${t.cost.researchPoints}</td>
+                <td>${unlocks || '-'}</td>
+            </tr>
+        `;
+    }
+    html += `</tbody>`;
+    table.innerHTML = html;
+}
+
+/**
+ * Rellena la pestaña de conceptos clave.
+ */
+function populateWikiConceptsTab() {
+    const container = document.getElementById('wikiConceptsContent');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div>
+            <h4>Victoria y Derrota</h4>
+            <p>La victoria se logra de dos maneras: <strong>conquistando la capital del enemigo</strong> o <strong>destruyendo todas sus divisiones</strong> en el campo de batalla. ¡Protege tu propia capital y tus unidades a toda costa!</p>
+        </div>
+        <hr>
+        <div>
+            <h4>Economía y Territorio</h4>
+            <p><strong>Estabilidad (0-5):</strong> Representa el control y orden. Es el modificador más importante de tus ingresos. Un territorio con Estabilidad 5 produce un <strong>+50% de recursos</strong>, mientras que uno con Estabilidad 1 solo produce un 25%.</p>
+            <p><strong>Nacionalidad (0-5):</strong> Representa la lealtad de la población. También multiplica tus ingresos. Para que la Nacionalidad de un territorio aumente, su Estabilidad debe ser de <strong>al menos 3</strong>. La conquista de territorios es un proceso lento que requiere pacificar (subir Estabilidad) y luego asimilar (bajar Nacionalidad enemiga).</p>
+            <p><strong>Mantenimiento (Upkeep):</strong> ¡Tu mayor gasto! Cada regimiento de tu ejército cuesta Oro por turno. Un ejército grande sin una economía fuerte llevará rápidamente a la bancarrota y a una pérdida masiva de moral en tus tropas.</p>
+        </div>
+        <hr>
+        <div>
+            <h4>Logística y Suministro</h4>
+             <p><strong>Suministro:</strong> Las unidades necesitan estar conectadas a tu capital o a una fortaleza a través de una cadena ininterrumpida de territorios propios. Una unidad sin suministro <strong>pierde 10 de moral por turno</strong>, sufre <strong>daño de atrición</strong> y <strong>no puede ser reforzada</strong>.</p>
+             <p><strong>Refuerzos y Disolución:</strong> Reforzar regimientos dañados cuesta un 150% de su valor original, ¡es caro perder hombres! Solo puedes reforzar en o adyacente a una ciudad/fortaleza. Disolver una unidad en territorio propio te devuelve el 50% de su coste.</p>
+        </div>
+        <hr>
+        <div>
+            <h4>Tácticas de Combate</h4>
+            <p><strong>Moral (0-125):</strong> Es la voluntad de lucha. Tropas con moral alta luchan mejor. La moral baja si no pagas el mantenimiento, estás sin suministros o eres flanqueado. Si la moral de una división llega a 0, <strong>romperá filas y huirá</strong> o se rendirá.</p>
+            <p><strong>Experiencia y Niveles:</strong> Las unidades ganan XP en combate. Al subir de nivel, obtienen bonus permanentes de ataque y defensa, convirtiéndose en tropas de élite.</p>
+            <p><strong>Uso del Terreno:</strong> Los <strong>bosques</strong> ofrecen una enorme protección contra ataques a distancia. Las <strong>colinas</strong> dan bonus de defensa y un bonus de ataque a las unidades cuerpo a cuerpo. Usar el terreno a tu favor es clave para la victoria.</p>
+            <p><strong>Flanqueo:</strong> Atacar a una unidad enemiga que ya está en combate con otra de tus unidades la considera "flanqueada", reduciendo drásticamente su defensa y moral.</p>
+        </div>
+    `;
+}
+
+/*
+function openCreateDivisionModal() {
+    if (!domElements || !domElements.createDivisionModal) return;
+    if (domElements.divisionNameInput) {
+        const currentPlayerUnitsCount = units.filter(u => u.player === gameState.currentPlayer).length;
+        domElements.divisionNameInput.value = `División ${currentPlayerUnitsCount + 1}`;
+    }
+    currentDivisionBuilder = [];
+    populateAvailableRegimentsForModal();
+    updateCreateDivisionModalDisplay();
+    domElements.createDivisionModal.style.display = 'flex';
+}
+
+function populateAvailableRegimentsForModal() {
+    if (!domElements?.availableRegimentsListEl || !REGIMENT_TYPES || !gameState?.playerResources || !TECHNOLOGY_TREE_DATA) {
+        if(domElements?.availableRegimentsListEl) domElements.availableRegimentsListEl.innerHTML = '<li>Error: No se pueden cargar regimientos.</li>';
+        return;
+    }
+    
+    domElements.availableRegimentsListEl.innerHTML = ''; 
+    const playerResearchedTechs = gameState.playerResources[gameState.currentPlayer]?.researchedTechnologies || [];
+
+    // <<< INICIO DE CORRECCIÓN: Declaración de la variable que faltaba >>>
+    let unlockedUnitTypesByTech = new Set();
+    playerResearchedTechs.forEach(techId => {
+        TECHNOLOGY_TREE_DATA[techId]?.unlocksUnits?.forEach(unitTypeKey => {
+            unlockedUnitTypesByTech.add(unitTypeKey);
+        });
+    });
+    // <<< FIN DE CORRECCIÓN >>>
+    
+    const baseUnits = TECHNOLOGY_TREE_DATA["ORGANIZATION"]?.unlocksUnits || [];
 
     let regimentsAddedCount = 0;
-
     for (const regimentKey in REGIMENT_TYPES) {
-        console.log(`[DEBUG REGIMENTS] Chequeando si el regimiento "${regimentKey}" está desbloqueado: ${unlockedUnitTypesByTech.has(regimentKey)}`);
-        // La unidad 'ORGANIZATION' debería ser la primera investigada por defecto para desbloquear Infantería Ligera
-        // Para asegurar que al menos Infantería Ligera esté disponible desde el inicio si ORGANIZATION no está investigada:
-        // O si tienes una lógica para unidades iniciales.
-        // Asumiendo que 'ORGANIZATION' siempre está investigada al inicio o es la primera que se desbloquea.
-        const isBaseUnitAlwaysAvailable = regimentKey === "Infantería Ligera"; // Permitir esta unidad siempre
-        
-        if (unlockedUnitTypesByTech.has(regimentKey) || isBaseUnitAlwaysAvailable) {
+        // La condición ahora usa 'unlockedUnitTypesByTech' que sí está definida.
+        if (unlockedUnitTypesByTech.has(regimentKey) || baseUnits.includes(regimentKey)) {
             const regiment = REGIMENT_TYPES[regimentKey];
             const listItem = document.createElement('li');
-            
-            let regimentInfo = `${regiment.sprite} ${regimentKey}`; // Añade el sprite al texto
-            if (regiment.cost && typeof regiment.cost.oro === 'number') {
-                regimentInfo += ` (Oro: ${regiment.cost.oro}`;
-                if (regiment.cost.comida && typeof regiment.cost.comida === 'number') { 
-                    regimentInfo += `, Comida: ${regiment.cost.comida}`;
-                }
-                regimentInfo += `)`;
-            }
-            
-            listItem.innerHTML = regimentInfo; // Usar innerHTML para el emoji
-            listItem.dataset.type = regimentKey; 
-            
-            // Verificación de existencia de addRegimentToBuilder antes de asignar onclick
-            if (typeof addRegimentToBuilder === "function") { 
-                listItem.onclick = () => addRegimentToBuilder(regimentKey); 
-            } else {
-                console.warn(`Función addRegimentToBuilder no definida. El clic en regimiento "${regimentKey}" no hará nada.`); 
-            }
-            availableRegimentsListEl.appendChild(listItem);
+            listItem.innerHTML = `${regiment.sprite} ${regimentKey} (Oro: ${regiment.cost?.oro || 0})`;
+            listItem.dataset.type = regimentKey;
+            listItem.onclick = () => addRegimentToBuilder(regimentKey);
+            domElements.availableRegimentsListEl.appendChild(listItem);
             regimentsAddedCount++;
         }
     }
 
-    console.log(`%c[DEBUG REGIMENTS] Total de regimientos añadidos a la lista: ${regimentsAddedCount}`, "background: #222; color: #bada55; font-size: 1em;");
-
     if (regimentsAddedCount === 0) { 
-        availableRegimentsListEl.innerHTML = '<li>No hay regimientos disponibles para reclutar (investiga más tecnologías).</li>';
+        domElements.availableRegimentsListEl.innerHTML = '<li>No hay regimientos disponibles (investiga más).</li>';
     }
 }
 
-/**
- * Añade un regimiento al constructor de divisiones temporal del jugador.
- * @param {string} type - El tipo de regimiento a añadir (ej. "Infantería Ligera").
- */
 function addRegimentToBuilder(type) {
-    if (!REGIMENT_TYPES[type]) { console.warn("Tipo de regimiento desconocido:", type); return; }
-    // Añade una COPIA del objeto regimiento al constructor, para no modificar el original.
-    currentDivisionBuilder.push({ ...REGIMENT_TYPES[type], type: type }); 
-    updateCreateDivisionModalDisplay();
-}
-
-/**
- * Elimina un regimiento del constructor de divisiones temporal del jugador.
- * @param {number} index - El índice del regimiento a eliminar en el array `currentDivisionBuilder`.
- */
-function removeRegimentFromBuilder(index) {
-    if (index >= 0 && index < currentDivisionBuilder.length) {
-        currentDivisionBuilder.splice(index, 1); 
+    if (REGIMENT_TYPES[type]) {
+        currentDivisionBuilder.push(JSON.parse(JSON.stringify({ ...REGIMENT_TYPES[type], type })));
         updateCreateDivisionModalDisplay();
     }
 }
 
-/**
- * Actualiza la información (costo y estadísticas) mostrada en el modal de creación de división.
- */
-function updateCreateDivisionModalDisplay() {
-    // Asegurarse de que todos los elementos DOM necesarios existan.
-    if (!currentDivisionRegimentsListEl || !totalDivisionCostDisplay || !totalDivisionStatsDisplay || !finalizeDivisionBtn) return;
-    
-    currentDivisionRegimentsListEl.innerHTML = ''; // Limpiar la lista actual de regimientos en la división
-    let calculatedTotalCost = { oro: 0, comida: 0, hierro: 0, piedra: 0, madera: 0 }; // Inicializar todos los recursos a 0
-    let calculatedTotalAttack = 0, calculatedTotalDefense = 0, calculatedTotalHealth = 0;
-    let calculatedMinMovement = Infinity, calculatedMaxVision = 0, calculatedMaxAttackRange = 0;
+function removeRegimentFromBuilder(index) {
+    if (index >= 0 && index < currentDivisionBuilder.length) {
+        currentDivisionBuilder.splice(index, 1);
+        updateCreateDivisionModalDisplay();
+    }
+}
 
-    // Iterar sobre los regimientos en el constructor actual
+function updateCreateDivisionModalDisplay() {
+    if (!domElements) return;
+    domElements.currentDivisionRegimentsListEl.innerHTML = '';
+    let totalCost = {}, totalStats = { attack: 0, defense: 0, health: 0, movement: Infinity, vision: 0, attackRange: 0, initiative: 0 };
     currentDivisionBuilder.forEach((reg, index) => {
         const li = document.createElement('li');
-        // Mostrar el sprite, tipo y añadir un botón/texto "Quitar"
-        li.innerHTML = `${reg.sprite} ${reg.type} <span style="float:right; cursor:pointer; color:red;">(Quitar)</span>`;
-        // Asignar el listener para quitar el regimiento
-        li.addEventListener('click', () => removeRegimentFromBuilder(index));
-        currentDivisionRegimentsListEl.appendChild(li);
-
-        // Sumar costos y estadísticas
-        if (reg.cost) {
-            for (const resourceType in reg.cost) {
-                calculatedTotalCost[resourceType] = (calculatedTotalCost[resourceType] || 0) + reg.cost[resourceType];
-            }
-        }
-        calculatedTotalAttack += reg.attack || 0;
-        calculatedTotalDefense += reg.defense || 0;
-        calculatedTotalHealth += reg.health || 0;
-        calculatedMinMovement = Math.min(calculatedMinMovement, reg.movement || Infinity);
-        calculatedMaxVision = Math.max(calculatedMaxVision, reg.visionRange || 0);
-        calculatedMaxAttackRange = Math.max(calculatedMaxAttackRange, reg.attackRange || 0); 
+        li.innerHTML = `${reg.sprite} ${reg.type} <span style="float:right; cursor:pointer; color:red;" title="Quitar">(X)</span>`;
+        li.querySelector('span').onclick = (e) => { e.stopPropagation(); removeRegimentFromBuilder(index); };
+        domElements.currentDivisionRegimentsListEl.appendChild(li);
+        for (const res in reg.cost) totalCost[res] = (totalCost[res] || 0) + reg.cost[res];
+        totalStats.attack += reg.attack || 0;
+        totalStats.defense += reg.defense || 0;
+        totalStats.health += reg.health || 0;
+        totalStats.movement = Math.min(totalStats.movement, reg.movement || Infinity);
+        totalStats.vision = Math.max(totalStats.vision, reg.visionRange || 0);
+        totalStats.attackRange = Math.max(totalStats.attackRange, reg.attackRange || 0);
+        totalStats.initiative = Math.max(totalStats.initiative, reg.initiative || 0);
     });
 
-    // Formatear el string de costo total
-    let costString = [];
-    for (const resType in calculatedTotalCost) {
-        if (calculatedTotalCost[resType] > 0) {
-            costString.push(`${calculatedTotalCost[resType]} ${resType.charAt(0).toUpperCase() + resType.slice(1)}`);
-        }
-    }
-    totalDivisionCostDisplay.textContent = costString.length > 0 ? costString.join(', ') : '0 Oro'; 
-
-    // Actualizar las estadísticas agregadas
-    totalDivisionStatsDisplay.textContent = 
-        `${calculatedTotalAttack}A / ${calculatedTotalDefense}D / ${calculatedTotalHealth}S / ` +
-        `${calculatedMinMovement === Infinity ? 0 : calculatedMinMovement}M / ` +
-        `${calculatedMaxVision}V / ${calculatedMaxAttackRange}R.A`;
+    let costParts = [];
+    if(totalCost.oro) costParts.push(`${totalCost.oro} Oro`);
+    if(totalCost.puntosReclutamiento) costParts.push(`${totalCost.puntosReclutamiento} PR`);
+    // Puedes añadir hierro, madera, etc., si los regimientos los cuestan
+    let costStr = costParts.join(', ') || "Gratis";
+    //let costStr = Object.entries(totalCost).map(([res, val]) => `${val} ${res}`).join(', ') || "0 Oro";
     
-    // Habilitar o deshabilitar el botón de finalizar según si hay regimientos
-    finalizeDivisionBtn.disabled = currentDivisionBuilder.length === 0;
+    domElements.totalDivisionCostDisplay.textContent = costStr;
+    domElements.totalDivisionStatsDisplay.textContent = `A:${totalStats.attack}/D:${totalStats.defense}/S:${totalStats.health}/M:${totalStats.movement === Infinity ? 0 : totalStats.movement}/V:${totalStats.vision}/R:${totalStats.attackRange}`;
+    domElements.finalizeCreateDivisionBtn.disabled = currentDivisionBuilder.length === 0;
 }
 
-/**
- * Maneja la finalización de la creación de una nueva división (unidad).
- * Valida recursos, deduce costos y prepara la unidad para su colocación.
- */
 function handleFinalizeDivision() {
-    if (!currentDivisionBuilder || currentDivisionBuilder.length === 0) { 
-        logMessage("La división debe tener al menos un regimiento.");
+    if (currentDivisionBuilder.length === 0) {
+        logMessage("Una división debe tener al menos un regimiento.");
         return;
     }
-    const name = divisionNameInput.value.trim() || "División Anónima";
 
-    let finalCost = { oro: 0, comida: 0, hierro: 0, piedra: 0, madera: 0 };
-    let finalAttack = 0, finalDefense = 0, finalHealth = 0;
-    let finalMovement = Infinity, finalVision = 0, finalAttackRange = 0, finalInitiative = 0;
-    let baseSprite = currentDivisionBuilder.length > 0 ? currentDivisionBuilder[0].sprite : '❓';
-
-    currentDivisionBuilder.forEach(reg => {
-        if (reg.cost) {
-            for (const resourceType in reg.cost) {
-                finalCost[resourceType] = (finalCost[resourceType] || 0) + reg.cost[resourceType];
+    let finalCost = {};
+    for (const reg of currentDivisionBuilder) {
+        for (const res in reg.cost) {
+            if (res !== 'upkeep') {
+                finalCost[res] = (finalCost[res] || 0) + reg.cost[res];
             }
         }
-        finalAttack += reg.attack || 0;
-        finalDefense += reg.defense || 0;
-        finalHealth += reg.health || 0;
-        finalMovement = Math.min(finalMovement, reg.movement || Infinity);
-        finalVision = Math.max(finalVision, reg.visionRange || 0);
-        finalAttackRange = Math.max(finalAttackRange, reg.attackRange || 0);
-        finalInitiative = Math.max(finalInitiative, reg.initiative || 0);
-    });
-    finalMovement = (finalMovement === Infinity) ? 1 : finalMovement; // Si no hay movimiento, por defecto 1
-
-    let canAfford = true;
-    for (const resourceType in finalCost) {
-        if (finalCost[resourceType] > 0 && (gameState.playerResources[gameState.currentPlayer][resourceType] || 0) < finalCost[resourceType]) {
-            canAfford = false;
-            logMessage(`No tienes suficiente ${resourceType}. Necesitas ${finalCost[resourceType]}.`);
-            break;
-        }
     }
 
-    if (!canAfford) {
-        return;
-    }
+    const currentPlayer = gameState.currentPlayer; // Guardamos el jugador actual
 
-    // Deduce los costos de los recursos del jugador
-    for (const resourceType in finalCost) {
-        if (finalCost[resourceType] > 0) {
-            gameState.playerResources[gameState.currentPlayer][resourceType] -= finalCost[resourceType];
-        }
-    }
-
-    // Actualiza la UI de recursos del jugador
-    if (typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === 'function') {
-        UIManager.updatePlayerAndPhaseInfo(); 
-    } else {
-        console.warn("modalLogic: UIManager.updatePlayerAndPhaseInfo no disponible para actualizar UI de recursos.");
-    }
-
-    // Crea el objeto de datos de la nueva unidad
-    const newDivisionDataObject = {
-        id: `u${unitIdCounter++}`, // unitIdCounter viene de state.js
-        player: gameState.currentPlayer,
-        name: name,
-        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)), // Clonar regimientos para evitar referencias
-        attack: finalAttack, defense: finalDefense, maxHealth: finalHealth, currentHealth: finalHealth,
-        movement: finalMovement, currentMovement: finalMovement,
-        visionRange: finalVision, attackRange: finalAttackRange, initiative: finalInitiative,
-        experience: 0, maxExperience: 500, hasRetaliatedThisTurn: false,
-        r: -1, c: -1, // Posición inicial -1,-1, se asignará al colocar
-        sprite: baseSprite,
-        element: null, // El elemento DOM se creará al colocar
-        // Las unidades nuevas se marcan como ya movidas/atacadas en fase de 'play' para no poder actuar en el mismo turno que se crean.
-        // En la fase de 'deployment', no se marcan para que puedan ser movidas/atacadas si hay lógica para ello.
-        hasMoved: gameState.currentPhase === 'play',
-        hasAttacked: gameState.currentPhase === 'play',
-        cost: JSON.parse(JSON.stringify(finalCost)) // Guardar el costo final de la unidad
-    };
-
-    // Activa el modo de colocación de unidades para que el jugador la sitúe en el mapa.
-    placementMode = { active: true, unitData: newDivisionDataObject }; // placementMode viene de state.js
-    if (createDivisionModal) createDivisionModal.style.display = 'none'; // Cierra el modal
-    currentDivisionBuilder = []; // Limpia el constructor para la próxima división
-
-    logMessage(`División "${name}" creada. Haz clic en el tablero para colocarla.`);
-}
-
-// --- LÓGICA DEL MODAL DE CONSTRUCCIÓN DE ESTRUCTURAS ---
-
-/**
- * Abre el modal de construcción de estructuras.
- * @param {object} hexData - Los datos del hexágono donde se desea construir.
- */
-function openBuildStructureModal() {
-    if (!hexToBuildOn) { 
-        logMessage("Error: No hay hexágono seleccionado en el mapa para construir."); 
-        return; 
-    }
-    if (buildHexCoordsDisplay) buildHexCoordsDisplay.textContent = `${hexToBuildOn.r},${hexToBuildOn.c}`;
-    populateAvailableStructuresForModal(hexToBuildOn.r, hexToBuildOn.c);
-    if (buildStructureModal) buildStructureModal.style.display = 'flex';
-}
-
-/**
- * Rellena la lista de estructuras disponibles en el modal de construcción
- * basándose en el hexágono seleccionado, los recursos del jugador y las tecnologías.
- * @param {number} r - Fila del hexágono.
- * @param {number} c - Columna del hexágono.
- */
-function populateAvailableStructuresForModal(r, c) {
-    if (!availableStructuresListModalEl || !confirmBuildBtn) return;
-    availableStructuresListModalEl.innerHTML = '';
-    selectedStructureToBuild = null;
-    confirmBuildBtn.disabled = true;
-
-    const hexData = board[r]?.[c]; // board viene de state.js
-    if (!hexData) { logMessage("Error interno: datos de hexágono no encontrados para construcción."); return; }
-
-    if (hexData.isCity) {
-        availableStructuresListModalEl.innerHTML = '<li>No se pueden construir Caminos o Fortalezas directamente en una Ciudad.</li>';
-        return; 
-    }
-
-    const currentPlayer = gameState.currentPlayer; // gameState viene de state.js
-    const playerResources = gameState.playerResources[currentPlayer];
-    const playerResearchedTechs = playerResources?.researchedTechnologies || [];
-
-    let structureOffered = false;
-
-    // Itera sobre todos los tipos de estructura definidos en STRUCTURE_TYPES (de constants.js)
-    for (const type in STRUCTURE_TYPES) {
-        const structInfo = STRUCTURE_TYPES[type];
-        let canBuildThisStructure = false;
-        let reasonForNotBuilding = "";
-
-        // --- LÓGICA DE DESBLOQUEO POR TECNOLOGÍA ---
-        let techUnlocked = false;
-        if (type === "Camino" && playerResearchedTechs.includes("ENGINEERING")) {
-            techUnlocked = true;
-        } else if (type === "Fortaleza" && playerResearchedTechs.includes("FORTIFICATIONS")) {
-            techUnlocked = true;
-        }
-
-        if (!techUnlocked) {
-            reasonForNotBuilding = "[Tecnología no investigada]";
-        } else {
-            // Comprobaciones de terreno y pre-estructura
-            if (type === "Camino") {
-                // Un camino se puede construir si el terreno es apto Y no hay ya una estructura
-                if (!structInfo.buildableOn.includes(hexData.terrain)) {
-                    reasonForNotBuilding = "[Terreno no apto]";
-                } else if (hexData.structure) { 
-                    reasonForNotBuilding = "[Hexágono ya tiene estructura]";
-                } else {
-                    canBuildThisStructure = true;
-                }
-            } else if (type === "Fortaleza") {
-                // Una fortaleza requiere un Camino existente en ese hexágono Y el terreno base sea apto
-                if (hexData.structure !== "Camino") { 
-                    reasonForNotBuilding = "[Requiere Camino]";
-                } else if (!structInfo.buildableOn.includes(hexData.terrain)) { // Comprueba el terreno base
-                    reasonForNotBuilding = "[Terreno base no apto]";
-                } else {
-                    canBuildThisStructure = true;
-                }
-            } else { 
-                console.warn("Tipo de estructura no manejado en populateAvailableStructuresForModal:", type);
-                reasonForNotBuilding = "[Tipo desconocido]";
-            }
-        }
-
-        // Comprobar recursos
-        let hasEnoughResources = true;
-        let costString = "";
-        if (structInfo.cost) {
-            for (const resourceType in structInfo.cost) {
-                const costAmount = structInfo.cost[resourceType];
-                const playerResourceAmount = playerResources[resourceType] || 0;
-                // Formatear el costo para mostrar en la lista
-                costString += `${costAmount} ${resourceType.charAt(0).toUpperCase() + resourceType.slice(1).substring(0,2)}, `;
-                if (playerResourceAmount < costAmount) {
-                    hasEnoughResources = false;
-                }
-            }
-            costString = costString.length > 2 ? costString.slice(0, -2) : "Gratis";
-        } else {
-            costString = "Gratis";
-        }
-        if (!hasEnoughResources) {
-            reasonForNotBuilding += " [Recursos insuficientes]";
-        }
-
-        const li = document.createElement('li');
-        li.textContent = `${type} (Costo: ${costString}) ${reasonForNotBuilding}`;
-        li.dataset.type = type;
-
-        // Si se puede construir (por tecnología, terreno y recursos), se hace seleccionable
-        if (canBuildThisStructure && hasEnoughResources && techUnlocked) {
-            structureOffered = true;
-            li.addEventListener('click', () => {
-                availableStructuresListModalEl.querySelectorAll('li').forEach(item => item.classList.remove('selected-structure'));
-                li.classList.add('selected-structure');
-                selectedStructureToBuild = type; // Guarda el tipo de estructura seleccionada
-                confirmBuildBtn.disabled = false; // Habilita el botón de confirmar
-            });
-        } else {
-            // Si no se puede construir, se desactiva visualmente
-            li.style.opacity = 0.6;
-            li.style.cursor = 'not-allowed';
-        }
-        availableStructuresListModalEl.appendChild(li);
-    }
-    
-    // Si no se ofreció ninguna estructura, muestra un mensaje por defecto
-    if (!structureOffered && !hexData.isCity) { 
-         availableStructuresListModalEl.innerHTML = '<li>No hay estructuras disponibles para construir aquí o con tus recursos.</li>';
-    }
-}
-
-/**
- * Maneja la confirmación de la construcción de una estructura.
- * Deduce costos, actualiza el estado del hexágono y refresca la UI.
- */
-function handleConfirmBuildStructure() {
-    if (!selectedStructureToBuild || !hexToBuildOn) {
-        logMessage("Error: No hay estructura seleccionada o hexágono de destino.");
-        return;
-    }
-
-    const structureTypeKey = selectedStructureToBuild;
-    const r = hexToBuildOn.r;
-    const c = hexToBuildOn.c;
-    const structureData = STRUCTURE_TYPES[structureTypeKey]; // STRUCTURE_TYPES viene de constants.js
-    const hexCurrentData = board[r]?.[c]; // board viene de state.js
-
-    // Validaciones de último minuto (para evitar cheats o inconsistencias)
-    if (!hexCurrentData) {
-        logMessage("Error: Hexágono no válido para construir.");
-        return;
-    }
-    if (hexCurrentData.isCity) {
-        logMessage("No se puede construir aquí, ya es una ciudad.");
-        return;
-    }
-    if (structureTypeKey === "Fortaleza" && hexCurrentData.structure !== "Camino") {
-        logMessage("La Fortaleza requiere un Camino existente en este hexágono.");
-        return;
-    }
-    if (structureTypeKey === "Camino" && hexCurrentData.structure) {
-        logMessage("Ya hay una estructura aquí, no se puede construir un Camino.");
-        return;
-    }
-
-    // Verificar y deducir recursos
-    for (const resourceType in structureData.cost) {
-        if ((gameState.playerResources[gameState.currentPlayer][resourceType] || 0) < structureData.cost[resourceType]) {
-            logMessage(`No tienes suficientes ${resourceType}. Necesitas ${structureData.cost[resourceType]}.`); 
+    for (const res in finalCost) {
+        if ((gameState.playerResources[currentPlayer][res] || 0) < finalCost[res]) {
+            logMessage(`No tienes suficiente ${res} para crear esta división.`);
             return;
         }
     }
-    for (const resourceType in structureData.cost) {
-        gameState.playerResources[gameState.currentPlayer][resourceType] -= structureData.cost[resourceType]; 
-    }
-
-    // Asignar la estructura al hexágono
-    hexCurrentData.structure = structureTypeKey;
-    logMessage(`${structureTypeKey} construido en (${r},${c}).`);
-
-    // Actualizar la visualización del hexágono y la UI
-    if (typeof renderSingleHexVisuals === "function") { // renderSingleHexVisuals viene de boardManager.js
-        renderSingleHexVisuals(r, c);
-    } else {
-        console.warn("handleConfirmBuildStructure: renderSingleHexVisuals no está definida.");
-    }
-    if (typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === 'function') {
-        UIManager.updatePlayerAndPhaseInfo();
-    } else {
-        console.warn("handleConfirmBuildStructure: UIManager.updatePlayerAndPhaseInfo no disponible para actualizar UI de recursos.");
-    }
-
-    // Cerrar el modal y resetear el estado de construcción
-    if (buildStructureModal) buildStructureModal.style.display = 'none';
-    if (typeof deselectUnit === "function") deselectUnit(); // Deseleccionar la unidad después de construir
     
-    if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === 'function') {
-        UIManager.hideContextualPanel();
-    }
+    // <<== LA SOLUCIÓN (Parte 1): Pasamos explícitamente el jugador a la función ==>>
+    console.log(`Llamando a calculateRegimentStats desde handleFinalizeDivision para Jugador ${currentPlayer}`);
+    const stats = calculateRegimentStats(currentDivisionBuilder, currentPlayer);
+    // <<== FIN DE LA SOLUCIÓN ==>>
 
-    hexToBuildOn = null;
-    selectedStructureToBuild = null;
-    if (confirmBuildBtn) confirmBuildBtn.disabled = true;
-}
-
-// --- LÓGICA DEL MODAL DE BIENVENIDA Y AYUDA ---
-
-/**
- * Muestra el modal de bienvenida y ayuda al inicio del juego.
- * Carga el contenido de TUTORIAL_MESSAGES.
- */
-function showWelcomeHelpModal() {
-    // Comprobar si el usuario ha marcado "No mostrar de nuevo"
-    const doNotShow = localStorage.getItem('hexEvolvedDoNotShowHelp');
-    if (doNotShow === 'true') {
-        console.log("Modal de bienvenida no mostrado: el usuario lo ha desactivado.");
-        if (typeof showScreen === "function" && mainMenuScreenEl) { // showScreen y mainMenuScreenEl de campaignManager.js
-            showScreen(mainMenuScreenEl); // Ir directamente al menú principal
+    for (const res in finalCost) {
+        if ((gameState.playerResources[currentPlayer][res] || 0) < finalCost[res]) {
+            logMessage(`No tienes suficiente ${res} para crear esta división.`);
+            return;
         }
-        return;
+        gameState.playerResources[currentPlayer][res] -= finalCost[res];
     }
+    
+    if (UIManager) UIManager.updatePlayerAndPhaseInfo();
 
-    // Asegurarse de que los elementos DOM y los mensajes existan
-    if (!welcomeHelpModalEl || !TUTORIAL_MESSAGES || !welcomeHelpTitleEl || !welcomeHelpSectionsEl || !welcomeHelpFooterEl) {
-        console.error("Error: Elementos del modal de bienvenida o mensajes no encontrados.");
-        if (typeof showScreen === "function" && mainMenuScreenEl) {
-            showScreen(mainMenuScreenEl);
-        }
-        return;
-    }
-
-    // Llenar el contenido del modal con los datos de TUTORIAL_MESSAGES (de constants.js)
-    welcomeHelpTitleEl.textContent = TUTORIAL_MESSAGES.title;
-    welcomeHelpSectionsEl.innerHTML = ''; // Limpiar secciones anteriores
-    TUTORIAL_MESSAGES.sections.forEach(section => {
-        const sectionDiv = document.createElement('div');
-        const heading = document.createElement('h3');
-        heading.textContent = section.heading;
-        const content = document.createElement('p');
-        content.innerHTML = section.content; // Usar innerHTML para permitir <br>, <b>, etc.
-        sectionDiv.appendChild(heading);
-        sectionDiv.appendChild(content);
-        welcomeHelpSectionsEl.appendChild(sectionDiv);
-    });
-    welcomeHelpFooterEl.textContent = TUTORIAL_MESSAGES.footer;
-
-    // Mostrar el modal
-    welcomeHelpModalEl.style.display = 'flex';
+    const newDivisionDataObject = {
+        id: `u${unitIdCounter++}`,
+        player: currentPlayer,
+        name: domElements.divisionNameInput.value.trim() || "División Anónima",
+        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)),
+        // Usamos los stats que ahora deberían ser correctos
+        attack: stats.attack,
+        defense: stats.defense,
+        maxHealth: stats.maxHealth,
+        currentHealth: stats.maxHealth,
+        movement: stats.movement,
+        currentMovement: stats.movement,
+        visionRange: stats.visionRange,
+        attackRange: stats.attackRange,
+        initiative: stats.initiative,
+        sprite: stats.sprite,
+        experience: 0,
+        maxExperience: 500,
+        hasRetaliatedThisTurn: false,
+        morale: 50,
+        maxMorale: 125,
+        isDemoralized: false,
+        r: -1, c: -1,
+        element: null,
+        hasMoved: gameState.currentPhase === 'play',
+        hasAttacked: gameState.currentPhase === 'play',
+        cost: finalCost,
+        recruitedFromHex: (gameState.currentPhase === 'play' && placementMode.recruitHex) ? { r: placementMode.recruitHex.r, c: placementMode.recruitHex.c } : null,
+        isSettler: currentDivisionBuilder.some(reg => reg.isSettler === true)
+    };
+    
+    console.log("[Creación Finalizada] Stats calculados:", JSON.parse(JSON.stringify(stats)));
+    
+    placementMode.active = true;
+    placementMode.unitData = newDivisionDataObject;
+    domElements.createDivisionModal.style.display = 'none';
+    currentDivisionBuilder = [];
+    logMessage(`División "${newDivisionDataObject.name}" creada. Clic para colocar.`);
 }
-
-/**
- * Cierra el modal de bienvenida y guarda la preferencia si el usuario lo indicó.
- */
-function closeWelcomeHelpModal() {
-    if (welcomeHelpModalEl) {
-        welcomeHelpModalEl.style.display = 'none';
-        // Guardar la preferencia si el checkbox está marcado (doNotShowAgainCheckbox de domElements.js)
-        if (doNotShowAgainCheckbox && doNotShowAgainCheckbox.checked) {
-            localStorage.setItem('hexEvolvedDoNotShowHelp', 'true');
-        }
-        // Después de cerrar el modal de ayuda, mostrar el menú principal
-        if (typeof showScreen === "function" && mainMenuScreenEl) {
-            showScreen(mainMenuScreenEl);
-        }
-    }
-}
-
-// Esta función parece ser una función de depuración para forzar la visualización.
-// No parece estar siendo usada en el flujo normal, pero la mantengo si tiene un propósito específico.
-function openCreateDivisionModalVisual() {
-    const modal = document.getElementById('createDivisionModal');
-    if (modal) {
-        console.log(`%c[DEBUG MODAL APERTURA] Forzando visualización del modal CreateDivisionModal.`, "background: #222; color: #fff; font-size: 1.1em;");
-        console.log(`[DEBUG MODAL APERTURA] Estado inicial: display=${modal.style.display}, z-index=${window.getComputedStyle(modal).zIndex}`);
-        modal.style.display = 'flex';
-        modal.style.opacity = '1';
-        modal.style.visibility = 'visible';
-        modal.style.zIndex = '99999'; 
-        console.log(`[DEBUG MODAL APERTURA] Estado final: display=${modal.style.display}, z-index=${window.getComputedStyle(modal).zIndex}`);
-    } else {
-        console.error("CRÍTICO: El elemento #createDivisionModal no se encontró en el DOM. NO SE PUEDE ABRIR VISUALMENTE.");
-    }
-}
+*/

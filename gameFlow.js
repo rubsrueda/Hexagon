@@ -1,6 +1,272 @@
 // gameFlow.js
 // Lógica principal del flujo del juego: turnos, fases, IA, victoria, niebla de guerra, recolección de recursos.
 
+let currentTutorialStepIndex = -1; // -1 significa que el tutorial no ha comenzado o ha terminado
+let tutorialScenarioData = null; // Almacena los datos del escenario de tutorial activo
+const MAX_STABILITY = 5; // Definimos la constante aquí para que la función la reconozca.
+const MAX_NACIONALIDAD = 5; // Valor máximo para la lealtad de un hexágono.
+
+function checkAndProcessBrokenUnit(unit) {
+    if (!unit || unit.morale > 0) {
+        return false;
+    }
+
+    logMessage(`¡${unit.name} tiene la moral rota y no puede ser controlada!`, "error");
+
+    const originalUnit = units.find(u => u.id === unit.id);
+    if (!originalUnit) return true; // La unidad ya no existe
+
+    originalUnit.hasMoved = true;
+    originalUnit.hasAttacked = true;
+
+    const safeHavens = gameState.cities
+        .filter(c => c.owner === originalUnit.player)
+        .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
+    
+    const nearestSafeHaven = safeHavens.length > 0 ? safeHavens[0] : null;
+
+    let retreatHex = null;
+    if (nearestSafeHaven) {
+        const neighbors = getHexNeighbors(originalUnit.r, originalUnit.c);
+        let bestNeighbor = null;
+        let minDistance = hexDistance(originalUnit.r, originalUnit.c, nearestSafeHaven.r, nearestSafeHaven.c);
+
+        for (const n of neighbors) {
+            if (!getUnitOnHex(n.r, n.c) && !TERRAIN_TYPES[board[n.r]?.[n.c]?.terrain]?.isImpassableForLand) {
+                const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    bestNeighbor = n;
+                }
+            }
+        }
+        retreatHex = bestNeighbor;
+    }
+
+    if (retreatHex) {
+        logMessage(`¡${originalUnit.name} huye hacia (${retreatHex.r}, ${retreatHex.c})!`);
+        moveUnit({ ...originalUnit, currentMovement: 1, hasMoved: false }, retreatHex.r, retreatHex.c);
+    } else {
+        logMessage(`¡${originalUnit.name} está rodeada y se rinde!`, "error");
+        handleUnitDestroyed(originalUnit, null);
+    }
+    
+    if (selectedUnit && selectedUnit.id === originalUnit.id) {
+        deselectUnit();
+        if (UIManager) UIManager.hideContextualPanel();
+    }
+
+    return true; 
+}
+
+function handleBrokenUnits(playerNum) {
+    const unitsToCheck = [...units.filter(u => u.player === playerNum)];
+    unitsToCheck.forEach(unit => checkAndProcessBrokenUnit(unit));
+}
+
+function handleUnitUpkeep(playerNum) {
+    if (!gameState.playerResources?.[playerNum] || !units) return;
+
+    const playerUnits = units.filter(u => u.player === playerNum && u.currentHealth > 0);
+    if (playerUnits.length === 0) return;
+
+    const playerRes = gameState.playerResources[playerNum];
+    let totalGoldUpkeep = 0;
+    
+    playerUnits.forEach(unit => {
+        // --- LÓGICA DE MORAL REGENERATIVA ---
+        // 1. Asegurarse de que la moral existe
+        if (typeof unit.morale === 'undefined') unit.morale = 50;
+        if (typeof unit.maxMorale === 'undefined') unit.maxMorale = 100;
+
+        // 2. Comprobar si está suministrada
+        const isSupplied = isHexSupplied(unit.r, unit.c, unit.player);
+
+        if (isSupplied) {
+            // Si está suministrada, regenera moral pasivamente
+            const moraleGain = 5; // Tu valor de regeneración
+            unit.morale = Math.min(unit.maxMorale, unit.morale + moraleGain);
+        } else {
+            // Si no está suministrada, pierde moral
+            const moraleLoss = 10; // Penalización por falta de suministro
+            unit.morale = Math.max(0, unit.morale - moraleLoss);
+            logMessage(`¡${unit.name} está sin suministros y pierde ${moraleLoss} de moral!`, 'warning');
+        }
+
+        // --- LÓGICA DE MANTENIMIENTO (ORO) ---
+        (unit.regiments || []).forEach(regiment => {
+            totalGoldUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0;
+        });
+    });
+
+    // Pagar el mantenimiento de oro (afecta a la desmoralización)
+    if (playerRes.oro < totalGoldUpkeep) {
+        logMessage(`¡Jugador ${playerNum} no puede pagar el mantenimiento! ¡Las tropas se desmoralizan!`, "error");
+        playerUnits.forEach(unit => {
+            // <<== NUEVO: La penalización ahora depende del número de regimientos ==>>
+            // Se calcula la pérdida de moral como -1 por cada regimiento en la división.
+            const moralePenalty = (unit.regiments || []).length;
+            unit.morale = Math.max(0, unit.morale - moralePenalty);
+            logMessage(`  -> ${unit.name} pierde ${moralePenalty} de moral por el impago.`);
+            // <<== FIN DE LA MODIFICACIÓN ==>>
+            unit.isDemoralized = true;
+        });
+    } else {
+        playerRes.oro -= totalGoldUpkeep;
+        // Si pagan, se quita el estado desmoralizado
+        playerUnits.forEach(unit => {
+            if (unit.isDemoralized) {
+                logMessage(`¡Las tropas de ${unit.name} reciben su paga y recuperan el ánimo!`);
+                unit.isDemoralized = false;
+            }
+        });
+    }
+}
+
+function handleBrokenUnits(playerNum) {
+    // Obtenemos una copia del array para iterar de forma segura,
+    // ya que handleUnitDestroyed puede modificar el array original 'units'.
+    const unitsToCheck = [...units.filter(u => u.player === playerNum && u.morale <= 0 && u.currentHealth > 0)];
+
+    if (unitsToCheck.length > 0) {
+        logMessage(`¡Las tropas del Jugador ${playerNum} están desmoralizadas y huyen!`, "error");
+    }
+
+    unitsToCheck.forEach(unit => {
+        // Encontramos la referencia a la unidad original en el array 'units' para poder modificarla
+        const originalUnit = units.find(u => u.id === unit.id);
+        if(!originalUnit) return;
+        
+        // Marcamos la unidad para que no pueda realizar otras acciones este turno
+        originalUnit.hasMoved = true;
+        originalUnit.hasAttacked = true;
+
+        // Buscar el refugio más cercano (capital/ciudad propia)
+        const safeHavens = gameState.cities
+            .filter(c => c.owner === playerNum)
+            .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
+        
+        const nearestSafeHaven = safeHavens.length > 0 ? safeHavens[0] : null;
+
+        let retreatHex = null;
+        if (nearestSafeHaven) {
+            const neighbors = getHexNeighbors(originalUnit.r, originalUnit.c);
+            let bestNeighbor = null;
+            let minDistance = hexDistance(originalUnit.r, originalUnit.c, nearestSafeHaven.r, nearestSafeHaven.c);
+
+            for (const n of neighbors) {
+                // Solo puede huir a un hexágono vacío y transitable
+                if (!getUnitOnHex(n.r, n.c) && !TERRAIN_TYPES[board[n.r]?.[n.c]?.terrain]?.isImpassableForLand) {
+                    const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
+                    // Importante: El movimiento debe acercarnos, no alejarnos
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        bestNeighbor = n;
+                    }
+                }
+            }
+            retreatHex = bestNeighbor;
+        }
+
+        if (retreatHex) {
+            logMessage(`¡${originalUnit.name} rompe filas y huye hacia (${retreatHex.r}, ${retreatHex.c})!`);
+            // moveUnit se encarga de la lógica de mover y actualizar el tablero.
+            // Le pasamos un clon temporal con 1 de movimiento y hasMoved:false para que la función acepte el movimiento
+            moveUnit({ ...originalUnit, currentMovement: 1, hasMoved: false }, retreatHex.r, retreatHex.c);
+            
+            // moveUnit ya debería haber actualizado la posición de la unidad en el array 'units'
+            // si está bien implementado. No es necesario re-asignar aquí r y c.
+        } else {
+            logMessage(`¡${originalUnit.name} está rodeada y sin moral! ¡La unidad se rinde!`, "error");
+            handleUnitDestroyed(originalUnit, null); // El atacante es nulo porque se rinde
+        }
+    });
+}
+
+function handleHealingPhase(playerNum) {
+    console.group(`[DEBUG CURACIÓN- ANÁLISIS PROFUNDO] Iniciando Fase de Curación para Jugador ${playerNum}`);
+
+    // >>>>> CORRECCIÓN: Eliminada la condición `!unit.hasMoved` <<<<<
+    const divisionsWithHealers = units.filter(unit => 
+        unit.player === playerNum && 
+        unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.is_healer)
+    );
+
+    if (divisionsWithHealers.length === 0) {
+        console.log("No se encontraron divisiones con Hospitales de Campaña.");
+        console.groupEnd();
+        return;
+    }
+    
+    //console.log(`[DEBUG CURACIÓN] Se encontraron ${divisionsWithHealers.length} divisiones con sanadores.`);
+
+    divisionsWithHealers.forEach(healerUnit => {
+       console.log(`--- Analizando División: ${healerUnit.name} (HP Total: ${healerUnit.currentHealth}/${healerUnit.maxHealth}) ---`);
+        console.log("Estado de sus regimientos ANTES de intentar curar:");
+
+        healerUnit.regiments.forEach((reg, index) => {
+            const regInfo = REGIMENT_TYPES[reg.type];
+            console.log(`- Regimiento #${index}: ${reg.type} | Salud: ${reg.health} / ${regInfo.health} | ¿Dañado?: ${reg.health < regInfo.health}`);
+        });
+
+        const hospitalRegs = healerUnit.regiments.filter(r => REGIMENT_TYPES[r.type]?.is_healer);
+        const hospitalCount = hospitalRegs.length;
+        if (hospitalCount === 0) {
+            console.groupEnd(); return;
+        }
+
+        const totalHealPower = hospitalRegs.reduce((sum, r) => sum + (REGIMENT_TYPES[r.type]?.heal_power || 0), 0);
+        console.log(`- Contiene ${hospitalCount} hospital(es), poder de curación: ${totalHealPower}.`);
+        
+        const damagedRegiments = healerUnit.regiments.filter(reg => {
+            const maxHealth = REGIMENT_TYPES[reg.type]?.health;
+            return reg.health < maxHealth && !REGIMENT_TYPES[reg.type]?.is_healer;
+        });
+
+        if (damagedRegiments.length === 0) {
+            console.log("- No se encontraron regimientos dañados en esta división.");
+            console.groupEnd();
+            return;
+        }
+
+        if (damagedRegiments.length > 0) {
+            console.log(`%cÉXITO: Se encontraron ${damagedRegiments.length} regimientos dañados para curar.`, 'color: lightgreen;');
+            // Aquí iría tu lógica de curación, que por ahora podemos omitir para centrarnos en el bug.
+        } else {
+            console.error(`%cFALLO: NO se encontraron regimientos dañados. La condición 'reg.health < maxHealth' falló para todos.`, 'color: red;');
+        }
+
+        console.log(`- Se encontraron ${damagedRegiments.length} regimientos dañados.`);
+
+        const maxTargets = hospitalCount * 2;
+        const targetsToHealCount = Math.min(damagedRegiments.length, maxTargets);
+        console.log(`- Máximo objetivos: ${maxTargets}. Se curarán: ${targetsToHealCount}.`);
+        
+        damagedRegiments.sort((a,b) => (a.health / REGIMENT_TYPES[a.type].health) - (b.health / REGIMENT_TYPES[b.type].health));
+
+        for (let i = 0; i < targetsToHealCount; i++) {
+            const regimentToHeal = damagedRegiments[i];
+            const maxHealth = REGIMENT_TYPES[regimentToHeal.type].health;
+            const previousHealth = regimentToHeal.health;
+            
+            regimentToHeal.health = Math.min(maxHealth, regimentToHeal.health + totalHealPower);
+            const healthRestored = regimentToHeal.health - previousHealth;
+
+            if (healthRestored > 0) {
+                console.log(`  - ¡ÉXITO! Curados ${healthRestored} HP a ${regimentToHeal.type}. Nueva salud: ${regimentToHeal.health}/${maxHealth}.`);
+                logMessage(`${healerUnit.name} cura ${healthRestored} HP al regimiento de ${regimentToHeal.type}.`);
+            }
+        }
+        
+        recalculateUnitHealth(healerUnit);
+        console.log(`- Salud total de ${healerUnit.name} actualizada a: ${healerUnit.currentHealth}.`);
+        
+        console.groupEnd();
+    });
+
+    console.groupEnd();
+}
+
 function handleEndTurn() {
     console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
     if (typeof deselectUnit === "function") deselectUnit(); else console.warn("handleEndTurn: deselectUnit no definida");
@@ -10,6 +276,16 @@ function handleEndTurn() {
         return;
     }
 
+    if (gameState.isTutorialActive) {
+        const currentStep = tutorialScenarioData.tutorialSteps[currentTutorialStepIndex];
+        if (currentStep && currentStep.validate && !currentStep.validate(gameState, units.find(u => u.lastMove))) {
+            logMessage(`¡Tutorial! Debes completar el paso actual antes de terminar el turno: ${currentStep.message}`);
+            return;
+        }
+        moveToNextTutorialStep();
+        if (gameState.currentPhase === "gameOver") { return; }
+    }
+    
     let triggerAiDeployment = false;
     let aiPlayerToDeploy = -1;
     let nextPhaseForGame = gameState.currentPhase;
@@ -20,8 +296,8 @@ function handleEndTurn() {
         const player1Id = 1;
         const player2Id = 2;
         const limit = gameState.deploymentUnitLimit;
-        let player1CanStillDeploy = gameState.playerTypes.player1 === 'human' && gameState.unitsPlacedByPlayer[player1Id] < limit;
-        let player2CanStillDeploy = gameState.playerTypes.player2 === 'human' && gameState.unitsPlacedByPlayer[player2Id] < limit;
+        let player1CanStillDeploy = gameState.playerTypes.player1 === 'human' && (gameState.unitsPlacedByPlayer[player1Id] || 0) < limit;
+        let player2CanStillDeploy = gameState.playerTypes.player2 === 'human' && (gameState.unitsPlacedByPlayer[player2Id] || 0) < limit;
         
         if (gameState.playerTypes.player1.startsWith('ai_')) player1CanStillDeploy = false;
         if (gameState.playerTypes.player2.startsWith('ai_')) player2CanStillDeploy = false;
@@ -36,14 +312,14 @@ function handleEndTurn() {
                 } else {
                     nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
                 }
-            } else { // P2 es IA
-                if (gameState.unitsPlacedByPlayer[player2Id] < limit) {
+            } else { 
+                if ((gameState.unitsPlacedByPlayer[player2Id] || 0) < limit) {
                     nextPlayerForGame = player2Id; triggerAiDeployment = true; aiPlayerToDeploy = player2Id;
                 } else { 
                     nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
                 }
             }
-        } else { // Era turno de P2
+        } else { 
             if (player2CanStillDeploy) logMessage(`Jugador 2: Aún puedes desplegar (Límite: ${limit === Infinity ? 'Ilimitado' : limit}).`);
             nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
         }
@@ -53,17 +329,51 @@ function handleEndTurn() {
             gameState.turnNumber = 1;
         }
     } else if (gameState.currentPhase === "play") {
+        updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn); 
+        handleUnitUpkeep(playerEndingTurn);
+        handleHealingPhase(playerEndingTurn);
 
         gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
         if (gameState.currentPlayer === 1) {
             gameState.turnNumber++;
             logMessage(`Comienza el Turno ${gameState.turnNumber}.`);
         }
+
+        const tradeGold = calculateTradeIncome(playerEndingTurn);
+        if (tradeGold > 0) {
+            gameState.playerResources[playerEndingTurn].oro += tradeGold;
+        }
     }
 
     logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
 
+    if(gameState.currentPhase === 'play'){
+        handleBrokenUnits(gameState.currentPlayer);
+    }
+    
+    // 2. Reseteo de acciones
+    units.forEach(unit => {
+        if (unit.player === gameState.currentPlayer) {
+            unit.hasMoved = false;
+            unit.hasAttacked = false;
+            unit.currentMovement = unit.movement;
+            unit.hasRetaliatedThisTurn = false;
+
+            // <<== NUEVO: Resetear los golpes recibidos en combate para cada regimiento ==>>
+            // Se comprueba si la unidad tiene una lista de regimientos.
+            if (unit.regiments && Array.isArray(unit.regiments)) {
+                // Se itera sobre cada regimiento de la división del jugador que inicia su turno.
+                unit.regiments.forEach(regiment => {
+                    // Se establece a 0 el contador de golpes recibidos.
+                    // Esto elimina la penalización de desgaste para el nuevo turno.
+                    regiment.hitsTakenThisRound = 0;
+                });
+            }
+            // <<== FIN DE LA MODIFICACIÓN ==>>
+        }
+    });
+    
     units.forEach(unit => {
         if (unit.player === gameState.currentPlayer) {
             unit.hasMoved = false;
@@ -74,7 +384,6 @@ function handleEndTurn() {
     });
 
     if (gameState.currentPhase === 'play') {
-        // Experiencia pasiva
         units.forEach(unit => {
             if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
                 unit.experience = Math.min(unit.maxExperience || 500, (unit.experience || 0) + 1);
@@ -82,90 +391,60 @@ function handleEndTurn() {
             }
         });
 
-        // Puntos de Investigación
         if (gameState.playerResources[gameState.currentPlayer]) {
-            const baseResearchIncome = 5; 
-            gameState.playerResources[gameState.currentPlayer].researchPoints = 
-                (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
+            const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5; 
+            gameState.playerResources[gameState.currentPlayer].researchPoints = (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
             logMessage(`Jugador ${gameState.currentPlayer} obtiene ${baseResearchIncome} Puntos de Investigación.`);
-        } else { console.warn(`[ResearchPoints] No se encontraron recursos para el Jugador ${gameState.currentPlayer}.`); }
+        }
 
-        // Lógica de Comida y Atrición (VERSIÓN ESTRICTA PARA NO SUMINISTRADAS)
         const player = gameState.currentPlayer;
         const playerRes = gameState.playerResources[player];
         if (playerRes) {
             let foodProducedThisTurn = 0;
-            if (board && board.length > 0 && board[0].length > 0 && typeof STRUCTURE_TYPES !== 'undefined') {
+            if (board?.length > 0) {
                 for (let r_idx = 0; r_idx < board.length; r_idx++) {
                     for (let c_idx = 0; c_idx < board[0].length; c_idx++) {
-                        const hex = board[r_idx][c_idx];
+                        const hex = board[r_idx]?.[c_idx];
                         if (hex && hex.owner === player && hex.structure) {
-                            const structData = STRUCTURE_TYPES[hex.structure];
-                            if (structData && typeof structData.producesFood === 'number') {
-                                foodProducedThisTurn += structData.producesFood;
+                            if (STRUCTURE_TYPES[hex.structure]?.producesFood) {
+                                foodProducedThisTurn += STRUCTURE_TYPES[hex.structure].producesFood;
                             }
                         }
                     }
                 }
             }
-            playerRes.comida = (playerRes.comida || 0) + foodProducedThisTurn;
-            if (foodProducedThisTurn > 0) {
-                logMessage(`Jugador ${player} produce ${foodProducedThisTurn} comida. Comida ANTES de consumo: ${playerRes.comida}`);
-            }
+            playerRes.comida += foodProducedThisTurn;
+            if (foodProducedThisTurn > 0) logMessage(`Jugador ${player} produce ${foodProducedThisTurn} comida.`);
 
-            let foodActuallyConsumedFromReserves = 0;
+            let foodActuallyConsumed = 0;
             let unitsSufferingAttrition = 0;
             let unitsDestroyedByAttrition = [];
 
             units.filter(u => u.player === player && u.currentHealth > 0).forEach(unit => {
                 let unitConsumption = 0;
-                if (unit.regiments && unit.regiments.length > 0 && typeof REGIMENT_TYPES !== 'undefined') {
-                    unit.regiments.forEach(reg => { 
-                        const rd = REGIMENT_TYPES[reg.type]; 
-                        if (rd && typeof rd.foodConsumption === 'number') unitConsumption += rd.foodConsumption;
-                    });
-                } else if (typeof unit.foodConsumption === 'number') { unitConsumption = unit.foodConsumption; } 
-                else { unitConsumption = 1; }
-
-                const supplied = (typeof isHexSupplied === "function") ? isHexSupplied(unit.r, unit.c, player) : true;
-
-                if (supplied) {
-                    if (playerRes.comida >= unitConsumption) {
-                        playerRes.comida -= unitConsumption;
-                        foodActuallyConsumedFromReserves += unitConsumption;
-                    } else {
-                        unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
-                        unitsSufferingAttrition++;
-                        logMessage(`¡${unit.name} (suministrada) sufre atrición por hambruna! Pierde ${(ATTRITION_DAMAGE_PER_TURN || 1)} salud.`);
-                        if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
-                        else if (typeof UIManager !== 'undefined' && UIManager.updateUnitStrengthDisplay) UIManager.updateUnitStrengthDisplay(unit);
-                    }
-                } else { 
+                (unit.regiments || []).forEach(reg => {
+                    unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0;
+                });
+                
+                if (isHexSupplied(unit.r, unit.c, player) && playerRes.comida >= unitConsumption) {
+                    playerRes.comida -= unitConsumption;
+                    foodActuallyConsumed += unitConsumption;
+                } else {
                     unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
                     unitsSufferingAttrition++;
-                    logMessage(`¡${unit.name} (no suministrada) sufre atrición! Pierde ${(ATTRITION_DAMAGE_PER_TURN || 1)} salud.`);
+                    logMessage(`¡${unit.name} sufre atrición!`);
                     if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
-                    else if (typeof UIManager !== 'undefined' && UIManager.updateUnitStrengthDisplay) UIManager.updateUnitStrengthDisplay(unit);
+                    else if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
                 }
             });
 
             unitsDestroyedByAttrition.forEach(unitId => {
                 const unit = units.find(u => u.id === unitId);
-                if (unit) {
-                    if (unit.element && unit.element.parentElement) unit.element.remove();
-                    const index = units.findIndex(u => u.id === unit.id);
-                    if (index > -1) units.splice(index, 1);
-                    if (board[unit.r]?.[unit.c]?.unit?.id === unit.id) board[unit.r][unit.c].unit = null;
-                    if (selectedUnit && selectedUnit.id === unit.id) {
-                        if(typeof deselectUnit === "function") deselectUnit();
-                        if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) UIManager.hideContextualPanel();
-                    }
-                }
+                if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null);
             });
 
-            if (foodActuallyConsumedFromReserves > 0 || unitsSufferingAttrition > 0) {
-                logMessage(`Comida consumida: ${foodActuallyConsumedFromReserves}. Comida final Jugador ${player}: ${playerRes.comida}.`);
-                if (unitsSufferingAttrition > 0) logMessage(`${unitsSufferingAttrition} unidad(es) sufrieron atrición.`);
+            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) {
+                logMessage(`Comida consumida: ${foodActuallyConsumed}.`);
             }
             if (playerRes.comida < 0) playerRes.comida = 0;
         }
@@ -175,162 +454,141 @@ function handleEndTurn() {
         logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
     }
 
-    if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === 'function') {
-        UIManager.updateAllUIDisplays();
-    } else { console.error("handleEndTurn Error: UIManager.updateAllUIDisplays no está definida."); }
-
-    // --- LÓGICA DE IA Y COMPROBACIÓN DE VICTORIA ---
+    if (UIManager) UIManager.updateAllUIDisplays();
+    
     const playerForAICheck = `player${gameState.currentPlayer}`;
     const playerTypeForAICheck = gameState.playerTypes[playerForAICheck];
-    console.log(`[handleEndTurn AI CHECK] Fase: ${gameState.currentPhase}, CurrentPlayer: ${gameState.currentPlayer}, PlayerTypeString: "${playerForAICheck}", PlayerTypeValue: "${playerTypeForAICheck}", StartsWithAI: ${playerTypeForAICheck?.startsWith('ai_')}`);
 
-    if (triggerAiDeployment && aiPlayerToDeploy !== -1 && gameState.currentPhase === "deployment") {
+    if (triggerAiDeployment && aiPlayerToDeploy !== -1) {
         logMessage(`IA (Jugador ${aiPlayerToDeploy}) desplegando...`);
         setTimeout(() => {
-            if (typeof deployUnitsAI === "function") {
-                deployUnitsAI(aiPlayerToDeploy);
-                if (gameState.currentPhase === "deployment" && endTurnBtn && !endTurnBtn.disabled) {
-                    endTurnBtn.click();
-                } else if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) UIManager.updateAllUIDisplays();
-            } else {
-                console.error("Función deployUnitsAI no encontrada.");
-                if (gameState.currentPhase === "deployment" && endTurnBtn && !endTurnBtn.disabled) endTurnBtn.click();
-            }
+            if (deployUnitsAI) deployUnitsAI(aiPlayerToDeploy);
+            if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) domElements.endTurnBtn.click();
         }, 500);
     } else if (gameState.currentPhase === 'play' && playerTypeForAICheck?.startsWith('ai_')) {
-        if (typeof checkVictory === "function" && checkVictory()) { return; } 
-        console.log(`[handleEndTurn] Preparando para llamar a simpleAiTurn para Jugador ${gameState.currentPlayer}`);
+        if (checkVictory()) { return; } 
         setTimeout(simpleAiTurn, 700); 
     } else if (gameState.currentPhase === 'play') { 
-        if (typeof checkVictory === "function") checkVictory();
+        if (checkVictory) checkVictory();
     }
 }
 
 function collectPlayerResources(playerNum) {
-    if (!gameState.playerResources[playerNum]) {
-        console.warn(`[collectPlayerResources] No se encontraron datos de recursos para el jugador ${playerNum}.`);
+    console.groupCollapsed(`[RECURSOS] Análisis Detallado de Recolección para Jugador ${playerNum}`);
+
+    const playerRes = gameState.playerResources[playerNum];
+    if (!playerRes) {
+        console.warn(`[RECURSOS] No se encontraron datos de recursos para el jugador ${playerNum}.`);
+        console.groupEnd();
         return;
     }
 
-    const playerRes = gameState.playerResources[playerNum];
     const playerTechs = playerRes.researchedTechnologies || [];
-    let logItems = []; // Usaremos un array para construir el mensaje final de ingresos
+    let totalIncome = { oro: 0, hierro: 0, piedra: 0, madera: 0, comida: 0, researchPoints: 0, puntosReclutamiento: 0 };
+    let logItems = [];
 
-    // --- INGRESOS DE ORO BASE POR CIUDADES --- (Tu código original)
-    let oroDeCiudadesBase = 0;
-    gameState.cities.forEach(city => {
-        if (city.owner === playerNum && board[city.r]?.[city.c]) {
-            const ingresoCiudadBase = board[city.r][city.c].isCapital ? 7 : 5;
-            oroDeCiudadesBase += ingresoCiudadBase;
-        }
+    board.forEach(row => {
+        row.forEach(hex => {
+            if (hex.owner !== playerNum) {
+                return;
+            }
+
+            console.log(`--- Analizando Hex (${hex.r},${hex.c}) ---`);
+
+            // <<== NUEVO: Cálculo no lineal del multiplicador de estabilidad ==>>
+            let stabilityMultiplier = 0;
+            switch (hex.estabilidad) {
+                case 0: stabilityMultiplier = 0; break;
+                case 1: stabilityMultiplier = 0.25; break; // 25%
+                case 2: stabilityMultiplier = 0.70; break; // 70%
+                case 3: stabilityMultiplier = 1.0; break;  // 100%
+                case 4: stabilityMultiplier = 1.25; break; // 125%
+                case 5: stabilityMultiplier = 1.50; break; // 150%
+                default: stabilityMultiplier = 0;
+            }
+            // <<== FIN DE LA MODIFICACIÓN ==>>
+
+            const nationalityMultiplier = (hex.nacionalidad[playerNum] || 0) / MAX_NACIONALIDAD;
+
+            console.log(`  - Estabilidad: ${hex.estabilidad}/${MAX_STABILITY} (Multiplicador: ${stabilityMultiplier.toFixed(2)})`);
+            console.log(`  - Nacionalidad: ${hex.nacionalidad[playerNum]}/${MAX_NACIONALIDAD} (Multiplicador: ${nationalityMultiplier.toFixed(2)})`);
+            
+            let recruitmentPointsFromHex = 0;
+            if (hex.isCity) {
+                recruitmentPointsFromHex = hex.isCapital ? 100 : 50;
+            } else if (hex.structure === "Fortaleza") {
+                recruitmentPointsFromHex = 20;
+            } else {
+                recruitmentPointsFromHex = 10 * nationalityMultiplier * stabilityMultiplier;
+            }
+            console.log(`  - Puntos Reclutamiento base del hex: ${recruitmentPointsFromHex.toFixed(2)}`);
+            totalIncome.puntosReclutamiento += Math.round(recruitmentPointsFromHex);
+
+            let incomeFromHex = { oro: 0, hierro: 0, piedra: 0, madera: 0, comida: 0 };
+            
+            if (hex.isCity) {
+                incomeFromHex.oro = hex.isCapital ? GOLD_INCOME.PER_CAPITAL : GOLD_INCOME.PER_CITY;
+            } else if (hex.structure === "Fortaleza") {
+                incomeFromHex.oro = GOLD_INCOME.PER_FORT;
+            } else if (hex.structure === "Camino") {
+                incomeFromHex.oro = GOLD_INCOME.PER_ROAD;
+            } else {
+                incomeFromHex.oro = GOLD_INCOME.PER_HEX;
+            }
+            console.log(`  - Ingreso base de oro: ${incomeFromHex.oro}`);
+
+            if (hex.resourceNode && RESOURCE_NODES_DATA[hex.resourceNode]) {
+                const nodeInfo = RESOURCE_NODES_DATA[hex.resourceNode];
+                const resourceType = nodeInfo.name.toLowerCase().replace('_mina', '');
+                
+                if (resourceType !== 'oro') {
+                    incomeFromHex[resourceType] += nodeInfo.income || 0;
+                    console.log(`  - Ingreso por nodo de '${resourceType}': +${nodeInfo.income || 0}`);
+                }
+            }
+
+            let techBonusLog = "";
+            if (incomeFromHex.oro > 0 && playerTechs.includes('PROSPECTING')) { incomeFromHex.oro += 1; techBonusLog += "PROSPECTING, "; }
+            if (incomeFromHex.hierro > 0 && playerTechs.includes('IRON_WORKING')) { incomeFromHex.hierro += 1; techBonusLog += "IRON_WORKING, "; }
+            if (incomeFromHex.piedra > 0 && playerTechs.includes('MASONRY')) { incomeFromHex.piedra += 1; techBonusLog += "MASONRY, "; }
+            if (incomeFromHex.madera > 0 && playerTechs.includes('FORESTRY')) { incomeFromHex.madera += 1; techBonusLog += "FORESTRY, "; }
+            if (incomeFromHex.comida > 0 && playerTechs.includes('SELECTIVE_BREEDING')) { incomeFromHex.comida += 1; techBonusLog += "SELECTIVE_BREEDING, "; }
+            if (techBonusLog) console.log(`  - Ingresos tras bonus de Tech (${techBonusLog}): Oro=${incomeFromHex.oro}, Hierro=${incomeFromHex.hierro}, ...`);
+
+
+            console.log("  - Aplicando multiplicadores de Estabilidad y Nacionalidad...");
+            for (const res in incomeFromHex) {
+                const baseIncome = incomeFromHex[res];
+                const finalIncome = baseIncome * stabilityMultiplier * nationalityMultiplier;
+                if(finalIncome > 0) console.log(`    - Recurso '${res}': ${baseIncome.toFixed(2)} * ${stabilityMultiplier.toFixed(2)} * ${nationalityMultiplier.toFixed(2)} = ${finalIncome.toFixed(2)}`);
+                totalIncome[res] = (totalIncome[res] || 0) + finalIncome;
+            }
+        }); 
     });
-    // === INTEGRACIÓN DE BONUS DE PROSPECCIÓN PARA ORO DE CIUDADES ===
-    // Si la prospección afecta el oro base de ciudades.
-    if (playerTechs.includes('PROSPECTING')) {
-        // Asumimos que cada ciudad genera 1 oro extra si tienes prospección.
-        oroDeCiudadesBase += (gameState.cities.filter(c => c.owner === playerNum).length * 1); 
-    }
-    // ================================================================
 
-    if (oroDeCiudadesBase > 0) {
-        playerRes.oro = (playerRes.oro || 0) + oroDeCiudadesBase;
-        logItems.push(`+${oroDeCiudadesBase} Oro (ciudades)`);
-    }
+    console.log("--- Resumen de Ingresos Totales (antes de redondear) ---");
+    console.log(JSON.stringify(totalIncome, null, 2));
 
-    // --- INGRESOS DE NODOS DE RECURSOS CON MULTIPLICADORES Y ORO POR HEXÁGONO CONTROLADO ---
-    let oroPorTerritorioControlado = 0;
-    const currentRows = board.length;
-    const currentCol = board[0] ? board[0].length : 0;
-
-    for (let r = 0; r < currentRows; r++) {
-        for (let c = 0; c < currentCol; c++) {
-            const hexData = board[r]?.[c];
-
-            if (hexData && hexData.owner === playerNum) {
-                // ORO POR HEXÁGONO CONTROLADO (Tu código original + bonus de prospección)
-                if (!hexData.isCity) {
-                    let oroHex = 1;
-                    let motivoOroHex = "(territorio)";
-                    if (hexData.structure === "Fortaleza") {
-                        oroHex = 3;
-                        motivoOroHex = "(territorio con Fortaleza)";
-                    } else if (hexData.structure === "Camino") {
-                        oroHex = 2;
-                        motivoOroHex = "(territorio con Camino)";
-                    }
-                    // === INTEGRACIÓN DE BONUS DE PROSPECCIÓN PARA ORO DE TERRITORIO ===
-                    if (playerTechs.includes('PROSPECTING')) {
-                        oroHex += 1; // Añadir +1 si la prospección afecta este tipo de oro también
-                    }
-                    // ================================================================
-                    oroPorTerritorioControlado += oroHex;
-                }
-
-                // Nodos de recursos (Tu código original + bonus de tecnología)
-                if (hexData.resourceNode && RESOURCE_NODES_DATA[hexData.resourceNode]) {
-                    const nodeInfo = RESOURCE_NODES_DATA[hexData.resourceNode];
-                    let baseIncomeForNode = nodeInfo.income || 0; // Ingreso base original del nodo
-                    
-                    // === BONUS POR TECNOLOGÍA ESPECÍFICA DEL NODO ===
-                    let techBonus = 0;
-                    const resourceType = hexData.resourceNode; // Ej: 'oro_mina', 'comida', 'hierro'
-                    if (resourceType === 'oro_mina' && playerTechs.includes('PROSPECTING')) techBonus = 1;
-                    if (resourceType === 'comida' && playerTechs.includes('SELECTIVE_BREEDING')) techBonus = 1;
-                    if (resourceType === 'madera' && playerTechs.includes('FORESTRY')) techBonus = 1;
-                    if (resourceType === 'piedra' && playerTechs.includes('MASONRY')) techBonus = 1;
-                    if (resourceType === 'hierro' && playerTechs.includes('IRON_WORKING')) techBonus = 1;
-                    
-                    // Sumar el bonus tecnológico al ingreso base del nodo ANTES del multiplicador
-                    baseIncomeForNode += techBonus;
-                    
-                    // === MULTIPLICADORES POR ESTRUCTURA === (Tu código original)
-                    let incomeAfterMultipliers = baseIncomeForNode; // Empezamos con el ingreso base + techBonus
-                    let multiplier = 1;
-                    let infrastructureDescription = ""; // Para el log
-                    
-                    if (hexData.isCity) {
-                        multiplier = RESOURCE_MULTIPLIERS.CIUDAD || 1;
-                        infrastructureDescription = ` (Ciudad x${multiplier})`;
-                    } else if (hexData.structure === "Fortaleza") {
-                        multiplier = RESOURCE_MULTIPLIERS.FORTALEZA || 1;
-                        infrastructureDescription = ` (Fortaleza x${multiplier})`;
-                    } else if (hexData.structure === "Camino") {
-                        multiplier = RESOURCE_MULTIPLIERS.CAMINO || 1;
-                        infrastructureDescription = ` (Camino x${multiplier})`;
-                    }
-                    incomeAfterMultipliers *= multiplier; // Aplicar el multiplicador
-                    
-                    // === ASIGNAR RECURSO Y PREPARAR LOG ===
-                    const resourceKey = resourceType.replace('_mina',''); // Convertir 'oro_mina' a 'oro'
-                    playerRes[resourceKey] = (playerRes[resourceKey] || 0) + incomeAfterMultipliers;
-                    
-                    if (incomeAfterMultipliers > 0) {
-                        // Construir el mensaje de log detallado
-                        let logText = `+${incomeAfterMultipliers} ${nodeInfo.name}`;
-                        if (techBonus > 0 || multiplier > 1) {
-                            logText += ` [Base:${nodeInfo.income}`; // Ingreso base original del nodo
-                            if (techBonus > 0) logText += ` +${techBonus}t`; // Si hay bonus tech
-                            if (multiplier > 1) logText += `${infrastructureDescription}`; // Si hay multiplicador
-                            logText += `]`;
-                        }
-                        logItems.push(logText);
-                    }
-                }
+    for (const resType in totalIncome) {
+        if (totalIncome[resType] > 0) {
+            const roundedIncome = Math.round(totalIncome[resType]);
+            if (roundedIncome > 0) {
+                playerRes[resType] = (playerRes[resType] || 0) + roundedIncome;
+                logItems.push(`+${roundedIncome} ${resType}`);
             }
         }
     }
 
-    if (oroPorTerritorioControlado > 0) {
-        playerRes.oro = (playerRes.oro || 0) + oroPorTerritorioControlado;
-        logItems.push(`+${oroPorTerritorioControlado} Oro (territorio)`);
+    if (logItems.length > 0) {
+        logMessage(`Ingresos J${playerNum}: ${logItems.join(', ')}`);
+    } else {
+        logMessage(`Jugador ${playerNum} no generó ingresos este turno.`);
     }
 
-    // --- LLAMAR A logMessage SOLO SI HAY ALGO QUE REPORTAR ---
-    if (logItems.length > 0) {
-        const message = `Ingresos J${playerNum}: ${logItems.join(', ')}`;
-        logMessage(message);
-    }
+    console.log(`[RECURSOS] Fin de recolección para Jugador ${playerNum}. Recursos finales: ${JSON.stringify(playerRes)}`);
+    console.groupEnd();
 }
+
 
 function updateFogOfWar() {
     if (!board || board.length === 0) return; // board de state.js
@@ -633,4 +891,242 @@ function simpleAiTurn() {
     AiManager.executeTurn(aiActualPlayerNumber, aiLevel);
 
     console.log(`[simpleAiTurn V2] AiManager.executeTurn ha sido invocado para Jugador ${aiActualPlayerNumber}. simpleAiTurn ha finalizado su ejecución.`);
+}
+
+function startTutorial(scenarioData) {
+    gameState.isTutorialActive = true;
+    tutorialScenarioData = scenarioData;
+    currentTutorialStepIndex = -1; // Empezamos antes del primer paso
+    // Inicializar propiedades del tutorial en gameState
+    gameState.tutorial = {
+        lastMovedUnitId: null, // Para la validación del paso de movimiento
+        // Añadir otras propiedades de tutorial si se necesitan (ej. unidad atacada, estructura construida)
+    };
+    moveToNextTutorialStep(); // Para ir al paso 0
+}
+
+function moveToNextTutorialStep() {
+    // Limpiar cualquier resaltado anterior del tutorial antes de mostrar el siguiente paso
+    if (typeof UIManager !== 'undefined' && UIManager.clearTutorialHighlights) {
+        UIManager.clearTutorialHighlights();
+    }
+
+    currentTutorialStepIndex++;
+    const steps = tutorialScenarioData.tutorialSteps;
+
+    if (currentTutorialStepIndex < steps.length) {
+        const currentStep = steps[currentTutorialStepIndex];
+        console.log(`%c[Tutorial] Nuevo paso: ${currentStep.id}`, "color: blue; font-weight: bold;");
+
+        // Reiniciar la variable de la última unidad movida para la validación del siguiente paso.
+        if (gameState.tutorial) gameState.tutorial.lastMovedUnitId = null;
+
+        // Ejecutar cualquier acción que deba ocurrir al inicio de este paso (ej. generar una unidad enemiga)
+        if (currentStep.action && typeof currentStep.action === 'function') {
+            currentStep.action(gameState); 
+        }
+        
+        // Mostrar el mensaje del paso actual
+        if (typeof UIManager !== 'undefined' && UIManager.showTutorialMessage) { 
+            UIManager.showTutorialMessage(currentStep.message, currentStep.id === "final_step");
+        } else {
+            logMessage(`Tutorial: ${currentStep.message}`);
+        }
+
+        // Configurar la fase del juego según el paso
+        if (currentStep.type === "deployment") {
+            gameState.currentPhase = "deployment";
+            gameState.currentPlayer = 1; 
+            if (typeof UIManager !== 'undefined' && UIManager.updateActionButtonsBasedOnPhase) UIManager.updateActionButtonsBasedOnPhase();
+        } else if (currentStep.type === "play") {
+            gameState.currentPhase = "play";
+            gameState.currentPlayer = 1;
+            gameState.turnNumber = (gameState.turnNumber || 0) + 1; 
+            if (typeof UIManager !== 'undefined' && UIManager.updateActionButtonsBasedOnPhase) UIManager.updateActionButtonsBasedOnPhase();
+        }
+
+        // Si es el último paso, modificar el botón de fin de turno.
+        if (currentStep.id === "final_step") {
+            if (typeof UIManager !== 'undefined' && UIManager.setEndTurnButtonToFinalizeTutorial) {
+                UIManager.setEndTurnButtonToFinalizeTutorial(finalizeTutorial); 
+            }
+        } else {
+            // Para todos los demás pasos, asegurarse de que el botón de fin de turno es el normal.
+            if (typeof UIManager !== 'undefined' && UIManager.restoreEndTurnButton) {
+                UIManager.restoreEndTurnButton();
+            }
+        }
+
+        // --- ¡CORRECCIÓN CLAVE AQUÍ: Resaltar elementos para el paso actual! ---
+        if (typeof UIManager !== 'undefined' && UIManager.highlightTutorialElement) {
+            const elementToHighlightId = currentStep.highlightUI;
+            const hexesToHighlight = currentStep.highlightHexCoords;
+            UIManager.highlightTutorialElement(elementToHighlightId, hexesToHighlight);
+        }
+        // --- FIN CORRECCIÓN ---
+
+        // Actualizar la UI
+        if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+            UIManager.updateAllUIDisplays();
+        }
+
+        // Habilitar el botón de fin de turno al inicio de cada paso (luego handleEndTurn lo puede deshabilitar si no se cumple el paso)
+        if (typeof UIManager !== 'undefined' && UIManager.setEndTurnButtonEnabled) {
+            UIManager.setEndTurnButtonEnabled(true);
+        }
+
+    } else {
+        // Todos los pasos completados, finalizar el tutorial.
+        finalizeTutorial();
+    }
+}
+
+function updateTerritoryMetrics(playerEndingTurn) {
+    console.log(`%c[Metrics v11] INICIO para turno que finaliza J${playerEndingTurn}`, "color: #00BFFF; font-weight: bold;");
+
+    for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < board[r].length; c++) {
+            const hex = board[r][c];
+            if (!hex) continue; // Ignorar hexágonos inválidos
+
+            const unitOnHex = getUnitOnHex(r, c);
+
+            // --- LÓGICA DE OCUPACIÓN ENEMIGA ---
+            // Si hay una unidad, y NO es del dueño del hexágono.
+            if (unitOnHex && hex.owner !== null && unitOnHex.player !== hex.owner) {
+                const originalOwner = hex.owner;
+                
+                // Si la estabilidad es suficiente (umbral de 3), se reduce la nacionalidad.
+                if (hex.estabilidad >= 3) {
+                    if (hex.nacionalidad[originalOwner] > 0) {
+                        hex.nacionalidad[originalOwner]--;
+                        console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Baja nación de J${originalOwner} a ${hex.nacionalidad[originalOwner]}`);
+
+                        // Si la nacionalidad llega a 0, se produce la conquista.
+                        if (hex.nacionalidad[originalOwner] === 0) {
+                            console.log(`%cHex (${r},${c}): ¡CONQUISTADO por J${unitOnHex.player}!`, 'color: orange; font-weight:bold;');
+                            hex.owner = unitOnHex.player;
+                            hex.nacionalidad[unitOnHex.player] = 1;
+                            // La estabilidad NO se resetea.
+                            renderSingleHexVisuals(r, c);
+                        }
+                    }
+                } else {
+                     console.log(`Hex (${r},${c}): Ocupado por enemigo, pero Estabilidad (${hex.estabilidad}) es muy baja para afectar la nacionalidad.`);
+                }
+            }
+
+            // --- LÓGICA DE EVOLUCIÓN PASIVA (Solo para el dueño del hexágono) ---
+            // Esta parte solo se ejecuta para los hexágonos del jugador cuyo turno está terminando.
+            if (hex.owner === playerEndingTurn) {
+                // 1. AUMENTO DE ESTABILIDAD
+                let stabilityGained = 0;
+                if (hex.estabilidad < MAX_STABILITY) {
+                    stabilityGained = 1; // Ganancia base
+                    if (unitOnHex) { // Bonus por presencia militar (amiga o enemiga)
+                        stabilityGained++;
+                    }
+                }
+                
+                if (stabilityGained > 0) {
+                    hex.estabilidad = Math.min(MAX_STABILITY, hex.estabilidad + stabilityGained);
+                     console.log(`Hex (${r},${c}): Gana ${stabilityGained} Estabilidad -> ahora es ${hex.estabilidad}`);
+                }
+
+                // 2. AUMENTO DE NACIONALIDAD (si la estabilidad es suficiente)
+                if (hex.estabilidad >= 3) {
+                    if (hex.nacionalidad[hex.owner] < MAX_NACIONALIDAD) {
+                        hex.nacionalidad[hex.owner]++;
+                        console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Sube nación de J${hex.owner} a ${hex.nacionalidad[hex.owner]}`);
+                    }
+                }
+            }
+        }
+    }
+    console.log(`%c[Metrics v11] FIN`, "color: #00BFFF; font-weight: bold;");
+}
+
+function calculateTradeIncome(playerNum) {
+    // --- CAMBIO 1: Verificación de seguridad inicial ---
+    // Nos aseguramos de que existen las ciudades y el tablero antes de empezar.
+    if (!gameState.cities || !board) {
+        return 0;
+    }
+
+    const playerCities = gameState.cities.filter(c => c.owner === playerNum);
+    if (playerCities.length < 2) {
+        return 0; // No hay comercio posible con menos de 2 ciudades.
+    }
+
+    const tradeRoutes = new Set();
+
+    for (let i = 0; i < playerCities.length; i++) {
+        const startCity = playerCities[i];
+
+        // --- CAMBIO 2: Más verificaciones de seguridad ---
+        // Si la ciudad de inicio no tiene coordenadas válidas, la saltamos.
+        // Esto previene el error 'getHexNeighbors fue llamado con coordenadas inválidas'.
+        if (typeof startCity.r !== 'number' || typeof startCity.c !== 'number') {
+            console.warn(`La ciudad ${startCity.name} no tiene coordenadas válidas y no puede generar rutas comerciales.`);
+            continue; // Pasa a la siguiente ciudad del bucle.
+        }
+
+        // --- CAMBIO 3: La línea que faltaba y causaba el "queue is not defined" ---
+        // ¡Se define la variable `queue` antes de usarla!
+        const queue = [{ r: startCity.r, c: startCity.c, path: [] }];
+        const visited = new Set([`${startCity.r},${startCity.c}`]);
+        // --- FIN DEL CAMBIO 3 ---
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            
+            // Verificación si el hex actual es otra ciudad válida del jugador.
+            const targetCity = playerCities.find(c =>
+                c.r === current.r && c.c === current.c && c.name !== startCity.name
+            );
+            
+            if (targetCity) {
+                const routeKey = [startCity.name, targetCity.name].sort().join('-');
+                tradeRoutes.add(routeKey);
+                // No continuamos la búsqueda desde aquí para no encontrar la misma ruta múltiples veces.
+            }
+            
+            // Explorar vecinos
+            const neighbors = getHexNeighbors(current.r, current.c);
+            for (const neighbor of neighbors) {
+                const key = `${neighbor.r},${neighbor.c}`;
+                const neighborHex = board[neighbor.r]?.[neighbor.c];
+                
+                // Condición de paso: el hexágono vecino es del jugador Y tiene una infraestructura.
+                if (neighborHex && neighborHex.owner === playerNum && neighborHex.structure && !visited.has(key)) {
+                    visited.add(key);
+                    queue.push({ r: neighbor.r, c: neighbor.c, path: [...current.path, key] });
+                }
+            }
+        }
+    }
+    
+    // Cálculo de ingreso final (se mantiene igual, pero lo incluyo para que sea un bloque completo)
+    let tradeIncome = 0;
+    const playerTradeCities = gameState.cities.filter(c => c.owner === playerNum && STRUCTURE_TYPES[c.structure]?.tradeValue > 0);
+    
+    tradeRoutes.forEach(routeKey => {
+        const [city1Name, city2Name] = routeKey.split('-');
+        const city1 = playerTradeCities.find(c => c.name === city1Name);
+        const city2 = playerTradeCities.find(c => c.name === city2Name);
+        
+        if (city1 && city2) {
+            const city1TradeValue = STRUCTURE_TYPES[city1.structure]?.tradeValue || 0;
+            const city2TradeValue = STRUCTURE_TYPES[city2.structure]?.tradeValue || 0;
+            
+            const routeValue = Math.min(city1TradeValue, city2TradeValue);
+            tradeIncome += routeValue * (TRADE_INCOME_PER_ROUTE || 50); // Usa valor por defecto si no existe
+        }
+    });
+
+    if (tradeIncome > 0) {
+        logMessage(`Rutas comerciales activas: ${tradeRoutes.size}. Ingreso por comercio: ${tradeIncome} oro.`);
+    }
+
+    return tradeIncome;
 }

@@ -14,37 +14,40 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
     const B_ROWS = boardDimensions.rows;
     const B_COLS = boardDimensions.cols;    
 
-    if (typeof currentBoardTranslateX !== 'undefined') currentBoardTranslateX = 0;
-    if (typeof currentBoardTranslateY !== 'undefined') currentBoardTranslateY = 0;
-    if (gameBoard) {
-        gameBoard.style.transform = `translate(0px, 0px)`;
+    // --- ¡CORRECCIÓN CLAVE AQUÍ! Acceder a través de domElements ---
+    if (typeof domElements !== 'undefined' && domElements.currentBoardTranslateX !== 'undefined') domElements.currentBoardTranslateX = 0;
+    if (typeof domElements !== 'undefined' && domElements.currentBoardTranslateY !== 'undefined') domElements.currentBoardTranslateY = 0;
+    if (domElements.gameBoard) {
+        domElements.gameBoard.style.transform = `translate(0px, 0px)`;
     }
+    // --- FIN CORRECCIÓN CLAVE ---
 
-    if (!gameBoard) { console.error("CRITICAL: gameBoard element not found in DOM."); return; }
-    gameBoard.innerHTML = ''; // Limpiar tablero existente
+    if (!domElements.gameBoard) { console.error("CRITICAL: gameBoard element not found in DOM."); return; } // Usar domElements
+    domElements.gameBoard.innerHTML = ''; // Limpiar tablero existente // Usar domElements
 
     board = Array(B_ROWS).fill(null).map(() => Array(B_COLS).fill(null));
     gameState.cities = []; // Limpiar ciudades del estado global para una nueva partida
 
-    gameBoard.style.width = `${B_COLS * HEX_WIDTH + HEX_WIDTH / 2}px`;
-    gameBoard.style.height = `${B_ROWS * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+    domElements.gameBoard.style.width = `${B_COLS * HEX_WIDTH + HEX_WIDTH / 2}px`; // Usar domElements
+    domElements.gameBoard.style.height = `${B_ROWS * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`; // Usar domElements
 
-    // --- PRIMER CAMBIO: Inicializar TODO como llanura (o un terreno base) ---
     for (let r = 0; r < B_ROWS; r++) {
         for (let c = 0; c < B_COLS; c++) {
             const hexElement = createHexDOMElementWithListener(r, c);
-            gameBoard.appendChild(hexElement);
+            domElements.gameBoard.appendChild(hexElement); // Usar domElements
             
+            const terrainType = getRandomTerrainType(); 
             board[r][c] = {
                 element: hexElement, 
-                terrain: 'plains', // Empezamos todo como llanura
+                terrain: terrainType, 
                 owner: null, structure: null,
                 isCity: false, isCapital: false, resourceNode: null,
-                visibility: { player1: 'visible', player2: 'visible' }, unit: null
+                visibility: { player1: 'visible', player2: 'visible' }, unit: null,
+                estabilidad: 0,
+                nacionalidad: { 1: 0, 2: 0 }
             };
         }
     }
-    // --- FIN PRIMER CAMBIO ---
 
     if (gameState) { 
         gameState.isCampaignBattle = false;
@@ -52,16 +55,18 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
         gameState.currentMapData = null;
     }
 
-    // Asegurarse de que las ciudades se añaden antes de generar recursos/terrenos complejos
     addCityToBoardData(1, 2, 1, "Capital P1 (Escaramuza)", true);
     addCityToBoardData(B_ROWS - 2, B_COLS - 3, 2, "Capital P2 (Escaramuza)", true);
 
-    // --- SEGUNDO CAMBIO: Generar características de terreno complejas (ríos, colinas, bosques) ---
-    generateRiversAndLakes(B_ROWS, B_COLS, 1); // Genera 1 río/lago
-    generateHillsAndForests(B_ROWS, B_COLS, 0.15, 0.1); // 15% colinas, 10% bosque
-    // --- FIN SEGUNDO CAMBIO ---
+    /* se cambia por generateProceduralMap a continuación.
+    generateRiversAndLakes(B_ROWS, B_COLS, 1); 
+    generateHillsAndForests(B_ROWS, B_COLS, 0.15, 0.1); 
 
-    generateRandomResourceNodes(selectedResourceLevel); // Para escaramuzas
+    generateRandomResourceNodes(selectedResourceLevel); 
+    */
+    generateProceduralMap(B_ROWS, B_COLS, selectedResourceLevel);
+
+    initializeTerritoryData(); 
 
     renderFullBoardVisualState(); 
     updateFogOfWar(); 
@@ -69,9 +74,286 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
     console.log("boardManager.js: initializeNewGameBoardDOMAndData completada.");
 }
 
-// ... (las funciones createHexDOMElementWithListener y initializeBoardPanning y initializeGameBoardForScenario son las mismas) ...
+/**
+ * Orquesta la generación procedural del mapa de escaramuza.
+ * @param {number} B_ROWS - Número de filas del tablero.
+ * @param {number} B_COLS - Número de columnas del tablero.
+ * @param {string} resourceLevel - Nivel de recursos ('min', 'med', 'max').
+ */
+function generateProceduralMap(B_ROWS, B_COLS, resourceLevel) {
+    console.log("Iniciando generación procedural de mapa...");
+    const totalHexes = B_ROWS * B_COLS;
 
-// --- NUEVAS FUNCIONES DE GENERACIÓN DE TERRENO (añadir al final de boardManager.js) ---
+    // --- 1. Generar Terreno ---
+    // Normalizamos los porcentajes para que sumen 100%
+    const terrainProportions = { water: 0.30, forest: 0.25, hills: 0.15, plains: 0.30 }; // Ajustado para sumar 100%
+
+    // Primero, llenamos todo de llanura
+    for (let r = 0; r < B_ROWS; r++) {
+        for (let c = 0; c < B_COLS; c++) {
+            if (board[r]?.[c]) board[r][c].terrain = 'plains';
+        }
+    }
+
+    // Segundo, creamos un cuerpo de agua contiguo
+    generateContiguousTerrain(B_ROWS, B_COLS, 'water', Math.floor(totalHexes * terrainProportions.water));
+    
+    // Tercero, generamos los bosques en grupos
+    generateClusteredTerrain(B_ROWS, B_COLS, 'forest', Math.floor(totalHexes * terrainProportions.forest), 2, 4); // Grupos de 2 a 4
+    
+    // Cuarto, generamos las colinas
+    generateClusteredTerrain(B_ROWS, B_COLS, 'hills', Math.floor(totalHexes * terrainProportions.hills), 1, 3); // Grupos de 1 a 3
+
+    // --- ¡NUEVO PASO! Asegurar un camino entre capitales ---
+    const capitalP1 = gameState.cities.find(c => c.isCapital && c.owner === 1);
+    const capitalP2 = gameState.cities.find(c => c.isCapital && c.owner === 2);
+    if (capitalP1 && capitalP2) {
+        ensurePathBetweenPoints({r: capitalP1.r, c: capitalP1.c}, {r: capitalP2.r, c: capitalP2.c}, 1);
+    }
+    
+    // --- 2. Colocar Recursos ---
+    placeResourcesOnGeneratedMap(B_ROWS, B_COLS, resourceLevel);
+
+    console.log("Generación procedural de mapa completada.");
+}
+
+/**
+ * Genera un cuerpo de terreno contiguo (ideal para agua) usando un algoritmo de "caminante aleatorio".
+ * @param {number} rows - Filas del tablero.
+ * @param {number} cols - Columnas del tablero.
+ * @param {string} terrainType - El tipo de terreno a generar (ej. 'water').
+ * @param {number} targetAmount - El número de hexágonos a convertir.
+ */
+function generateContiguousTerrain(rows, cols, terrainType, targetAmount) {
+    console.log(`Generando río (${terrainType}) - Objetivo: ${targetAmount} hexágonos`);
+    let placedCount = 0;
+    const placedHexes = new Set(); // Para rastrear hexágonos ya convertidos a este terreno
+
+    // Elegir un punto de inicio aleatorio cerca del borde.
+    // Se podría empezar más cerca del centro si se quiere un lago grande.
+    let startR = Math.floor(Math.random() * rows);
+    let startC = Math.random() < 0.5 ? 0 : cols - 1; // Empezar en columna 0 o col-1
+
+    // Asegurarse de no empezar sobre capitales (si ya están puestas)
+    let safetyAttempts = 0;
+    while (board[startR]?.[startC]?.isCapital && safetyAttempts < 100) {
+        startR = Math.floor(Math.random() * rows);
+        startC = Math.random() < 0.5 ? 0 : cols - 1;
+        safetyAttempts++;
+    }
+    if (safetyAttempts === 100) console.warn(`No se pudo encontrar un inicio para el río lejos de capitales.`);
+     
+    let currentR = startR;
+    let currentC = startC;
+
+    // Definir una longitud para el "camino" del caminante.
+    // No necesariamente colocará 'targetAmount' hexágonos si el camino se atasca o se sale.
+    let pathLength = Math.floor(targetAmount * 1.5); // Intentar un camino un poco más largo
+
+    // Determinar la dirección general de movimiento (alejarse del borde de inicio)
+    const biasDirection = startC === 0 ? 'right' : (startC === cols - 1 ? 'left' : (startR === 0 ? 'down' : 'up'));
+    console.log(`[River Gen] Iniciando en (${startR}, ${startC}), bias: ${biasDirection}`);
+
+
+    // Bucle principal del caminante
+    for (let j = 0; j < pathLength; j++) {
+         // Salir si se sale del tablero o si ya colocamos suficientes hexágonos
+         if (currentR < 0 || currentR >= rows || currentC < 0 || currentC >= cols || placedCount >= targetAmount) break;
+
+        const hexKey = `${currentR},${currentC}`;
+        const currentHex = board[currentR]?.[currentC];
+
+        // --- 1. Convertir el hexágono actual a terreno de río ---
+        // Solo convertir si es un terreno "convertible" (ej: llanura) y no es una ciudad/capital
+        // y no ha sido convertido ya en este proceso.
+        if (currentHex && currentHex.terrain !== terrainType && !currentHex.isCity && !placedHexes.has(hexKey)) {
+            currentHex.terrain = terrainType;
+            currentHex.resourceNode = null; // Eliminar recursos al convertir a río
+            placedHexes.add(hexKey);
+            placedCount++;
+        } else if (currentHex?.isCapital) {
+             // Si el caminante intenta pasar sobre una capital, se salta este hex y se intenta mover desde aquí
+             // sin convertirlo a agua.
+             console.log(`[River Gen] Caminante intentó pasar sobre capital en (${currentR}, ${currentC}). Saltando conversión.`);
+             // No hacemos 'continue' aquí, simplemente no lo convertimos. El caminante intenta moverse desde aquí.
+        }
+
+
+        // Si ya colocamos suficientes hexágonos, terminar el camino
+        if (placedCount >= targetAmount) break;
+
+        // --- 2. Decidir el próximo hexágono para el caminante ---
+        const neighbors = getHexNeighbors(currentR, currentC);
+        
+        // Opciones de movimiento:
+        // Prioridad 1: Vecinos que NO son el terreno de río y están DENTRO del tablero y existen.
+        // Esto ayuda a que el río se mueva por tierra y se mantenga delgado.
+        const potentialMoves = neighbors.filter(n => board[n.r]?.[n.c] && board[n.r][n.c].terrain !== terrainType); 
+
+        // Prioridad 2: Si no hay vecinos terrestres disponibles, cualquier vecino VÁLIDO (dentro del tablero)
+        // Esto puede hacer que el río se ensanche si está rodeado de su propio terreno.
+        const fallbackMoves = neighbors.filter(n => board[n.r]?.[n.c]);
+
+        const moveOptions = potentialMoves.length > 0 ? potentialMoves : fallbackMoves;
+
+        // Si no hay vecinos válidos a los que moverse (ej: golpeó el borde del mapa o quedó rodeado)
+        if (moveOptions.length === 0) {
+             console.log(`[River Gen] Caminante atascado en (${currentR}, ${currentC}). No hay vecinos válidos.`);
+             // Opcional: intentar un salto aleatorio a otro lugar si se atasca.
+             // Por ahora, simplemente romper el bucle.
+             break;
+        }
+        
+        // Seleccionar el próximo hexágono de las opciones.
+        let nextMove;
+        
+        // Aplicar sesgo direccional si hay más de una opción
+        if (moveOptions.length > 1) {
+             let biasedMoves = [];
+             // Filtrar los movimientos que van en la dirección general deseada.
+             if (biasDirection === 'right') biasedMoves = moveOptions.filter(n => n.c > currentC);
+             else if (biasDirection === 'left') biasedMoves = moveOptions.filter(n => n.c < currentC);
+             else if (biasDirection === 'down') biasedMoves = moveOptions.filter(n => n.r > currentR);
+             else if (biasDirection === 'up') biasedMoves = moveOptions.filter(n => n.r < currentR);
+
+             if (biasedMoves.length > 0) {
+                 // Si hay opciones sesgadas, elige una al azar de ellas.
+                 nextMove = biasedMoves[Math.floor(Math.random() * biasedMoves.length)];
+             } else {
+                 // Si no hay opciones sesgadas (ej: llegó al borde opuesto o la dirección sesgada no es transitable),
+                 // elige una opción válida cualquiera al azar.
+                 nextMove = moveOptions[Math.floor(Math.random() * moveOptions.length)];
+             }
+
+        } else {
+            // Si solo hay una opción, tómala.
+            nextMove = moveOptions[0];
+        }
+
+        // Actualizar la posición actual para la próxima iteración del bucle
+        currentR = nextMove.r;
+        currentC = nextMove.c;
+        
+        // Opcional: pequeña probabilidad de un salto aleatorio a cualquier lugar para crear ríos separados.
+        // if (Math.random() < 0.02) { // 2% chance to jump
+        //      currentR = Math.floor(Math.random() * rows);
+        //      currentC = Math.floor(Math.random() * cols);
+        //      console.log(`[River Gen] Caminante saltó a (${currentR}, ${currentC})`);
+        // }
+
+    } // Fin del bucle for (pathLength)
+
+    console.log(`Finalizada generación de ${terrainType}. Colocados: ${placedCount} hexágonos.`);
+}
+
+/**
+ * Genera grupos de terreno (ideal para bosques y colinas).
+ * @param {number} rows - Filas del tablero.
+ * @param {number} cols - Columnas del tablero.
+ * @param {string} terrainType - El tipo de terreno a generar.
+ * @param {number} targetAmount - Número total de hexágonos a convertir.
+ * @param {number} minClusterSize - Tamaño mínimo de un grupo.
+ * @param {number} maxClusterSize - Tamaño máximo de un grupo.
+ */
+function generateClusteredTerrain(rows, cols, terrainType, targetAmount, minClusterSize, maxClusterSize) {
+    let placedCount = 0;
+    let attempts = 0;
+
+    while (placedCount < targetAmount && attempts < targetAmount * 5) {
+        attempts++;
+        const startR = Math.floor(Math.random() * rows);
+        const startC = Math.floor(Math.random() * cols);
+
+        // Solo intentar colocar si el hexágono inicial es una llanura
+        if (board[startR]?.[startC]?.terrain === 'plains' && !board[startR][startC].isCity) {
+            const clusterSize = Math.floor(Math.random() * (maxClusterSize - minClusterSize + 1)) + minClusterSize;
+            let currentCluster = [{r: startR, c: startC}];
+            let clusterPlacedCount = 0;
+
+            // Colocar el primer hex del cluster
+            board[startR][startC].terrain = terrainType;
+            placedCount++;
+            clusterPlacedCount++;
+
+            // Expandir el cluster
+            let safety = 0;
+            while(clusterPlacedCount < clusterSize && safety < 50) {
+                safety++;
+                // Elegir un hexágono aleatorio del cluster actual para expandir desde él
+                const expandFrom = currentCluster[Math.floor(Math.random() * currentCluster.length)];
+                const neighbors = getHexNeighbors(expandFrom.r, expandFrom.c);
+                const validNeighbors = neighbors.filter(n => board[n.r]?.[n.c]?.terrain === 'plains' && !board[n.r][n.c].isCity);
+
+                if (validNeighbors.length > 0) {
+                    const placeAt = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+                    board[placeAt.r][placeAt.c].terrain = terrainType;
+                    currentCluster.push(placeAt);
+                    placedCount++;
+                    clusterPlacedCount++;
+                } else {
+                    // No hay vecinos válidos para expandir, terminar este cluster
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Coloca los recursos en el mapa ya generado según las reglas.
+ * @param {number} rows - Filas del tablero.
+ * @param {number} cols - Columnas del tablero.
+ * @param {string} resourceLevel - Nivel de recursos seleccionado por el jugador.
+ */
+function placeResourcesOnGeneratedMap(rows, cols, resourceLevel) {
+    const plainsHexes = [];
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const hex = board[r][c];
+            if (!hex) continue;
+
+            // Regla 1: Bosques siempre tienen Madera
+            if (hex.terrain === 'forest') {
+                hex.resourceNode = 'madera';
+            }
+            // Regla 2: Colinas tienen Piedra, Hierro u Oro
+            else if (hex.terrain === 'hills') {
+                const rand = Math.random();
+                if (rand < 0.70) { // 70%
+                    hex.resourceNode = 'piedra';
+                } else if (rand < 0.90) { // 20% (de 0.70 a 0.90)
+                    hex.resourceNode = 'hierro';
+                } else { // 10% (de 0.90 a 1.0)
+                    hex.resourceNode = 'oro_mina';
+                }
+            }
+            // Regla 3: Guardar llanuras para la Comida
+            else if (hex.terrain === 'plains' && !hex.isCity) {
+                plainsHexes.push({r, c});
+            }
+        }
+    }
+
+    // Colocar Comida en llanuras
+    let foodNodesToPlace = 0;
+    switch (resourceLevel) {
+        case 'min': foodNodesToPlace = 2; break;
+        case 'med': foodNodesToPlace = 4; break;
+        case 'max': foodNodesToPlace = 8; break;
+    }
+
+    // Barajar las llanuras para colocar la comida aleatoriamente
+    for (let i = plainsHexes.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [plainsHexes[i], plainsHexes[j]] = [plainsHexes[j], plainsHexes[i]];
+    }
+
+    for (let i = 0; i < foodNodesToPlace && i < plainsHexes.length; i++) {
+        const hexCoords = plainsHexes[i];
+        board[hexCoords.r][hexCoords.c].resourceNode = 'comida';
+    }
+}
 
 /**
  * Genera ríos o lagos conectados en el tablero.
@@ -176,128 +458,152 @@ function generateHillsAndForests(rows, cols, hillProbability, forestProbability)
 }
 
 function initializeBoardPanning() {
-    console.log("PANNING_INIT_CALLED (VERSIÓN CORREGIDA)");
+    console.log("PANNING_AND_ZOOM_INIT_CALLED");
 
-    if (!gameBoard || !gameBoard.parentElement) {
-        console.error("Error crítico de Panning: gameBoard o su contenedor no existen.");
+    if (!domElements.gameBoard || !domElements.gameBoard.parentElement) {
+        console.error("Error crítico de Panning/Zoom: gameBoard o su contenedor no existen.");
         return;
     }
 
-    const viewport = gameBoard.parentElement;
+    const viewport = domElements.gameBoard.parentElement;
     let lastTouchX_pan_bm = null;
     let lastTouchY_pan_bm = null;
 
-    // Función para aplicar la transformación y mantener el tablero dentro de los límites
-    function applyTransformAndLimits() {
-        const boardWidth = gameBoard.offsetWidth;
-        const boardHeight = gameBoard.offsetHeight;
+    // --- Helper para calcular la distancia entre dos toques ---
+    function getPinchDistance(touches) {
+        const touch1 = touches[0];
+        const touch2 = touches[1];
+        return Math.hypot(touch1.pageX - touch2.pageX, touch1.pageY - touch2.pageY);
+    }
+
+    // --- Función Unificada para Aplicar Transformaciones (Translate y Scale) y Límites ---
+    function applyTransform() {
+        // Obtenemos dimensiones actuales
+        const boardWidth = domElements.gameBoard.offsetWidth * domElements.currentBoardScale;
+        const boardHeight = domElements.gameBoard.offsetHeight * domElements.currentBoardScale;
         const viewportWidth = viewport.clientWidth;
         const viewportHeight = viewport.clientHeight;
 
-        let targetX = currentBoardTranslateX;
-        let targetY = currentBoardTranslateY;
+        // Limitar la escala
+        const MIN_SCALE = 0.4;
+        const MAX_SCALE = 2.0;
+        domElements.currentBoardScale = Math.max(MIN_SCALE, Math.min(domElements.currentBoardScale, MAX_SCALE));
 
-        // Si el tablero es más ancho que la vista, limita el paneo horizontal
+        let targetX = domElements.currentBoardTranslateX;
+        let targetY = domElements.currentBoardTranslateY;
+
+        // Aplicar límites de traslación
         if (boardWidth > viewportWidth) {
-            targetX = Math.max(targetX, viewportWidth - boardWidth); // Límite izquierdo
-            targetX = Math.min(targetX, 0);                         // Límite derecho
+            targetX = Math.min(0, Math.max(viewportWidth - boardWidth, targetX));
         } else {
-            // Si es más angosto, céntralo
-            targetX = (viewportWidth - boardWidth) / 2;
+            targetX = (viewportWidth - boardWidth) / 2; // Centrar si es más pequeño
+        }
+        if (boardHeight > viewportHeight) {
+            targetY = Math.min(0, Math.max(viewportHeight - boardHeight, targetY));
+        } else {
+            targetY = (viewportHeight - boardHeight) / 2; // Centrar si es más pequeño
         }
 
-        // Si el tablero es más alto que la vista, limita el paneo vertical
-        if (boardHeight > viewportHeight) {
-            targetY = Math.max(targetY, viewportHeight - boardHeight); // Límite superior
-            targetY = Math.min(targetY, 0);                          // Límite inferior
-        } else {
-            // Si es menos alto, céntralo
-            targetY = (viewportHeight - boardHeight) / 2;
-        }
-        
-        currentBoardTranslateX = targetX;
-        currentBoardTranslateY = targetY;
-        gameBoard.style.transform = `translate(${currentBoardTranslateX}px, ${currentBoardTranslateY}px)`;
+        // Guardar la posición corregida
+        domElements.currentBoardTranslateX = targetX;
+        domElements.currentBoardTranslateY = targetY;
+
+        // Aplicar la transformación combinada de escala y traslación
+        domElements.gameBoard.style.transform = `translate(${targetX}px, ${targetY}px) scale(${domElements.currentBoardScale})`;
     }
 
     // --- Panning con Ratón ---
-    gameBoard.addEventListener('mousedown', function(e) {
+    domElements.gameBoard.addEventListener('mousedown', function(e) {
         if (e.button !== 0 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
-        e.preventDefault(); // Evita la selección de texto al arrastrar
-        isPanning = true;
-        boardInitialX = currentBoardTranslateX;
-        boardInitialY = currentBoardTranslateY;
-        panStartX = e.clientX;
-        panStartY = e.clientY;
-        gameBoard.classList.add('grabbing');
+        e.preventDefault();
+        domElements.isPanning = true;
+        domElements.panStartX = e.clientX - domElements.currentBoardTranslateX;
+        domElements.panStartY = e.clientY - domElements.currentBoardTranslateY;
+        domElements.gameBoard.classList.add('grabbing');
     });
 
     document.addEventListener('mousemove', function(e) {
-        if (!isPanning) return;
-        const dx = e.clientX - panStartX;
-        const dy = e.clientY - panStartY;
-        currentBoardTranslateX = boardInitialX + dx;
-        currentBoardTranslateY = boardInitialY + dy;
-        applyTransformAndLimits();
+        if (!domElements.isPanning) return;
+        domElements.currentBoardTranslateX = e.clientX - domElements.panStartX;
+        domElements.currentBoardTranslateY = e.clientY - domElements.panStartY;
+        applyTransform();
     });
 
     document.addEventListener('mouseup', function(e) {
         if (e.button !== 0) return;
-        isPanning = false;
-        gameBoard.classList.remove('grabbing');
+        domElements.isPanning = false;
+        domElements.gameBoard.classList.remove('grabbing');
     });
 
-    // --- Panning Táctil (para móviles) ---
-    gameBoard.addEventListener('touchstart', function(e) {
-        if (e.touches.length !== 1 || (typeof placementMode !== 'undefined' && placementMode.active)) return;
-        
-        isPanning = true;
-        const touch = e.touches[0];
-        boardInitialX = currentBoardTranslateX;
-        boardInitialY = currentBoardTranslateY;
-        panStartX = touch.clientX;
-        panStartY = touch.clientY;
-        lastTouchX_pan_bm = touch.clientX;
-        lastTouchY_pan_bm = touch.clientY;
-    }, { passive: true }); // passive:true para el inicio es aceptable
+    // --- Zoom con Rueda del Ratón (Bonus) ---
+    domElements.gameBoard.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        const scaleAmount = -e.deltaY * 0.001;
+        domElements.currentBoardScale += scaleAmount;
+        applyTransform();
+    }, { passive: false });
 
-    gameBoard.addEventListener('touchmove', function(e) {
-        if (!isPanning || e.touches.length !== 1) return;
+    // --- Lógica Táctil para Paneo y Zoom ---
+    domElements.gameBoard.addEventListener('touchstart', function(e) {
+        if ((typeof placementMode !== 'undefined' && placementMode.active)) return;
         
-        // ¡CLAVE! Evita que el navegador desplace la página mientras movemos el tablero
-        e.preventDefault(); 
+        // Paneo con un dedo
+        if (e.touches.length === 1) {
+            domElements.isPanning = true;
+            domElements.isPinching = false;
+            const touch = e.touches[0];
+            lastTouchX_pan_bm = touch.clientX;
+            lastTouchY_pan_bm = touch.clientY;
+        }
+        // Zoom con dos dedos
+        else if (e.touches.length === 2) {
+            domElements.isPinching = true;
+            domElements.isPanning = false;
+            domElements.initialPinchDistance = getPinchDistance(e.touches);
+        }
+    }, { passive: true });
 
-        const touch = e.touches[0];
-        const dx = touch.clientX - lastTouchX_pan_bm;
-        const dy = touch.clientY - lastTouchY_pan_bm;
+    domElements.gameBoard.addEventListener('touchmove', function(e) {
+        e.preventDefault();
         
-        currentBoardTranslateX += dx;
-        currentBoardTranslateY += dy;
+        // Mover con un dedo
+        if (domElements.isPanning && e.touches.length === 1) {
+            const touch = e.touches[0];
+            const dx = touch.clientX - lastTouchX_pan_bm;
+            const dy = touch.clientY - lastTouchY_pan_bm;
+            domElements.currentBoardTranslateX += dx;
+            domElements.currentBoardTranslateY += dy;
+            lastTouchX_pan_bm = touch.clientX;
+            lastTouchY_pan_bm = touch.clientY;
+            applyTransform();
+        } 
+        // Hacer zoom con dos dedos
+        else if (domElements.isPinching && e.touches.length === 2) {
+            const newDist = getPinchDistance(e.touches);
+            const scaleFactor = newDist / domElements.initialPinchDistance;
+            domElements.currentBoardScale *= scaleFactor;
+            
+            // Actualizar la distancia inicial para un zoom más suave
+            domElements.initialPinchDistance = newDist;
+            
+            applyTransform();
+        }
+    }, { passive: false });
 
-        applyTransformAndLimits();
-        
-        lastTouchX_pan_bm = touch.clientX;
-        lastTouchY_pan_bm = touch.clientY;
-    }, { passive: false }); // ¡CLAVE! passive:false permite llamar a preventDefault()
-
-    gameBoard.addEventListener('touchend', function(e) {
-        isPanning = false;
+    domElements.gameBoard.addEventListener('touchend', function(e) {
+        // Resetear estados al levantar los dedos
+        domElements.isPanning = false;
+        domElements.isPinching = false;
         lastTouchX_pan_bm = null;
         lastTouchY_pan_bm = null;
     });
 
-    gameBoard.addEventListener('touchcancel', function(e) {
-        isPanning = false;
-        lastTouchX_pan_bm = null;
-        lastTouchY_pan_bm = null;
-    });
-
-    console.log("BoardManager: Panning listeners (versión corregida) inicializados.");
-    applyTransformAndLimits(); // Centra o posiciona el tablero al inicio
+    console.log("BoardManager: Panning and Zoom listeners inicializados.");
+    applyTransform(); // Aplicar transformación inicial para centrar correctamente.
 }
 
 function createHexDOMElementWithListener(r, c) {
-    console.log(`[BoardManager] Creando listener para hex (${r},${c})`);
+//    console.log(`[BoardManager] Creando listener para hex (${r},${c})`);
     const hexEl = document.createElement('div');
     hexEl.classList.add('hex');
     hexEl.dataset.r = r;
@@ -308,8 +614,10 @@ function createHexDOMElementWithListener(r, c) {
     hexEl.style.left = `${xPos}px`;
     hexEl.style.top = `${yPos}px`;
 
-    hexEl.addEventListener('click', () => {
-        console.log(`[HEX CLICK LISTENER] Clic detectado en listener directo para (${r},${c})`);
+    hexEl.addEventListener('click', (event) => { 
+        console.log(`[HEX CLICK LISTENER] Clic detectado en listener directo para (${r},${c})`); 
+        // No detener propagación aquí si la unidad tiene pointer-events: none,
+        // onHexClick debe decidir qué hacer.
         onHexClick(r, c);
     });
     return hexEl;
@@ -319,14 +627,15 @@ function createHexDOMElementWithListener(r, c) {
 async function initializeGameBoardForScenario(mapTacticalData, scenarioData) {
     console.log("boardManager.js: initializeGameBoardForScenario ha sido llamada.");
 
-    if (typeof currentBoardTranslateX !== 'undefined') currentBoardTranslateX = 0;
-    if (typeof currentBoardTranslateY !== 'undefined') currentBoardTranslateY = 0;
-    if (gameBoard) {
-        gameBoard.style.transform = `translate(0px, 0px)`;
+    // Reseteo de variables de paneo globales
+    if (typeof domElements !== 'undefined' && domElements.currentBoardTranslateX !== 'undefined') domElements.currentBoardTranslateX = 0; // Usar domElements
+    if (typeof domElements !== 'undefined' && domElements.currentBoardTranslateY !== 'undefined') domElements.currentBoardTranslateY = 0; // Usar domElements
+    if (domElements.gameBoard) { // Usar domElements
+        domElements.gameBoard.style.transform = `translate(0px, 0px)`; // Usar domElements
     }
     
-    if (!gameBoard) { console.error("CRITICAL: gameBoard element not found in DOM for scenario."); return; }
-    gameBoard.innerHTML = ''; // Limpiar tablero existente
+    if (!domElements.gameBoard) { console.error("CRITICAL: gameBoard element not found in DOM for scenario."); return; } // Usar domElements
+    domElements.gameBoard.innerHTML = ''; // Limpiar tablero existente // Usar domElements
 
     const R = mapTacticalData.rows;
     const C = mapTacticalData.cols;
@@ -334,13 +643,13 @@ async function initializeGameBoardForScenario(mapTacticalData, scenarioData) {
     board = Array(R).fill(null).map(() => Array(C).fill(null));
     gameState.cities = []; // Limpiar ciudades del estado global para el nuevo escenario
 
-    gameBoard.style.width = `${C * HEX_WIDTH + HEX_WIDTH / 2}px`;
-    gameBoard.style.height = `${R * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+    domElements.gameBoard.style.width = `${C * HEX_WIDTH + HEX_WIDTH / 2}px`; // Usar domElements
+    domElements.gameBoard.style.height = `${R * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`; // Usar domElements
 
     for (let r = 0; r < R; r++) {
         for (let c = 0; c < C; c++) {
             const hexElement = createHexDOMElementWithListener(r, c);
-            gameBoard.appendChild(hexElement);
+            domElements.gameBoard.appendChild(hexElement); // Usar domElements
 
             let terrainType = mapTacticalData.hexesConfig?.defaultTerrain || 'plains';
             let structureType = null;
@@ -352,7 +661,7 @@ async function initializeGameBoardForScenario(mapTacticalData, scenarioData) {
 
             board[r][c] = {
                 element: hexElement,
-                terrain: terrainType, // Se asigna el terreno del mapa de campaña
+                terrain: terrainType, 
                 owner: null,
                 structure: structureType,
                 isCity: false,
@@ -414,6 +723,7 @@ async function initializeGameBoardForScenario(mapTacticalData, scenarioData) {
         });
     }
 
+    initializeTerritoryData(); 
     renderFullBoardVisualState();
     updateFogOfWar();
     initializeBoardPanning(); 
@@ -499,10 +809,10 @@ function placeInitialUnit(unitData) {
 function generateRandomResourceNodes(level) {
     let cantidadPorTipo;
     switch (level) {
-        case 'min': cantidadPorTipo = 1; break;
-        case 'med': cantidadPorTipo = 3; break;
-        case 'max': cantidadPorTipo = 5; break;
-        default:    cantidadPorTipo = 1;
+        case 'min': cantidadPorTipo = 2; break;
+        case 'med': cantidadPorTipo = 6; break;
+        case 'max': cantidadPorTipo = 12; break;
+        default:    cantidadPorTipo = 2;
     }
 
     logMessage(`Generando recursos aleatorios - Nivel: ${level} (${cantidadPorTipo} de c/u)`);
@@ -606,11 +916,11 @@ function renderFullBoardVisualState() {
         }
     }
     units.forEach(unit => { 
-        if (unit.element && !unit.element.parentElement && gameBoard) {
-            gameBoard.appendChild(unit.element);
+        if (unit.element && !unit.element.parentElement && domElements.gameBoard) { // Usar domElements.gameBoard
+            domElements.gameBoard.appendChild(unit.element); // Usar domElements.gameBoard
         }
         if (typeof positionUnitElement === "function") positionUnitElement(unit); else console.warn("positionUnitElement no definida");
-        if (typeof updateUnitStrengthDisplay === "function") updateUnitStrengthDisplay(unit); else console.warn("updateUnitStrengthDisplay no definida");
+        if (typeof UIManager !== 'undefined' && UIManager.updateUnitStrengthDisplay) UIManager.updateUnitStrengthDisplay(unit); else console.warn("updateUnitStrengthDisplay no definida");
     });
 }
 
@@ -653,4 +963,77 @@ function renderSingleHexVisuals(r, c) {
     } else if (structureSpriteEl) {
         structureSpriteEl.remove();
     }
+}
+
+/**
+ * Asegura que exista al menos un camino transitable entre dos puntos (capitales)
+ * convirtiendo los hexágonos del camino en llanuras.
+ * @param {object} startCoords - Coordenadas de inicio {r, c}.
+ * @param {object} endCoords - Coordenadas de destino {r, c}.
+ * @param {number} pathWidth - El grosor del camino a crear (ej: 1 para un camino simple).
+ */
+function ensurePathBetweenPoints(startCoords, endCoords, pathWidth = 1) {
+    console.log(`Asegurando un camino entre (${startCoords.r},${startCoords.c}) y (${endCoords.r},${endCoords.c})`);
+
+    // Usamos A* para encontrar el camino más corto posible, ignorando el tipo de terreno temporalmente.
+    let queue = [{ r: startCoords.r, c: startCoords.c, path: [] }];
+    let visited = new Set([`${startCoords.r},${startCoords.c}`]);
+    let pathToCarve = null;
+
+    while (queue.length > 0) {
+        let current = queue.shift();
+        
+        if (current.r === endCoords.r && current.c === endCoords.c) {
+            pathToCarve = current.path;
+            break;
+        }
+
+        const neighbors = getHexNeighbors(current.r, current.c);
+        for (const neighbor of neighbors) {
+            const key = `${neighbor.r},${neighbor.c}`;
+            if (!visited.has(key)) {
+                visited.add(key);
+                let newPath = [...current.path, neighbor];
+                queue.push({ r: neighbor.r, c: neighbor.c, path: newPath });
+            }
+        }
+    }
+
+    if (pathToCarve) {
+        console.log(`Camino encontrado. Tallando ${pathToCarve.length} hexágonos.`);
+        // "Tallar" el camino y sus alrededores para darle anchura.
+        pathToCarve.forEach(hexCoords => {
+            // Obtener el hexágono principal y sus vecinos para crear un camino más ancho.
+            const hexesToClear = [hexCoords, ...getHexNeighbors(hexCoords.r, hexCoords.c).slice(0, pathWidth * 2)];
+            
+            hexesToClear.forEach(h => {
+                const hexToModify = board[h.r]?.[h.c];
+                // Solo modificar si no es una capital.
+                if (hexToModify && !hexToModify.isCapital) {
+                    hexToModify.terrain = 'plains'; // Convertir a llanura
+                    hexToModify.resourceNode = null; // Limpiar cualquier recurso que hubiera
+                }
+            });
+        });
+    } else {
+        console.warn("No se pudo encontrar una ruta para tallar el corredor estratégico.");
+    }
+}
+
+function initializeTerritoryData() {
+    console.log("Inicializando Nacionalidad y Estabilidad de todo el territorio...");
+    if (!board || board.length === 0) return;
+
+    for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < board[r].length; c++) {
+            const hex = board[r][c];
+            if (hex && hex.owner !== null) {
+                // Si la casilla tiene dueño, se la damos al 100%
+                hex.nacionalidad = { 1: 0, 2: 0 };
+                hex.nacionalidad[hex.owner] = 5;
+                hex.estabilidad = 5;
+            }
+        }
+    }
+    console.log("Inicialización de territorio completada.");
 }

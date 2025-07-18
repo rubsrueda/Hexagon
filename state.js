@@ -1,19 +1,29 @@
 // state.js
 // Contiene las variables globales que definen el estado del juego.
+console.log("state.js CARGADO (con Proxy de depuración)"); // Modificado log
 
-let gameState = {};
-// ... (tus variables existentes: board, units, selectedUnit, etc.) ...
-let board = []; // Representación lógica del tablero (array de arrays de hexágonos)
-let units = []; // Array de todas las unidades en el juego
-let selectedUnit = null; // Referencia a la unidad actualmente seleccionada por el jugador
-let unitIdCounter = 0; // Para generar IDs únicos para las unidades
+var gameState = {}; // Variable global para el estado
+let board = [];
+let units = [];
+let selectedUnit = null;
+let unitIdCounter = 0;
 let VISUAL_DEBUG_MODE = false;
 
-// Modo de colocación de unidades (usado en la fase de despliegue)
+// ===>>> CORRECCIÓN AQUÍ: Declarar las variables de estado para la división <<<===
+let _unitBeingSplit = null;         // La unidad original que se está dividiendo.
+let _tempOriginalRegiments = [];  // Copia de los regimientos que quedan en la unidad original durante el modal.
+let _tempNewUnitRegiments = [];   // Copia de los regimientos que irán a la nueva unidad durante el modal.
+
+// ===>>> CORRECCIÓN AQUÍ: Declarar las variables de estado para la construcción <<<===
+let hexToBuildOn = null;                // Guarda las coordenadas {r, c} del hexágono donde se va a construir.
+let selectedStructureToBuild = null;    // Guarda el tipo de estructura (string) que se ha seleccionado en el modal.
+// ===>>> FIN DE LA CORRECCIÓN <<<===
+
+
 let placementMode = {
     active: false,
-    unitData: null, // Objeto de datos de la unidad a colocar (pre-configurado)
-    unitType: null  // Tipo de unidad si se crea desde cero (ej. 'INFANTRY_LIGHT')
+    unitData: null,
+    unitType: null
 };
 
 const GAME_DATA_REGISTRY = {
@@ -21,89 +31,58 @@ const GAME_DATA_REGISTRY = {
     maps: {} 
 };
 
-console.log('GAME_DATA_REGISTRY definido:', typeof GAME_DATA_REGISTRY, GAME_DATA_REGISTRY); // Log para confirmar
+console.log('GAME_DATA_REGISTRY definido:', typeof GAME_DATA_REGISTRY, GAME_DATA_REGISTRY);
 
-// Función original para escaramuzas
-function resetGameStateVariables() {
-    console.log("state.js: Ejecutando resetGameStateVariables()...");
-
-    gameState = {
-        currentPlayer: 1,
-        currentPhase: "setup", // "setup", "deployment", "play", "gameOver"
-        turnNumber: 1,
-
-        playerTypes: { // Tipos de jugador (human, ai_easy, ai_normal, ai_hard)
-            player1: 'human',
-            player2: 'ai_normal'
-        },
-        playerAiLevels: { // Niveles de IA si el jugador es IA
-            // player1: 'normal', // Solo si player1 es IA
-            player2: 'normal'
-        },
-        playerResources: { // Recursos iniciales o actuales por jugador
-            1: { oro: 100, hierro: 20, piedra: 20, madera: 20, comida: 20, researchedTechnologies: ["ORGANIZATION"]}, // Ejemplo para Jugador 1
-            2: { oro: 100, hierro: 20, piedra: 20, madera: 20, comida: 20, researchedTechnologies: ["ORGANIZATION"]}  // Ejemplo para Jugador 2
-        },
+const gameStateProxyHandler = {
+    set: function(target, property, value, receiver) {
+        // Este código se ejecuta CADA VEZ que una propiedad de gameState cambia
+        // Por ejemplo, gameState.currentPlayer = 2; o gameState.playerResources = {...}
+        console.groupCollapsed(`%c[PROXY DETECT - STATE] Modificando gameState.${String(property)}`, "color: red; font-weight: bold;");
+        console.log("Objeto afectado (gameState):", target);
+        console.log(`Propiedad: '${String(property)}'`);
+        console.log("Valor Anterior:", JSON.parse(JSON.stringify(target[property])));
+        console.log("Nuevo Valor:", JSON.parse(JSON.stringify(value)));
+        console.trace("Pila de llamadas:"); // Esto nos dirá QUIÉN está haciendo el cambio
+        console.groupEnd();
         
-        deploymentUnitLimit: 3, // Límite de unidades a desplegar por jugador
-        unitsPlacedByPlayer: { 1: 0, 2: 0 }, // Contador de unidades desplegadas
+        // Realiza la modificación real
+        target[property] = value;
+        return true; // Indica que la operación fue exitosa
+    },
+     // Agregar 'get' para depurar LECTURAS de gameState también
+     get: function(target, property, receiver) {
+         // Evitar logs ruidosos para propiedades muy comunes
+         if (property !== 'justPanned' && property !== 'selectedHexR' && property !== 'selectedHexC' && property !== 'preparingAction' && property !== 'selectedUnit' && property !== 'element' && property !== 'playerResources') {
+             console.log(`%c[PROXY READ - STATE] Accediendo a gameState.${String(property)}`, "color: blue;");
+         }
+         return Reflect.get(target, property, receiver);
+     }
+};
 
+function resetGameStateVariables() {
+    console.log("state.js: Ejecutando resetGameStateVariables() para escaramuza...");
+
+    // 1. Crear el objeto de estado inicial completo (como objeto plano)
+    const initialGameStateObject = {
+        currentPlayer: 1,
+        currentPhase: "setup",
+        turnNumber: 1,
+        playerTypes: { player1: 'human', player2: 'ai_normal' },
+        playerAiLevels: { player2: 'normal' },
+        playerCivilizations: { 1: 'ninguna', 2: 'ninguna' }, 
+        playerResources: {
+            // Crear copias profundas de los recursos iniciales
+            1: JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[0])),
+            2: JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[1]))
+        },
+        deploymentUnitLimit: 3,
+        unitsPlacedByPlayer: { 1: 0, 2: 0 },
         isCampaignBattle: false,
         currentCampaignId: null,
         currentCampaignTerritoryId: null,
-        currentScenarioId: null, // ID del escenario actual (de campaignManager o skirmish)
-        currentMapId: null,      // ID del mapa táctico actual
-
-        // Variables que podrían ser parte de un escenario cargado
-        currentScenarioData: null, // Objeto completo del escenario cargado
-        currentMapData: null,      // Objeto completo del mapa táctico cargado
-
-        cities: [], // Array de objetos ciudad en el mapa actual
-        
-        // Para la lógica de paneo
-        justPanned: false,
-
-        // Puedes añadir más propiedades según las necesidades de tu juego
-        // Por ejemplo, tecnologías investigadas, etc.
-        // researchedTechnologies: { 1: [], 2: [] },
-    };
-
-    // Resetear otras variables globales si es necesario
-    board = [];
-    units = [];
-    selectedUnit = null;
-    unitIdCounter = 0; // O podrías querer que persista entre algunas cosas
-    placementMode = { active: false, unitData: null, unitType: null };
-
-    console.log("state.js: gameState reseteado:", JSON.parse(JSON.stringify(gameState))); // Usar stringify para una copia profunda en el log
-}
-
-// Nueva función para configurar el estado para una batalla de campaña
-async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId) {
-    console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId, "on campaign territory:", campaignTerritoryId);
-
-    // Reinicializar gameState con la configuración base del escenario
-    gameState = {
-        currentPhase: "deployment", // La fase inicial es despliegue
-        playerTypes: {
-            player1: "human", // Asumimos que el jugador humano es siempre el Player 1
-            player2: scenarioData.enemySetup.aiProfile || "ai_normal" // Perfil de IA del enemigo o normal por defecto
-        },
-        currentPlayer: 1, // El jugador 1 siempre comienza el despliegue
-        turnNumber: 0, // El turno comienza en 0 durante el despliegue, luego se va a 1
-        playerResources: {
-            1: JSON.parse(JSON.stringify(scenarioData.playerSetup.initialResources || INITIAL_PLAYER_RESOURCES[0])),
-            2: JSON.parse(JSON.stringify(scenarioData.enemySetup.initialResources || INITIAL_PLAYER_RESOURCES[1]))
-        },
-        deploymentUnitLimit: scenarioData.deploymentUnitLimit || Infinity, // Límite de unidades para desplegar
-        unitsPlacedByPlayer: { 1: 0, 2: 0 }, // Contador de unidades desplegadas por jugador
-        cities: [], // Se poblará durante la inicialización del tablero
-        isCampaignBattle: true,
-        currentScenarioData: scenarioData,
-        currentMapData: mapTacticalData,
-        currentCampaignTerritoryId: campaignTerritoryId,
-        
-        // Mantener estas variables reseteadas al inicio del juego táctico
+        currentScenarioData: null,
+        currentMapData: null,
+        cities: [],
         justPanned: false,
         selectedHexR: -1,
         selectedHexC: -1,
@@ -111,33 +90,132 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         selectedUnit: null
     };
 
-    // Asegurarse de que las variables globales relacionadas con el tablero y unidades estén limpias
-    board = []; // Limpiar la referencia al tablero lógico
-    units = []; // Limpiar el array de unidades
-    selectedUnit = null; // Limpiar la unidad seleccionada
-    unitIdCounter = 0; // Resetear el contador de IDs de unidades
-    placementMode = { active: false, unitData: null, unitType: null }; // Resetear el modo de colocación
-    // También limpiar otras variables globales que no son parte de gameState si es necesario
+    // Aplicar bonus de oro a la IA J2 en el objeto inicial
+    if (initialGameStateObject.playerResources[2]) {
+        initialGameStateObject.playerResources[2].oro = 12500;
+    }
+
+    // --- ¡CORRECCIÓN CLAVE AQUÍ! Inicializar researchedTechnologies en el objeto ANTES del Proxy ---
+    // Asegurarse de que el array researchedTechnologies existe para ambos jugadores
+    // e inicializarlo con "ORGANIZATION" si aún no existe o está vacío.
+    initialGameStateObject.playerResources[1].researchedTechnologies = initialGameStateObject.playerResources[1].researchedTechnologies || [];
+    if (!initialGameStateObject.playerResources[1].researchedTechnologies.includes("ORGANIZATION")) {
+        initialGameStateObject.playerResources[1].researchedTechnologies.push("ORGANIZATION");
+    }
+
+    initialGameStateObject.playerResources[2].researchedTechnologies = initialGameStateObject.playerResources[2].researchedTechnologies || [];
+     if (!initialGameStateObject.playerResources[2].researchedTechnologies.includes("ORGANIZATION")) {
+        initialGameStateObject.playerResources[2].researchedTechnologies.push("ORGANIZATION");
+    }
+    // --- FIN CORRECCIÓN ---
+
+    // 2. --- ¡CAMBIO CRUCIAL! Asignar el objeto inicial ENCAPSULADO EN UN PROXY a la variable global gameState ---
+    // Esto sobrescribe la referencia anterior de gameState (si la había) con el nuevo Proxy.
+    gameState = initialGameStateObject;
+    // --- FIN CAMBIO CRUCIAL ---
+
+    // Resetear otras variables globales que no son parte de gameState
+    board = [];
+    units = [];
+    selectedUnit = null; // Asegurarnos de que la variable global también se limpia
+    unitIdCounter = 0;
+    placementMode = { active: false, unitData: null, unitType: null };
+    
+    // Limpiar roles de la IA
+    if (typeof AiManager !== 'undefined' && AiManager.unitRoles) {
+        AiManager.unitRoles.clear();
+    }
+    
+    // Limpiar variables de construcción/división de modales si existen (guardas de seguridad)
     if (typeof currentDivisionBuilder !== 'undefined') currentDivisionBuilder = [];
     if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
     if (typeof selectedStructureToBuild !== 'undefined') selectedStructureToBuild = null;
+    if (typeof _unitBeingSplit !== 'undefined') _unitBeingSplit = null;
+    if (typeof _tempOriginalRegiments !== 'undefined') _tempOriginalRegiments = [];
+    if (typeof _tempNewUnitRegiments !== 'undefined') _tempNewUnitRegiments = [];
 
 
-    // Inicializar el tablero visual y lógico (se encarga de poblar 'board' y 'gameState.cities')
-    // Esta función también colocará unidades iniciales si la fase no es 'deployment'
-    await initializeGameBoardForScenario(mapTacticalData, scenarioData); // LLAMADA ÚNICA
+    console.log("state.js: gameState (Proxy) reseteado para escaramuza.", JSON.parse(JSON.stringify(gameState)));
+    console.log("--- LOG ESTADO --- state.js -> resetGameStateVariables FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
+}
 
-    // Actualizar la UI después de que el tablero esté listo y las unidades iniciales (si hay) estén en el estado
-    if (typeof updateAllUIDisplays === "function") updateAllUIDisplays();
-    else console.warn("updateAllUIDisplays no definida en state.js.");
 
-    // Preparar UI para el despliegue
+async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId) {
+    console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId, "on campaign territory:", campaignTerritoryId, "(con Proxy de depuración)"); // Modificado log
+
+    // 1. Crear el objeto de estado inicial completo (como objeto plano)
+    const initialP1Resources = JSON.parse(JSON.stringify(scenarioData.playerSetup.initialResources || INITIAL_PLAYER_RESOURCES[0]));
+    const initialP2Resources = JSON.parse(JSON.stringify(scenarioData.enemySetup.initialResources || INITIAL_PLAYER_RESOURCES[1]));
+    if (scenarioData.enemySetup.aiProfile?.startsWith('ai_')) {
+        initialP2Resources.oro = (initialP2Resources.oro || 0) + 150;
+    }
+
+    initialP1Resources.researchedTechnologies = initialP1Resources.researchedTechnologies || ["ORGANIZATION"];
+    initialP2Resources.researchedTechnologies = initialP2Resources.researchedTechnologies || ["ORGANIZATION"];
+    
+    const initialGameStateObject = {
+        currentPhase: "deployment",
+        playerTypes: {
+            player1: "human",
+            player2: scenarioData.enemySetup.aiProfile || "ai_normal"
+        },
+        currentPlayer: 1,
+        turnNumber: 0,
+        playerResources: {
+            1: initialP1Resources,
+            2: initialP2Resources
+        },
+        deploymentUnitLimit: scenarioData.deploymentUnitLimit || Infinity,
+        unitsPlacedByPlayer: { 1: 0, 2: 0 },
+        cities: [],
+        isCampaignBattle: true,
+        currentScenarioData: scenarioData,
+        currentMapData: mapTacticalData,
+        currentCampaignTerritoryId: campaignTerritoryId,
+        justPanned: false,
+        selectedHexR: -1,
+        selectedHexC: -1,
+        preparingAction: null,
+        selectedUnit: null
+    };
+
+    // 2. --- ¡CAMBIO CRUCIAL! Asignar el objeto inicial ENCAPSULADO EN UN PROXY a la variable global gameState ---
+    gameState = initialGameStateObject;
+    // --- FIN CAMBIO CRUCIAL ---
+
+
+    // Asegurarse de que las variables globales relacionadas con el tablero y unidades estén limpias
+    board = [];
+    units = [];
+    selectedUnit = null; // Asegurarnos de que la variable global también se limpia
+    unitIdCounter = 0;
+    placementMode = { active: false, unitData: null, unitType: null };
+    
+    // Limpiar roles de la IA
+     if (typeof AiManager !== 'undefined' && AiManager.unitRoles) {
+        AiManager.unitRoles.clear();
+    }
+
+    // Limpiar variables de construcción/división de modales (guardas de seguridad)
+    if (typeof currentDivisionBuilder !== 'undefined') currentDivisionBuilder = [];
+    if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
+    if (typeof selectedStructureToBuild !== 'undefined') selectedStructureToBuild = null;
+     if (typeof _unitBeingSplit !== 'undefined') _unitBeingSplit = null;
+    if (typeof _tempOriginalRegiments !== 'undefined') _tempOriginalRegiments = [];
+    if (typeof _tempNewUnitRegiments !== 'undefined') _tempNewUnitRegiments = [];
+
+
+    // Inicializar el tablero visual y lógico
+    await initializeGameBoardForScenario(mapTacticalData, scenarioData);
+
+    // Preparar UI para el despliegue o juego
     if (gameState.currentPhase === "deployment") {
         if (typeof populateAvailableRegimentsForModal === "function") populateAvailableRegimentsForModal();
         if (typeof logMessage === "function") logMessage(`Despliegue para ${scenarioData.displayName}. Jugador 1, coloca tus fuerzas.`);
-    } else { // Si no es despliegue, significa que ya hay unidades pre-colocadas (modo escaramuza o escenario sin despliegue)
+    } else { // Si no es despliegue
         if (typeof logMessage === "function") logMessage(`¡Comienza la batalla por ${scenarioData.displayName}!`);
     }
 
-    console.log("state.js: Finalizado resetAndSetupTacticalGame. Estado actual:", JSON.parse(JSON.stringify(gameState)));
+    console.log("state.js: Finalizado resetAndSetupTacticalGame. gameState es ahora un Proxy.", JSON.parse(JSON.stringify(gameState)));
+    console.log("--- LOG ESTADO --- state.js -> resetGameStateVariables FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
 }

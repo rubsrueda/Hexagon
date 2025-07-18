@@ -41,6 +41,37 @@ function hexDistance(r1, c1, r2, c2) {
     return (dq + dr + ds) / 2;
 }
 
+function getHexNeighbors(r, c) {
+    // --- NUEVA GUARDA DE SEGURIDAD ---
+    // Si 'r' o 'c' no son números válidos, no podemos calcular vecinos.
+    // Devolvemos un array vacío para que cualquier código que intente iterarlo no falle.
+    if (typeof r !== 'number' || typeof c !== 'number' || isNaN(r) || isNaN(c)) {
+        console.error(`getHexNeighbors fue llamado con coordenadas inválidas: r=${r}, c=${c}`);
+        return []; 
+    }
+    // --- FIN DE LA GUARDA ---
+
+    const neighbor_directions = [
+        // Fila par
+        [ {r: 0, c: +1}, {r: -1, c: 0}, {r: -1, c: -1}, {r: 0, c: -1}, {r: +1, c: -1}, {r: +1, c: 0} ],
+        // Fila impar
+        [ {r: 0, c: +1}, {r: -1, c: +1}, {r: -1, c: 0}, {r: 0, c: -1}, {r: +1, c: 0}, {r: +1, c: +1} ]
+    ];
+
+    const directions = neighbor_directions[r % 2];
+    const neighbors = [];
+
+    for (const dir of directions) {
+        neighbors.push({ r: r + dir.r, c: c + dir.c });
+    }
+
+    // Filtrar para asegurarse de que los vecinos están dentro de los límites del tablero
+    return neighbors.filter(n =>
+        board && board.length > 0 && n.r >= 0 && n.r < board.length &&
+        board[0] && n.c >= 0 && n.c < board[0].length
+    );
+}
+
 function getUnitOnHex(r, c) {
     if (!board || board.length === 0 || !board[0] || !units) {
         return null;
@@ -53,14 +84,6 @@ function getUnitOnHex(r, c) {
     return units.find(u => u.r === r && u.c === c && u.currentHealth > 0);
 }
 
-/**
- * Verifica si un hexágono está conectado a una fuente de suministro (ciudad/fortaleza)
- * del jugador a través de hexágonos propios o con caminos propios.
- * @param {number} startR - Fila del hexágono de la unidad.
- * @param {number} startC - Columna del hexágono de la unidad.
- * @param {number} playerId - ID del jugador dueño de la unidad.
- * @returns {boolean} - True si está suministrado, false si no.
- */
 function isHexSupplied(startR, startC, playerId) {
     console.log(`%c[DEBUG Suministro] Chequeando suministro para (${startR},${startC}) de J${playerId}`, "background: yellow; color: black;");
 
@@ -129,22 +152,79 @@ function isHexSuppliedForReinforce(r, c, playerId) {
     const hexData = board[r]?.[c];
     if (!hexData) return false;
 
+    // LOG: Muestra la info de la casilla donde está la unidad
+    console.log(`[Reinforce Check] Unidad en (${r},${c}), J${playerId}.`);
+
     // Caso 1: La unidad está DIRECTAMENTE en una Capital o Fortaleza propia.
     if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
-        console.log(`%c[DEBUG Reforzar] (${r},${c}) es fuente DIRECTA de refuerzo.`, "color: green;");
+        console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
         return true;
     }
 
     // Caso 2: La unidad está ADYACENTE a una Capital o Fortaleza propia.
     const neighbors = getHexNeighbors(r, c);
+    console.log(`[Reinforce Check] Buscando en ${neighbors.length} vecinos...`);
     for (const neighbor of neighbors) {
         const neighborHexData = board[neighbor.r]?.[neighbor.c];
-        if (neighborHexData && neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza")) {
-            console.log(`%c[DEBUG Reforzar] (${r},${c}) es adyacente a fuente de refuerzo en (${neighbor.r},${neighbor.c}).`, "color: green;");
-            return true;
+        if (neighborHexData) {
+            // LOG: Muestra la info de cada vecino
+            console.log(`  - Vecino en (${neighbor.r},${neighbor.c}): owner=${neighborHexData.owner}, isCapital=${neighborHexData.isCapital}, structure=${neighborHexData.structure}`);
+            
+            if (neighborHexData.owner === playerId && (neighborHexData.isCapital || neighborHexData.structure === "Fortaleza")) {
+                console.log(`%c[DEBUG Reforzar] OK: Adyacente a fuente de refuerzo en (${neighbor.r},${neighbor.c}).`, "color: green;");
+                return true;
+            }
         }
     }
 
-    console.log(`%c[DEBUG Reforzar] (${r},${c}) NO es una fuente de refuerzo directa ni adyacente.`, "color: red;");
+    console.log(`%c[DEBUG Reforzar] FALLO: No se encontró fuente de refuerzo para (${r},${c}).`, "color: red;");
     return false;
+}
+
+function getRandomTerrainType() {
+    // Obtenemos los tipos de terreno que NO son intransitables (como el agua)
+    const availableTerrains = Object.keys(TERRAIN_TYPES).filter(type => 
+        !TERRAIN_TYPES[type].isImpassableForLand
+    );
+
+    if (availableTerrains.length === 0) {
+        console.warn("No hay terrenos transitables definidos en TERRAIN_TYPES. Devolviendo 'plains'.");
+        return 'plains'; // Fallback por si acaso
+    }
+    
+    // Devolvemos uno al azar
+    const randomIndex = Math.floor(Math.random() * availableTerrains.length);
+    return availableTerrains[randomIndex];
+}
+
+/**
+ * Devuelve una versión abreviada del nombre de un tipo de regimiento.
+ * @param {string} unitTypeName - El nombre completo del tipo de regimiento (ej. "Infantería Pesada").
+ * @returns {string} El nombre abreviado (ej. "Inf. Pesada").
+ */
+function getAbbreviatedName(unitTypeName) {
+    if (typeof unitTypeName !== 'string') return '';
+
+    // Mapeo de nombres completos a abreviaturas.
+    // Se puede expandir fácilmente con más tipos de unidades.
+    const abbreviations = {
+        "Infantería Ligera": "Inf. Ligera",
+        "Infantería Pesada": "Inf. Pesada",
+        "Caballería Ligera": "Cab. Ligera",
+        "Caballería Pesada": "Cab. Pesada",
+        "Arqueros": "Arqueros", // No necesita abreviatura
+        "Arcabuceros": "Arcabuceros", // No necesita abreviatura
+        "Arqueros a Caballo": "Arq. a Caballo",
+        "Artillería": "Artillería", // No necesita abreviatura
+        "Cuartel General": "Cuartel Gral.",
+        "Ingenieros": "Ingenieros",
+        "Hospital de Campaña": "Hospital Camp.",
+        "Columna de Suministro": "Suministros",
+        "Barco de Guerra": "Navío Guerra",
+        "Colono": "Colono",
+        "Explorador": "Explorador"
+    };
+
+    // Devuelve la abreviatura si existe, o el nombre original si no.
+    return abbreviations[unitTypeName] || unitTypeName;
 }

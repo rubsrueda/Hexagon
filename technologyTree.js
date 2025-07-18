@@ -1,5 +1,4 @@
 // En technologyTree.js
-// REEMPLAZA COMPLETAMENTE TU OBJETO TECHNOLOGY_TREE_DATA CON ESTE
 
 const TECHNOLOGY_TREE_DATA = {
     // TIER 0 - INICIO
@@ -9,7 +8,7 @@ const TECHNOLOGY_TREE_DATA = {
         description: "Fundamentos de la sociedad y el mando. Permite reclutar la unidad más básica.",
         sprite: "🤝", // Emoji de manos unidas
         cost: { researchPoints: 0 },
-        unlocksUnits: ["Infantería Ligera"], 
+        unlocksUnits: ["Infantería Ligera","Columna de Suministro"], 
         unlocksStructures: [],
         prerequisites: [],
         position: { x: 0, y: 0 },
@@ -27,7 +26,7 @@ const TECHNOLOGY_TREE_DATA = {
         description: "Principios de construcción para conectar y desarrollar tu imperio.",
         sprite: "📐", // Emoji de escuadra
         cost: { researchPoints: 40 },
-        unlocksUnits: [],
+        unlocksUnits: ["Ingenieros"],
         unlocksStructures: ["Camino"],
         prerequisites: ["ORGANIZATION"],
         position: { x: 0, y: 120 },
@@ -70,6 +69,20 @@ const TECHNOLOGY_TREE_DATA = {
         tier: 2
     },
 
+    // <<< NUEVA TECNOLOGÍA: Navegación, para desbloquear barcos >>>
+    "NAVIGATION": {
+        id: "NAVIGATION",
+        name: "Navegación",
+        description: "Permite la construcción de astilleros y el dominio de los mares con barcos de guerra.",
+        sprite: "🧭",
+        cost: { researchPoints: 60 },
+        unlocksUnits: ["Barco de Guerra"],
+        unlocksStructures: [], // Futuro: Astilleros
+        prerequisites: ["ENGINEERING", "FORESTRY"], // Requiere madera e ingeniería
+        position: { x: -150, y: 200 }, // Posición en la rama civil/maderera
+        tier: 2
+    },
+
     // TIER 2
     "FORTIFICATIONS": {
         id: "FORTIFICATIONS",
@@ -88,19 +101,48 @@ const TECHNOLOGY_TREE_DATA = {
     // RAMA MILITAR (HACIA ARRIBA)
     // =======================================================
 
-    // TIER 1 - Ramas principales
-    "DRILL_TACTICS": {
+     "DRILL_TACTICS": {
         id: "DRILL_TACTICS",
         name: "Tácticas de Formación",
-        description: "Entrenamiento formalizado para crear una línea de batalla sólida y resistente.",
-        sprite: "⚔️", // Emoji de espadas cruzadas
+        description: "Entrenamiento formalizado para crear infantería pesada y mandos de campo.",
+        sprite: "⚔️",
         cost: { researchPoints: 25 },
-        unlocksUnits: ["Infantería Pesada"],
+        // <<< MODIFICACIÓN: Añadimos el Cuartel General >>>
+        unlocksUnits: ["Infantería Pesada", "Cuartel General"],
         unlocksStructures: [],
         prerequisites: ["ORGANIZATION"],
         position: { x: -200, y: -120 },
         tier: 1
     },
+    // <<< NUEVA TECNOLOGÍA: Medicina, para el Hospital de Campaña >>>
+    "MEDICINE": {
+        id: "MEDICINE",
+        name: "Medicina",
+        description: "Conocimientos anatómicos y sanitarios para tratar a los heridos en el campo de batalla.",
+        sprite: "🧪",
+        cost: { researchPoints: 50 },
+        unlocksUnits: ["Hospital de Campaña"],
+        unlocksStructures: [],
+        prerequisites: ["FLETCHING"], // Lo ponemos en la rama de unidades a distancia como una rama de apoyo
+        position: { x: 0, y: -220 }, // Lo ponemos donde estaba GUNPOWDER
+        tier: 2
+    },
+
+    // <<< MODIFICACIÓN: Reubicamos la Pólvora >>>
+    "GUNPOWDER": {
+        id: "GUNPOWDER",
+        name: "Pólvora",
+        description: "Un descubrimiento revolucionario que cambia la faz de la guerra a distancia.",
+        sprite: "💥",
+        cost: { researchPoints: 70 },
+        unlocksUnits: ["Arcabuceros"],
+        unlocksStructures: [],
+        prerequisites: ["MEDICINE", "IRON_WORKING"], // Ahora requiere Medicina y Herrería
+        position: { x: 0, y: -320 }, // La movemos un tier más abajo
+        tier: 3
+    },
+
+    // TIER 1 - Ramas principales
     "FLETCHING": {
         id: "FLETCHING",
         name: "Emplumado",
@@ -139,18 +181,7 @@ const TECHNOLOGY_TREE_DATA = {
         position: { x: -200, y: -220 },
         tier: 2
     },
-    "GUNPOWDER": {
-        id: "GUNPOWDER",
-        name: "Pólvora",
-        description: "Un descubrimiento revolucionario que cambia la faz de la guerra a distancia.",
-        sprite: "💥", // Emoji de explosión
-        cost: { researchPoints: 70 },
-        unlocksUnits: ["Arcabuceros"],
-        unlocksStructures: [],
-        prerequisites: ["FLETCHING", "IRON_WORKING"],
-        position: { x: 0, y: -220 },
-        tier: 2
-    },
+    
     "STIRRUPS": {
         id: "STIRRUPS",
         name: "Estribos",
@@ -217,6 +248,18 @@ const TECHNOLOGY_TREE_DATA = {
         position: { x: 200, y: 0 },
         tier: 1
     },
+    "COLONY": {
+        id: "COLONY",
+        name: "Colonización",
+        description: "Permite establecer asentamientos permanentes y desarrollar tus fortalezas en centros de población.",
+        sprite: "📜", // Un pergamino, como una cédula de fundación
+        cost: { researchPoints: 100 },
+        unlocksUnits: ["Colono"], // Desbloquea la unidad "Colono"
+        unlocksStructures: ["Aldea", "Ciudad", "Metrópoli"], // Permite la construcción de estas estructuras
+        prerequisites: ["ENGINEERING"], // Requerirá tener Ingeniería Civil
+        position: { x: -100, y: 280 }, // Ubicada debajo de Ingeniería en el árbol visual
+        tier: 3
+    }
 };
 
 // Función para obtener los datos de una tecnología por su ID

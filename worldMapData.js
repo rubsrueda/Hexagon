@@ -1,6 +1,6 @@
 // worldMapData.js
 const WORLD_MAP_DATA = {
-  "mapImage": "world_map_risk_style.png", // Poner "" si la imagen no existe aún
+  "mapImage": "images/world_map_risk_style.png", // Poner "" si la imagen no existe aún
   "territories": {
     "territory_A": {
       "id": "territory_A",
