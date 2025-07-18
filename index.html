@@ -37,6 +37,7 @@
         <div class="modal-content" style="width: auto; min-width: 300px; max-width: 500px;">
             <h2>Hex General Evolved</h2>
             <button id="startCampaignBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Comenzar Campaña</button>
+            <button id="startLanModeBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Jugar en Red (LAN)</button>
             <button id="startTutorialBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial</button>
             <button id="startSkirmishBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
         </div>
@@ -161,6 +162,45 @@
 
             <button id="startGameBtn">Empezar Juego</button>
             <button id="backToMainMenuBtn_fromSetup" style="margin-top:15px; background-color: #6c757d; width:auto; padding: 10px 15px;">Volver al Menú</button>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- ============= PANTALLA DE LOBBY MULTIJUGADOR (LAN) ============== -->
+    <!-- ====================================================================== -->
+    <div id="lanLobbyScreen" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Lobby Multijugador en Red Local</h2>
+            
+            <div id="lan-connection-panel" class="container">
+                <h3>Tu Sala</h3>
+                <p>El ID de tu sala es: <b id="lan-room-id">Generando...</b></p>
+                <p><i>(Comparte este ID con el otro jugador)</i></p>
+                <hr>
+                <p>Estado: <span id="lan-status" class="status desconectado">Esperando conexión...</span></p>
+                <div id="player-list">
+                    <p><b>Jugadores Conectados:</b></p>
+                    <ul id="lan-player-list">
+                        <!-- Los nombres de los jugadores aparecerán aquí -->
+                    </ul>
+                </div>
+            </div>
+
+            <div id="lan-join-panel" class="container">
+                <h3>Unirse a una Sala</h3>
+                <label for="lan-remote-id">ID de la sala a la que quieres unirte:</label>
+                <input type="text" id="lan-remote-id" placeholder="Pega el ID aquí">
+                <button id="lan-connect-btn">Unirse</button>
+            </div>
+            
+            <div id="lan-game-start-panel" class="container" style="display: none;">
+                <!-- Opciones de partida (si eres el Anfitrión) -->
+                <h3>Opciones de la Partida (Solo Anfitrión)</h3>
+                <p><i>Aquí irán las mismas opciones que en Partida Rápida.</i></p>
+                <button id="lan-start-game-btn">¡Comenzar Partida!</button>
+            </div>
+
+            <button id="backToMainMenuBtn_fromLan" style="margin-top:20px; background-color: #6c757d;">Volver al Menú Principal</button>
         </div>
     </div>
 
@@ -459,6 +499,7 @@
     <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
+     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="constants.js"></script>
     <script src="state.js"></script>
     <script src="technologyTree.js"></script> 
@@ -475,6 +516,7 @@
     <script src="boardManager.js?v=1"></script>
     <script src="unit_Actions.js"></script>
     <script src="modalLogic.js"></script>
+    <script src="networkManager.js"></script> 
     <script src="aiLogic.js"></script>
     <script src="gameFlow.js"></script>
     <script src="saveLoad.js"></script>

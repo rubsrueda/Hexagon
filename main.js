@@ -76,6 +76,83 @@ function initApp() {
         console.error("main.js: CRÍTICO: setupMainMenuListeners no está definida (de campaignManager.js). Menús no funcionarán."); 
     }
 
+    // --- LÓGICA DEL LOBBY MULTIJUGADOR EN RED LOCAL ---
+    
+    // Función que se ejecuta cuando nos conectamos con éxito a otro jugador
+    function onConexionLANEstablecida(idRemoto) {
+        if (!domElements.lanStatusEl || !domElements.lanPlayerListEl) return;
+        
+        domElements.lanStatusEl.textContent = 'Conectado';
+        domElements.lanStatusEl.className = 'status conectado';
+        
+        // Actualizamos la lista de jugadores
+        domElements.lanPlayerListEl.innerHTML = `<li>Tú (${NetworkManager.miId})</li><li>${idRemoto}</li>`;
+        
+        if (NetworkManager.esAnfitrion) {
+            domElements.lanGameStartPanel.style.display = 'block'; // El anfitrión ve el botón de empezar
+        }
+    }
+    
+    // Función que se ejecuta cuando recibimos datos del otro jugador
+    function onDatosLANRecibidos(datos) {
+        // Por ahora, solo los mostramos en la consola. Más tarde, aquí procesaremos las acciones del juego.
+        console.log("Datos recibidos del otro jugador:", datos);
+        logMessage(`Mensaje de Red: ${JSON.stringify(datos)}`);
+    }
+
+    // Función que se ejecuta cuando la conexión se cierra
+    function onConexionLANCerrada() {
+         if (!domElements.lanStatusEl || !domElements.lanPlayerListEl) return;
+        domElements.lanStatusEl.textContent = 'Desconectado';
+        domElements.lanStatusEl.className = 'status desconectado';
+        domElements.lanPlayerListEl.innerHTML = `<li>Tú (${NetworkManager.miId})</li>`;
+        if (domElements.lanGameStartPanel) domElements.lanGameStartPanel.style.display = 'none';
+        alert("El otro jugador se ha desconectado.");
+    }
+
+    // Botón para ir a la pantalla del Lobby LAN
+    if (domElements.startLanModeBtn) {
+        domElements.startLanModeBtn.addEventListener('click', () => {
+            showScreen(domElements.lanLobbyScreen);
+            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
+            
+            // Automáticamente nos convertimos en anfitriones al entrar
+            NetworkManager.iniciarAnfitrion((idGenerado) => {
+                if(domElements.lanRoomIdEl) domElements.lanRoomIdEl.textContent = idGenerado;
+                if(domElements.lanPlayerListEl) domElements.lanPlayerListEl.innerHTML = `<li>Tú (${idGenerado})</li>`;
+            });
+        });
+    }
+
+    // Botón para conectarse a una sala existente
+    if (domElements.lanConnectBtn) {
+        domElements.lanConnectBtn.addEventListener('click', () => {
+            const idAnfitrion = domElements.lanRemoteIdInput.value;
+            if (idAnfitrion) {
+                NetworkManager.unirseAPartida(idAnfitrion);
+            } else {
+                alert("Por favor, introduce el ID de la sala del anfitrión.");
+            }
+        });
+    }
+    
+    // Botón para volver al menú principal desde el lobby
+    if (domElements.backToMainMenuBtn_fromLan) {
+        domElements.backToMainMenuBtn_fromLan.addEventListener('click', () => {
+            NetworkManager.desconectar();
+            showScreen(domElements.mainMenuScreenEl);
+        });
+    }
+    
+    // Botón para que el anfitrión comience la partida (futuro trabajo)
+    if (domElements.lanStartGameBtn) {
+        domElements.lanStartGameBtn.addEventListener('click', () => {
+            // FASE 3: Aquí enviaremos el estado inicial del juego a todos los jugadores
+            alert("¡Funcionalidad para empezar la partida aún no implementada!");
+            console.log("Se debería enviar la configuración de la partida a todos los jugadores e iniciar el juego.");
+        });
+    }
+    
     if (domElements.floatingBuildBtn) {
                 domElements.floatingBuildBtn.addEventListener('click', (event) => {
                     // <<== CORRECCIÓN CLAVE: Detenemos la propagación del evento ==>>

@@ -2588,3 +2588,42 @@ body {
     color: #0056b3;
     margin-bottom: 5px;
 }
+/* ====================================================================== */
+/* =========== ESTILOS PARA EL LOBBY MULTIJUGADOR EN RED LOCAL ========== */
+/* ====================================================================== */
+
+#lanLobbyScreen .container {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin-top: 15px;
+    background-color: #f9f9f9;
+}
+
+#lanLobbyScreen h2, #lanLobbyScreen h3 {
+    text-align: center;
+    color: #333;
+}
+
+#lan-room-id {
+    color: #007bff;
+    font-family: monospace;
+    font-size: 1.1em;
+    user-select: all; /* Para que sea fácil de copiar */
+}
+
+#lan-status.conectado { color: #28a745; }
+#lan-status.desconectado { color: #dc3545; }
+
+#lan-player-list {
+    list-style: none;
+    padding-left: 10px;
+}
+
+#lan-start-game-btn {
+    display: block;
+    margin: 15px auto 0;
+    width: 60%;
+    padding: 12px;
+    background-color: #28a745;
+}

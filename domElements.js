@@ -156,6 +156,18 @@ domElements.isPinching = false;
 domElements.initialPinchDistance = 0;
 domElements.currentBoardScale = 1;    
 
+// Elementos para el Lobby LAN
+domElements.startLanModeBtn = null;
+domElements.lanLobbyScreen = null;
+domElements.lanRoomIdEl = null;
+domElements.lanStatusEl = null;
+domElements.lanPlayerListEl = null;
+domElements.lanRemoteIdInput = null;
+domElements.lanConnectBtn = null;
+domElements.lanGameStartPanel = null;
+domElements.lanStartGameBtn = null;
+domElements.backToMainMenuBtn_fromLan = null;
+
 
 function initializeDomElements() {
     if (domElements.domElementsInitialized) return;
@@ -212,6 +224,19 @@ function initializeDomElements() {
     domElements.initialUnitsCountSelect = document.getElementById('initialUnitsCount');
     domElements.boardSizeSelect = document.getElementById('boardSizeSelect');
     domElements.backToMainMenuBtn_fromSetup = document.getElementById('backToMainMenuBtn_fromSetup');
+
+    // Elementos del Lobby LAN
+    domElements.startLanModeBtn = document.getElementById('startLanModeBtn');
+    domElements.lanLobbyScreen = document.getElementById('lanLobbyScreen');
+    domElements.lanRoomIdEl = document.getElementById('lan-room-id');
+    domElements.lanStatusEl = document.getElementById('lan-status');
+    domElements.lanPlayerListEl = document.getElementById('lan-player-list');
+    domElements.lanRemoteIdInput = document.getElementById('lan-remote-id');
+    domElements.lanConnectBtn = document.getElementById('lan-connect-btn');
+    domElements.lanGameStartPanel = document.getElementById('lan-game-start-panel');
+    domElements.lanStartGameBtn = document.getElementById('lan-start-game-btn');
+    domElements.backToMainMenuBtn_fromLan = document.getElementById('backToMainMenuBtn_fromLan');
+    
     domElements.worldMapImageEl = document.getElementById('worldMapImage');
     domElements.territoryMarkerContainerEl = document.getElementById('territoryMarkerContainer');
     domElements.campaignMessagesEl = document.getElementById('campaignMessages');
