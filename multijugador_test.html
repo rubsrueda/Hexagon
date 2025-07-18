@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Conexión Peer-to-Peer (PeerJS)</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; }
+        .container { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+        input[type="text"] { width: 200px; padding: 5px; }
+        button { padding: 5px 10px; margin-left: 10px; }
+        #log { background-color: #f0f0f0; border: 1px solid #ddd; padding: 10px; height: 200px; overflow-y: auto; }
+        #tu-id { font-weight: bold; color: blue; }
+        .status.conectado { color: green; }
+        .status.desconectado { color: red; }
+    </style>
+</head>
+<body>
+
+    <h1>Prueba de Multijugador LAN</h1>
+
+    <div class="container">
+        <h2>1. Tu Estado</h2>
+        <p>Tu ID en la red es: <span id="tu-id">Generando...</span></p>
+        <p>Estado de la Conexión: <span id="estado-conexion" class="status desconectado">Desconectado</span></p>
+    </div>
+
+    <div class="container">
+        <h2>2. Conectar con otro Jugador</h2>
+        <label for="id-remoto">ID del Anfitrión:</label>
+        <input type="text" id="id-remoto" placeholder="Pega el ID aquí">
+        <button id="boton-conectar">Conectar</button>
+    </div>
+
+    <div class="container">
+        <h2>3. Enviar un Mensaje</h2>
+        <label for="mensaje">Mensaje:</label>
+        <input type="text" id="mensaje" placeholder="Escribe algo...">
+        <button id="boton-enviar">Enviar</button>
+    </div>
+
+    <div class="container">
+        <h2>4. Log de Mensajes</h2>
+        <div id="log"></div>
+    </div>
+
+    <!-- Carga de la librería PeerJS desde un CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <!-- Nuestro script con la lógica de conexión -->
+    <script>
+        // --- 1. INICIALIZACIÓN Y REFERENCIAS ---
+
+        // Referencias a los elementos del DOM que usaremos
+        const tuIdEl = document.getElementById('tu-id');
+        const idRemotoInput = document.getElementById('id-remoto');
+        const conectarBtn = document.getElementById('boton-conectar');
+        const mensajeInput = document.getElementById('mensaje');
+        const enviarBtn = document.getElementById('boton-enviar');
+        const logEl = document.getElementById('log');
+        const estadoConexionEl = document.getElementById('estado-conexion');
+
+        let miId = null;
+        let peer = null;  // Nuestro objeto principal de PeerJS
+        let conn = null;  // El objeto de conexión con el otro jugador
+
+        // Función para escribir en nuestro log de pantalla
+        function logMensaje(mensaje) {
+            logEl.innerHTML += `<div>${mensaje}</div>`;
+            logEl.scrollTop = logEl.scrollHeight; // Auto-scroll hacia abajo
+        }
+
+
+        // --- 2. INICIAR PEERJS Y OBTENER UN ID ---
+        
+        // Creamos una nueva instancia de Peer. 
+        // El primer parámetro 'undefined' le dice a PeerJS que nos asigne un ID aleatorio.
+        // El segundo objeto configura la conexión. Usamos el servidor de señalización público de PeerJS.
+        peer = new Peer(undefined, {
+            host: '0.peerjs.com',
+            port: 443,
+            path: '/',
+            secure: true,
+        });
+
+        // Evento que se dispara cuando nuestro Peer se conecta al servidor de señalización y recibe un ID.
+        peer.on('open', function (id) {
+            miId = id;
+            tuIdEl.textContent = miId;
+            logMensaje(`Sistema: Conectado al servidor. Tu ID es <b>${miId}</b>.`);
+            logMensaje(`Sistema: Para jugar, un jugador debe pasarle su ID al otro.`);
+        });
+
+        // Evento que se dispara si hay algún error en la conexión principal.
+        peer.on('error', function (err) {
+            alert(`Error de PeerJS: ${err}`);
+            logMensaje(`Error: ${err.type}`);
+        });
+        
+        // --- 3. LÓGICA DE CONEXIÓN (ANFITRIÓN Y CLIENTE) ---
+        
+        // Parte del ANFITRIÓN: Escuchar conexiones entrantes.
+        // Este evento se dispara si alguien se intenta conectar a nuestro ID.
+        peer.on('connection', function (newConnection) {
+            logMensaje(`Sistema: ¡Conexión entrante de <b>${newConnection.peer}</b>!`);
+            
+            // Si ya tenemos una conexión, la cerramos para aceptar la nueva.
+            if (conn && conn.open) {
+                conn.close();
+            }
+            
+            conn = newConnection;
+            configurarConexion(); // Una vez establecida, configuramos los eventos para esa conexión.
+        });
+
+
+        // Parte del CLIENTE: Iniciar una conexión saliente.
+        conectarBtn.addEventListener('click', () => {
+            const idRemoto = idRemotoInput.value;
+            if (!idRemoto) {
+                return alert("Por favor, introduce el ID del anfitrión.");
+            }
+            
+            logMensaje(`Sistema: Intentando conectar a <b>${idRemoto}</b>...`);
+
+            // Si ya tenemos una conexión, la cerramos antes de crear una nueva.
+             if (conn && conn.open) {
+                conn.close();
+            }
+
+            conn = peer.connect(idRemoto); // Intentamos conectar al ID remoto
+            configurarConexion(); // Configuramos los eventos para nuestra nueva conexión
+        });
+
+        // --- 4. LÓGICA DE LA CONEXIÓN ESTABLECIDA ---
+
+        // Función que añade los listeners de eventos a una conexión (sea entrante o saliente)
+        function configurarConexion() {
+            if (!conn) return;
+
+            // Evento: La conexión se ha abierto y está lista para enviar datos.
+            conn.on('open', function () {
+                logMensaje(`<b>¡Conectado con éxito a ${conn.peer}!</b>`);
+                estadoConexionEl.textContent = 'Conectado';
+                estadoConexionEl.className = 'status conectado';
+            });
+        
+            // Evento: Se reciben datos del otro jugador.
+            conn.on('data', function (data) {
+                logMensaje(`<b>${conn.peer}:</b> ${data}`);
+            });
+        
+            // Evento: La conexión se ha cerrado (por cualquier motivo).
+            conn.on('close', function () {
+                logMensaje(`<b>Conexión con ${conn.peer} cerrada.</b>`);
+                estadoConexionEl.textContent = 'Desconectado';
+                estadoConexionEl.className = 'status desconectado';
+                conn = null;
+            });
+        }
+        
+
+        // --- 5. LÓGICA PARA ENVIAR MENSAJES ---
+        enviarBtn.addEventListener('click', () => {
+            if (conn && conn.open) { // Solo si la conexión está establecida
+                const mensaje = mensajeInput.value;
+                if (!mensaje) return;
+
+                conn.send(mensaje); // Enviamos el mensaje al otro jugador
+                logMensaje(`<b>Tú:</b> ${mensaje}`);
+                mensajeInput.value = ''; // Limpiamos el input
+            } else {
+                logMensaje("Sistema: No estás conectado a nadie para poder enviar un mensaje.");
+            }
+        });
+        
+        // BONUS: Enviar mensaje con la tecla Enter
+        mensajeInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                enviarBtn.click();
+            }
+        });
+
+    </script>
+
+</body>
+</html>
