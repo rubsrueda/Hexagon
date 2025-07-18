@@ -164,9 +164,12 @@ domElements.lanStatusEl = null;
 domElements.lanPlayerListEl = null;
 domElements.lanRemoteIdInput = null;
 domElements.lanConnectBtn = null;
-domElements.lanGameStartPanel = null;
+// domElements.lanGameStartPanel = null; <-- YA EXISTÍA, PERO LO REORDENO AQUÍ PARA CLARIDAD
 domElements.lanStartGameBtn = null;
 domElements.backToMainMenuBtn_fromLan = null;
+domElements.skirmishOptionsContainer = null; // Para el bloque de opciones original
+domElements.lanSkirmishOptionsPlaceholder = null; // El destino en el lobby
+domElements.lanCopyIdBtn = null; // Botón para copiar el ID de la sala
 
 
 function initializeDomElements() {
@@ -233,9 +236,12 @@ function initializeDomElements() {
     domElements.lanPlayerListEl = document.getElementById('lan-player-list');
     domElements.lanRemoteIdInput = document.getElementById('lan-remote-id');
     domElements.lanConnectBtn = document.getElementById('lan-connect-btn');
-    domElements.lanGameStartPanel = document.getElementById('lan-game-start-panel');
+    // domElements.lanGameStartPanel = document.getElementById('lan-game-start-panel'); // Lo obtendremos por otro medio, eliminamos de aquí
+    domElements.lanSkirmishOptionsPlaceholder = document.getElementById('lan-skirmish-options-placeholder'); // El destino
     domElements.lanStartGameBtn = document.getElementById('lan-start-game-btn');
     domElements.backToMainMenuBtn_fromLan = document.getElementById('backToMainMenuBtn_fromLan');
+    domElements.lanCopyIdBtn = document.getElementById('lan-copy-id-btn'); // <<== AÑADIDO
+
     
     domElements.worldMapImageEl = document.getElementById('worldMapImage');
     domElements.territoryMarkerContainerEl = document.getElementById('territoryMarkerContainer');

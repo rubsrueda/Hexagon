@@ -80,33 +80,70 @@ function initApp() {
     
     // Función que se ejecuta cuando nos conectamos con éxito a otro jugador
     function onConexionLANEstablecida(idRemoto) {
-        if (!domElements.lanStatusEl || !domElements.lanPlayerListEl) return;
+        if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
         
         domElements.lanStatusEl.textContent = 'Conectado';
         domElements.lanStatusEl.className = 'status conectado';
         
-        // Actualizamos la lista de jugadores
-        domElements.lanPlayerListEl.innerHTML = `<li>Tú (${NetworkManager.miId})</li><li>${idRemoto}</li>`;
+        // El anfitrión siempre es Jugador 1, el que se une es Jugador 2
+        domElements.lanPlayerListEl.innerHTML = NetworkManager.esAnfitrion ? 
+            `<li>J1: Tú (${NetworkManager.miId})</li><li>J2: ${idRemoto}</li>` : 
+            `<li>J1: ${idRemoto}</li><li>J2: Tú (${NetworkManager.miId})</li>`;
+
+        // Deshabilitar la opción de unirse una vez conectado
+        domElements.lanRemoteIdInput.disabled = true;
+        domElements.lanConnectBtn.disabled = true;
         
+        // Si somos el anfitrión, mostramos el panel de opciones
         if (NetworkManager.esAnfitrion) {
-            domElements.lanGameStartPanel.style.display = 'block'; // El anfitrión ve el botón de empezar
+            const optionsContainer = domElements.skirmishOptionsContainer;
+            const placeholder = domElements.lanSkirmishOptionsPlaceholder;
+            const gameStartPanel = document.getElementById('lan-game-options-host');
+
+            if (optionsContainer && placeholder) {
+                 placeholder.appendChild(optionsContainer); // Movemos las opciones al lobby
+            }
+            if (gameStartPanel) {
+                gameStartPanel.style.display = 'block';
+            }
         }
     }
     
     // Función que se ejecuta cuando recibimos datos del otro jugador
     function onDatosLANRecibidos(datos) {
-        // Por ahora, solo los mostramos en la consola. Más tarde, aquí procesaremos las acciones del juego.
+        // Log para depuración, mostrando el paquete de datos crudo recibido.
         console.log("Datos recibidos del otro jugador:", datos);
-        logMessage(`Mensaje de Red: ${JSON.stringify(datos)}`);
+
+        // Actuamos como un "router" basándonos en el tipo de mensaje.
+        // Esto nos permitirá añadir más tipos de mensajes en el futuro (mover unidad, atacar, etc.).
+        switch (datos.type) {
+            
+            // Si el mensaje es para iniciar la partida...
+            case 'startGame':
+                logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
+                // Usamos la misma función de inicio que el anfitrión,
+                // pasándole la configuración que acabamos de recibir.
+                iniciarPartidaLAN(datos.settings);
+                break;
+            
+            // Si el mensaje es de otro tipo (que aún no hemos definido)...
+            default:
+                console.warn("Se ha recibido un tipo de paquete de datos desconocido:", datos.type);
+                break;
+        }
     }
 
-    // Función que se ejecuta cuando la conexión se cierra
     function onConexionLANCerrada() {
-         if (!domElements.lanStatusEl || !domElements.lanPlayerListEl) return;
+         if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
         domElements.lanStatusEl.textContent = 'Desconectado';
         domElements.lanStatusEl.className = 'status desconectado';
         domElements.lanPlayerListEl.innerHTML = `<li>Tú (${NetworkManager.miId})</li>`;
-        if (domElements.lanGameStartPanel) domElements.lanGameStartPanel.style.display = 'none';
+        document.getElementById('lan-game-options-host').style.display = 'none';
+
+        // Habilitar de nuevo la opción de unirse
+        domElements.lanRemoteIdInput.disabled = false;
+        domElements.lanConnectBtn.disabled = false;
+        
         alert("El otro jugador se ha desconectado.");
     }
 
@@ -116,22 +153,34 @@ function initApp() {
             showScreen(domElements.lanLobbyScreen);
             NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
             
-            // Automáticamente nos convertimos en anfitriones al entrar
+            // Iniciamos como anfitrión por defecto, esperando que alguien se una.
             NetworkManager.iniciarAnfitrion((idGenerado) => {
                 if(domElements.lanRoomIdEl) domElements.lanRoomIdEl.textContent = idGenerado;
-                if(domElements.lanPlayerListEl) domElements.lanPlayerListEl.innerHTML = `<li>Tú (${idGenerado})</li>`;
+                if(domElements.lanPlayerListEl) domElements.lanPlayerListEl.innerHTML = `<li>J1: Tú (${idGenerado})</li>`;
             });
         });
     }
 
-    // Botón para conectarse a una sala existente
+    // Botón para unirse a la sala de otro
     if (domElements.lanConnectBtn) {
         domElements.lanConnectBtn.addEventListener('click', () => {
             const idAnfitrion = domElements.lanRemoteIdInput.value;
             if (idAnfitrion) {
+                NetworkManager.desconectar(); // Primero nos desconectamos de nuestra sesión de anfitrión
                 NetworkManager.unirseAPartida(idAnfitrion);
             } else {
                 alert("Por favor, introduce el ID de la sala del anfitrión.");
+            }
+        });
+    }
+
+    // Botón para copiar el ID de la sala
+    if(domElements.lanCopyIdBtn){
+        domElements.lanCopyIdBtn.addEventListener('click', () => {
+            if(NetworkManager.miId){
+                navigator.clipboard.writeText(NetworkManager.miId).then(() => {
+                    alert('ID de la sala copiado al portapapeles');
+                });
             }
         });
     }
@@ -140,16 +189,57 @@ function initApp() {
     if (domElements.backToMainMenuBtn_fromLan) {
         domElements.backToMainMenuBtn_fromLan.addEventListener('click', () => {
             NetworkManager.desconectar();
+            
+            // Devolver las opciones de skirmish a su lugar original
+            const optionsContainer = domElements.skirmishOptionsContainer;
+            const originalParent = domElements.setupScreen.querySelector('.modal-content');
+            if(optionsContainer && originalParent && !originalParent.contains(optionsContainer)){
+                originalParent.insertBefore(optionsContainer, domElements.startGameBtn);
+            }
+            
             showScreen(domElements.mainMenuScreenEl);
         });
     }
     
-    // Botón para que el anfitrión comience la partida (futuro trabajo)
     if (domElements.lanStartGameBtn) {
         domElements.lanStartGameBtn.addEventListener('click', () => {
-            // FASE 3: Aquí enviaremos el estado inicial del juego a todos los jugadores
-            alert("¡Funcionalidad para empezar la partida aún no implementada!");
-            console.log("Se debería enviar la configuración de la partida a todos los jugadores e iniciar el juego.");
+            if (!NetworkManager.conn || !NetworkManager.conn.open) {
+                alert("Error: No hay otro jugador conectado para iniciar la partida.");
+                return;
+            }
+            
+            console.log("[LAN Anfitrión] Botón 'Comenzar Partida' pulsado. Recopilando opciones...");
+            
+            // 1. Recopilar toda la configuración de la partida desde los elementos de la UI
+            const gameSettings = {
+                playerTypes: {
+                    player1: 'human', // Anfitrión es siempre J1
+                    player2: 'human'  // Cliente es siempre J2
+                },
+                playerCivilizations: {
+                    1: domElements.player1Civ.value,
+                    2: domElements.player2Civ.value
+                },
+                resourceLevel: domElements.resourceLevelSelect.value,
+                boardSize: domElements.boardSizeSelect.value,
+                deploymentUnitLimit: domElements.initialUnitsCountSelect.value === "unlimited" 
+                                    ? Infinity 
+                                    : parseInt(domElements.initialUnitsCountSelect.value)
+            };
+            
+            // 2. Crear un paquete de datos para enviar. Incluimos el tipo de mensaje.
+            const dataPacket = {
+                type: 'startGame',
+                settings: gameSettings,
+                anfitrionPeerId: NetworkManager.miId // El cliente sabrá quién es J1 y J2
+            };
+
+            // 3. Enviar la configuración al otro jugador
+            NetworkManager.enviarDatos(dataPacket);
+            console.log("[LAN Anfitrión] Paquete de configuración enviado:", dataPacket);
+            
+            // 4. Iniciar la partida en nuestra propia máquina con la misma configuración
+            iniciarPartidaLAN(gameSettings);
         });
     }
     
@@ -572,6 +662,50 @@ function initApp() {
     }
     
     console.log("main.js: initApp() FINALIZADO.");
+}
+
+/**
+ * Inicia la partida táctica con una configuración dada (para LAN).
+ * @param {object} settings - El objeto con la configuración de la partida.
+ */
+function iniciarPartidaLAN(settings) {
+    console.log("Iniciando partida LAN con la configuración:", settings);
+    
+    // 1. Resetear el estado del juego y variables
+    if (typeof resetGameStateVariables === "function") resetGameStateVariables();
+
+    // 2. Asignar la configuración recibida al gameState global
+    gameState.playerTypes = settings.playerTypes;
+    gameState.playerCivilizations = settings.playerCivilizations;
+    gameState.deploymentUnitLimit = settings.deploymentUnitLimit;
+    
+    // Es una partida multijugador, no de campaña.
+    gameState.isCampaignBattle = false;
+    gameState.currentScenarioData = null;
+    gameState.currentMapData = null;
+
+    // 3. Ocultar el lobby y mostrar el tablero de juego
+    showScreen(domElements.gameContainer);
+    gameState.currentPhase = "deployment"; 
+
+    // 4. Inicializar el tablero con la configuración
+    if (typeof initializeNewGameBoardDOMAndData === "function") { 
+        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
+    } else { 
+        console.error("CRÍTICO: initializeNewGameBoardDOMAndData no está definida."); 
+    }
+
+    // 5. Actualizar toda la UI
+    if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) { 
+        UIManager.updateAllUIDisplays();
+    }
+    
+    // 6. Mostrar mensaje de inicio
+    if (typeof logMessage === "function") {
+        const miNumeroDeJugador = NetworkManager.esAnfitrion ? 1 : 2;
+        logMessage(`¡Comienza la partida! Eres Jugador ${miNumeroDeJugador}.`);
+        logMessage(`Fase de Despliegue. ¡Coloca tus fuerzas!`);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

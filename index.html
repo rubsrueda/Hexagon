@@ -49,104 +49,109 @@
     <div id="setupScreen" class="modal" style="display: none;">
         <div class="modal-content">
             <h2>Configuración de Partida Rápida</h2>
-            <div>
-                <label for="player1Type">Jugador 1:</label>
-                <select id="player1Type">
-                    <option value="human" selected>Humano</option>
-                    <option value="ai_easy">IA (Fácil)</option>
-                    <option value="ai_normal">IA (Normal)</option>
-                    <option value="ai_hard">IA (Difícil)</option>
-                </select>
-            </div>
+            <div id="skirmish-options-container"> 
+                <div>
+                    <label for="player1Type">Jugador 1:</label>
 
-            <div>
-                <label for="player1Civ">Civilización J1:</label>
-                <select id="player1Civ">
-                    <option value="ninguna" selected>Ninguna</option>
-                    <option value="Roma">Roma</option>
-                    <option value="Grecia">Grecia</option>
-                    <option value="Cartago">Cartago</option>
-                    <option value="Egipto">Egipto</option>
-                    <option value="Galia">Galia</option>
-                    <option value="Germania">Germania</option>
-                    <option value="Britania">Britania</option>
-                    <option value="Iberia">Iberia</option>
-                    <option value="Persia">Persia</option>
-                    <option value="China">China</option>
-                    <option value="Vikingos">Vikingos</option>
-                    <option value="Mongol">Mongolia</option>
-                    <option value="Arábiga">Arabia</option>
-                    <option value="Mameluca">Sultanato Mameluco</option>
-                    <option value="Otomana">Imperio Otomano</option>
-                    <option value="Maya">Civilización Maya</option>
-                    <option value="Asiria">Asiria</option>
-                    <option value="Babilonia">Babilonia</option>
-                    <option value="Japón">Japón</option>
-                </select>
-            </div>
+                    <div>
+                        <label for="player1Type">Jugador 1:</label>
+                        <select id="player1Type">
+                            <option value="human" selected>Humano</option>
+                            <option value="ai_easy">IA (Fácil)</option>
+                            <option value="ai_normal">IA (Normal)</option>
+                            <option value="ai_hard">IA (Difícil)</option>
+                        </select>
+                    </div>
 
-            <div id="player1AiLevelDiv" style="display:none;">
-                <label for="player1AiLevel">Nivel IA Jugador 1:</label>
-                <select id="player1AiLevel">
-                    <option value="easy">Fácil</option>
-                    <option value="normal" selected>IA (Normal)</option>
-                    <option value="hard">Difícil</option>
-                </select>
-            </div>
+                    <div>
+                        <label for="player1Civ">Civilización J1:</label>
+                        <select id="player1Civ">
+                            <option value="ninguna" selected>Ninguna</option>
+                            <option value="Roma">Roma</option>
+                            <option value="Grecia">Grecia</option>
+                            <option value="Cartago">Cartago</option>
+                            <option value="Egipto">Egipto</option>
+                            <option value="Galia">Galia</option>
+                            <option value="Germania">Germania</option>
+                            <option value="Britania">Britania</option>
+                            <option value="Iberia">Iberia</option>
+                            <option value="Persia">Persia</option>
+                            <option value="China">China</option>
+                            <option value="Vikingos">Vikingos</option>
+                            <option value="Mongol">Mongolia</option>
+                            <option value="Arábiga">Arabia</option>
+                            <option value="Mameluca">Sultanato Mameluco</option>
+                            <option value="Otomana">Imperio Otomano</option>
+                            <option value="Maya">Civilización Maya</option>
+                            <option value="Asiria">Asiria</option>
+                            <option value="Babilonia">Babilonia</option>
+                            <option value="Japón">Japón</option>
+                        </select>
+                    </div>
 
-            <div>
-                <label for="player2Type">Jugador 2:</label>
-                <select id="player2Type">
-                    <option value="human">Humano</option>
-                    <option value="ai_easy">IA (Fácil)</option>
-                    <option value="ai_normal" selected>IA (Normal)</option>
-                    <option value="ai_hard">IA (Difícil)</option>
-                </select>
-            </div>
+                    <div id="player1AiLevelDiv" style="display:none;">
+                        <label for="player1AiLevel">Nivel IA Jugador 1:</label>
+                        <select id="player1AiLevel">
+                            <option value="easy">Fácil</option>
+                            <option value="normal" selected>IA (Normal)</option>
+                            <option value="hard">Difícil</option>
+                        </select>
+                    </div>
 
-            <div>
-            <label for="player2Civ">Civilización J2:</label>
-            <select id="player2Civ">
-                    <option value="ninguna" selected>Ninguna</option>
-                    <option value="Roma">Roma</option>
-                    <option value="Grecia">Grecia</option>
-                    <option value="Cartago">Cartago</option>
-                    <option value="Egipto">Egipto</option>
-                    <option value="Galia">Galia</option>
-                    <option value="Germania">Germania</option>
-                    <option value="Britania">Britania</option>
-                    <option value="Iberia">Iberia</option>
-                    <option value="Persia">Persia</option>
-                    <option value="China">China</option>
-                    <option value="Vikingos">Vikingos</option>
-                    <option value="Mongol">Mongolia</option>
-                    <option value="Arábiga">Arabia</option>
-                    <option value="Mameluca">Sultanato Mameluco</option>
-                    <option value="Otomana">Imperio Otomano</option>
-                    <option value="Maya">Civilización Maya</option>
-                    <option value="Asiria">Asiria</option>
-                    <option value="Babilonia">Babilonia</option>
-                    <option value="Japón">Japón</option>            
-            </select>
-        </div>
+                    <div>
+                        <label for="player2Type">Jugador 2:</label>
+                        <select id="player2Type">
+                            <option value="human">Humano</option>
+                            <option value="ai_easy">IA (Fácil)</option>
+                            <option value="ai_normal" selected>IA (Normal)</option>
+                            <option value="ai_hard">IA (Difícil)</option>
+                        </select>
+                    </div>
 
-            <div>
-                <label for="resourceLevel">Nivel de Recursos:</label>
-                <select id="resourceLevel">
-                    <option value="min" selected>Mínimos</option>
-                    <option value="med">Medios</option>
-                    <option value="max">Muchos</option>
-                </select>
-            </div>
+                    <div>
+                    <label for="player2Civ">Civilización J2:</label>
+                    <select id="player2Civ">
+                            <option value="ninguna" selected>Ninguna</option>
+                            <option value="Roma">Roma</option>
+                            <option value="Grecia">Grecia</option>
+                            <option value="Cartago">Cartago</option>
+                            <option value="Egipto">Egipto</option>
+                            <option value="Galia">Galia</option>
+                            <option value="Germania">Germania</option>
+                            <option value="Britania">Britania</option>
+                            <option value="Iberia">Iberia</option>
+                            <option value="Persia">Persia</option>
+                            <option value="China">China</option>
+                            <option value="Vikingos">Vikingos</option>
+                            <option value="Mongol">Mongolia</option>
+                            <option value="Arábiga">Arabia</option>
+                            <option value="Mameluca">Sultanato Mameluco</option>
+                            <option value="Otomana">Imperio Otomano</option>
+                            <option value="Maya">Civilización Maya</option>
+                            <option value="Asiria">Asiria</option>
+                            <option value="Babilonia">Babilonia</option>
+                            <option value="Japón">Japón</option>            
+                    </select>
+                    </div>
 
-            <div>
-                <label for="boardSizeSelect">Tamaño del Tablero:</label>
-                <select id="boardSizeSelect">
-                    <option value="small" selected>Pequeño (12x15)</option>
-                    <option value="medium">Mediano (18x25)</option>
-                    <option value="large">Grande (24x35)</option>
-                </select>
-            </div>
+                    <div>
+                        <label for="resourceLevel">Nivel de Recursos:</label>
+                        <select id="resourceLevel">
+                            <option value="min" selected>Mínimos</option>
+                            <option value="med">Medios</option>
+                            <option value="max">Muchos</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="boardSizeSelect">Tamaño del Tablero:</label>
+                        <select id="boardSizeSelect">
+                            <option value="small" selected>Pequeño (12x15)</option>
+                            <option value="medium">Mediano (18x25)</option>
+                            <option value="large">Grande (24x35)</option>
+                        </select>
+                    </div>
+            </div>    
 
             <div>
                 <label for="initialUnitsCount">Límite Despliegue:</label>
@@ -157,7 +162,7 @@
                     <option value="unlimited">Ilimitadas</option>
                 </select>
             </div>
-
+        </div>
             
 
             <button id="startGameBtn">Empezar Juego</button>
@@ -172,35 +177,35 @@
         <div class="modal-content">
             <h2>Lobby Multijugador en Red Local</h2>
             
+            <!-- Panel de Conexión (Siempre visible) -->
             <div id="lan-connection-panel" class="container">
-                <h3>Tu Sala</h3>
-                <p>El ID de tu sala es: <b id="lan-room-id">Generando...</b></p>
-                <p><i>(Comparte este ID con el otro jugador)</i></p>
+                <h3>Conexión</h3>
+                <p>El ID de esta sala es: <b id="lan-room-id">Generando...</b> <i style="font-size:0.8em; cursor:pointer;" id="lan-copy-id-btn"> (Copiar)</i></p>
+                <p><i>Para unirse, el otro jugador debe introducir este ID en su lobby.</i></p>
                 <hr>
-                <p>Estado: <span id="lan-status" class="status desconectado">Esperando conexión...</span></p>
-                <div id="player-list">
-                    <p><b>Jugadores Conectados:</b></p>
-                    <ul id="lan-player-list">
-                        <!-- Los nombres de los jugadores aparecerán aquí -->
-                    </ul>
-                </div>
-            </div>
-
-            <div id="lan-join-panel" class="container">
-                <h3>Unirse a una Sala</h3>
-                <label for="lan-remote-id">ID de la sala a la que quieres unirte:</label>
+                <label for="lan-remote-id">Unirse a la sala de otro jugador:</label>
                 <input type="text" id="lan-remote-id" placeholder="Pega el ID aquí">
                 <button id="lan-connect-btn">Unirse</button>
             </div>
+
+            <!-- Panel de Estado y Jugadores -->
+            <div id="lan-status-panel" class="container">
+                <p>Estado: <span id="lan-status" class="status desconectado">Esperando...</span></p>
+                <ul id="lan-player-list">
+                    <!-- Los nombres de los jugadores aparecerán aquí -->
+                </ul>
+            </div>
             
-            <div id="lan-game-start-panel" class="container" style="display: none;">
-                <!-- Opciones de partida (si eres el Anfitrión) -->
+            <!-- Contenedor donde moveremos las opciones de partida para el anfitrión -->
+            <div id="lan-game-options-host" class="container" style="display: none;">
                 <h3>Opciones de la Partida (Solo Anfitrión)</h3>
-                <p><i>Aquí irán las mismas opciones que en Partida Rápida.</i></p>
+                <div id="lan-skirmish-options-placeholder">
+                    <!-- Las opciones de la partida aparecerán aquí vía JS -->
+                </div>
                 <button id="lan-start-game-btn">¡Comenzar Partida!</button>
             </div>
 
-            <button id="backToMainMenuBtn_fromLan" style="margin-top:20px; background-color: #6c757d;">Volver al Menú Principal</button>
+            <button id="backToMainMenuBtn_fromLan" style="margin-top:20px; background-color: #6c757d;">Volver al Menú</button>
         </div>
     </div>
 
