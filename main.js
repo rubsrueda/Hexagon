@@ -113,33 +113,43 @@ function initApp() {
     }
     
     // Función que se ejecuta cuando nos conectamos con éxito a otro jugador
+    // Función que se ejecuta cuando nos conectamos con éxito a otro jugador
     function onConexionLANEstablecida(idRemoto) {
-        if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
-        
-        domElements.lanStatusEl.textContent = 'Conectado';
-        domElements.lanStatusEl.className = 'status conectado';
-        
-        // El anfitrión siempre es Jugador 1, el que se une es Jugador 2
-        domElements.lanPlayerListEl.innerHTML = NetworkManager.esAnfitrion ? 
-            `<li>J1: Tú (${NetworkManager.miId})</li><li>J2: ${idRemoto}</li>` : 
-            `<li>J1: ${idRemoto}</li><li>J2: Tú (${NetworkManager.miId})</li>`;
-
-        // Deshabilitar la opción de unirse una vez conectado
-        domElements.lanRemoteIdInput.disabled = true;
-        domElements.lanConnectBtn.disabled = true;
-        
-        // Si somos el anfitrión, mostramos el panel de opciones
+        // --- Lógica para el ANFITRIÓN (HOST) ---
         if (NetworkManager.esAnfitrion) {
-            const optionsContainer = domElements.skirmishOptionsContainer;
-            const placeholder = domElements.lanSkirmishOptionsPlaceholder;
-            const gameStartPanel = document.getElementById('lan-game-options-host');
+            if (domElements.hostStatusEl && domElements.hostPlayerListEl) {
+                domElements.hostStatusEl.textContent = 'Jugador Conectado. Iniciando...';
+                domElements.hostStatusEl.className = 'status conectado';
+                domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li><li>J2: ${idRemoto}</li>`;
+            }
 
-            if (optionsContainer && placeholder) {
-                 placeholder.appendChild(optionsContainer); // Movemos las opciones al lobby
-            }
-            if (gameStartPanel) {
-                gameStartPanel.style.display = 'block';
-            }
+            console.log("[Red - Anfitrión] Cliente conectado. Iniciando la partida automáticamente para ambos...");
+            
+            // 1. Recupera la configuración que guardamos al entrar al lobby.
+            const gameSettings = JSON.parse(domElements.hostLobbyScreen.dataset.gameSettings || "{}");
+            
+            // 2. Envía el paquete 'startGame' que le dirá al cliente que comience.
+            const dataPacket = { type: 'startGame', settings: gameSettings };
+            NetworkManager.enviarDatos(dataPacket);
+            
+            // 3. Inicia la propia partida del anfitrión, un instante después para asegurar el envío.
+            setTimeout(() => {
+                 iniciarPartidaLAN(gameSettings);
+            }, 500);
+
+        } 
+        // --- Lógica para el CLIENTE (se mantiene igual que tu original para lanLobbyScreen) ---
+        else {
+            // El cliente no hace nada aquí. Simplemente espera a recibir el mensaje 'startGame'.
+            // Mantenemos tu código original para que el log refleje el estado.
+            if (!domElements.lanStatusEl || !domElements.lanPlayerListEl) return;
+        
+            domElements.lanStatusEl.textContent = 'Conectado';
+            domElements.lanStatusEl.className = 'status conectado';
+            
+            domElements.lanPlayerListEl.innerHTML = `<li>J1: ${idRemoto} (Anfitrión)</li><li>J2: Tú (${NetworkManager.miId})</li>`;
+            
+            console.log(`[Red - Cliente] Conexión establecida. Esperando al Anfitrión para iniciar la partida.`);
         }
     }
     
@@ -323,11 +333,8 @@ function initApp() {
     if (domElements.player2TypeSelect) { 
     } else { console.warn("main.js: domElements.player2TypeSelect no encontrado."); }
 
-    // ==========================================================
-    // ===== CORRECCIÓN DE ERROR: Apuntar a 'startLocalGameBtn' en lugar de 'startGameBtn' =====
-    // ==========================================================
-    if (domElements.startLocalGameBtn) { // <--- ÚNICO CAMBIO EN ESTE BLOQUE
-        domElements.startLocalGameBtn.addEventListener('click', () => { // <--- Y AQUÍ
+    if (domElements.startLocalGameBtn) { 
+        domElements.startLocalGameBtn.addEventListener('click', () => { 
             console.log("main.js: Botón 'Empezar Partida (Local)' clickeado."); // Mensaje corregido
             if (typeof resetGameStateVariables === "function") resetGameStateVariables();
             else { console.error("main.js: resetGameStateVariables no definida."); return; }
