@@ -286,6 +286,32 @@ function handleEndTurn() {
         if (gameState.currentPhase === "gameOver") { return; }
     }
     
+    // --- LÓGICA AÑADIDA PARA GESTIONAR PARTIDAS EN RED ---
+    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+
+    if (isNetworkGame) {
+        // Si no es mi turno, no hago nada.
+        if (gameState.currentPlayer !== gameState.myPlayerNumber) {
+            logMessage("No es tu turno.");
+            return;
+        }
+        // Si es mi turno, envío la petición para terminarlo.
+        console.log(`[Red - Fin de Turno] Jugador ${gameState.myPlayerNumber} solicita terminar su turno.`);
+        NetworkManager.enviarDatos({
+            type: 'actionRequest',
+            action: {
+                type: 'endTurn',
+                payload: {
+                    playerId: gameState.myPlayerNumber
+                }
+            }
+        });
+        if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
+        logMessage("Petición de fin de turno enviada...");
+        return; // Detenemos la ejecución aquí. El Anfitrión se encargará.
+    }
+    
+    // --- CÓDIGO ORIGINAL (AHORA SOLO PARA PARTIDAS LOCALES O PROCESADO POR EL HOST) ---
     let triggerAiDeployment = false;
     let aiPlayerToDeploy = -1;
     let nextPhaseForGame = gameState.currentPhase;

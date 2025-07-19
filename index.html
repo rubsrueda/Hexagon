@@ -29,7 +29,6 @@
         </div>
     </div>
         
-    <!--<h1 style="color:red; position:fixed; top:0; left:0; z-index: 99999;">VERSIÓN DE PRUEBA YYY</h1>-->
     <!-- ====================================================================== -->
     <!-- ===================== PANTALLA DE MENÚ PRINCIPAL ===================== -->
     <!-- ====================================================================== -->
@@ -37,9 +36,9 @@
         <div class="modal-content" style="width: auto; min-width: 300px; max-width: 500px;">
             <h2>Hex General Evolved</h2>
             <button id="startCampaignBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Comenzar Campaña</button>
-            <button id="startLanModeBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Jugar en Red (LAN)</button>
-            <button id="startTutorialBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial</button>
             <button id="startSkirmishBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
+            <button id="joinNetworkGameBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Unirse a Partida en Red</button>
+            <button id="startTutorialBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial</button>
         </div>
     </div>
 
@@ -52,20 +51,16 @@
             <div id="skirmish-options-container"> 
                 <div>
                     <label for="player1Type">Jugador 1:</label>
-
-                    <div>
-                        <label for="player1Type">Jugador 1:</label>
-                        <select id="player1Type">
-                            <option value="human" selected>Humano</option>
-                            <option value="ai_easy">IA (Fácil)</option>
-                            <option value="ai_normal">IA (Normal)</option>
-                            <option value="ai_hard">IA (Difícil)</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="player1Civ">Civilización J1:</label>
-                        <select id="player1Civ">
+                    <select id="player1Type">
+                        <option value="human" selected>Humano</option>
+                        <option value="ai_easy">IA (Fácil)</option>
+                        <option value="ai_normal">IA (Normal)</option>
+                        <option value="ai_hard">IA (Difícil)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="player1Civ">Civilización J1:</label>
+                    <select id="player1Civ">
                             <option value="ninguna" selected>Ninguna</option>
                             <option value="Roma">Roma</option>
                             <option value="Grecia">Grecia</option>
@@ -86,29 +81,26 @@
                             <option value="Asiria">Asiria</option>
                             <option value="Babilonia">Babilonia</option>
                             <option value="Japón">Japón</option>
-                        </select>
-                    </div>
-
-                    <div id="player1AiLevelDiv" style="display:none;">
-                        <label for="player1AiLevel">Nivel IA Jugador 1:</label>
-                        <select id="player1AiLevel">
-                            <option value="easy">Fácil</option>
-                            <option value="normal" selected>IA (Normal)</option>
-                            <option value="hard">Difícil</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="player2Type">Jugador 2:</label>
-                        <select id="player2Type">
-                            <option value="human">Humano</option>
-                            <option value="ai_easy">IA (Fácil)</option>
-                            <option value="ai_normal" selected>IA (Normal)</option>
-                            <option value="ai_hard">IA (Difícil)</option>
-                        </select>
-                    </div>
-
-                    <div>
+                    </select>
+                </div>
+                <div id="player1AiLevelDiv" style="display:none;">
+                    <label for="player1AiLevel">Nivel IA Jugador 1:</label>
+                    <select id="player1AiLevel">
+                        <option value="easy">Fácil</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Difícil</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="player2Type">Jugador 2:</label>
+                    <select id="player2Type">
+                        <option value="human">Humano</option>
+                        <option value="ai_easy">IA (Fácil)</option>
+                        <option value="ai_normal" selected>IA (Normal)</option>
+                        <option value="ai_hard">IA (Difícil)</option>
+                    </select>
+                </div>
+                <div>
                     <label for="player2Civ">Civilización J2:</label>
                     <select id="player2Civ">
                             <option value="ninguna" selected>Ninguna</option>
@@ -130,99 +122,75 @@
                             <option value="Maya">Civilización Maya</option>
                             <option value="Asiria">Asiria</option>
                             <option value="Babilonia">Babilonia</option>
-                            <option value="Japón">Japón</option>            
+                            <option value="Japón">Japón</option>
                     </select>
-                    </div>
-
-                    <div>
-                        <label for="resourceLevel">Nivel de Recursos:</label>
-                        <select id="resourceLevel">
-                            <option value="min" selected>Mínimos</option>
-                            <option value="med">Medios</option>
-                            <option value="max">Muchos</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="boardSizeSelect">Tamaño del Tablero:</label>
-                        <select id="boardSizeSelect">
-                            <option value="small" selected>Pequeño (12x15)</option>
-                            <option value="medium">Mediano (18x25)</option>
-                            <option value="large">Grande (24x35)</option>
-                        </select>
-                    </div>
+                </div>
+                <div>
+                    <label for="resourceLevel">Nivel de Recursos:</label>
+                    <select id="resourceLevel">
+                        <option value="min" selected>Mínimos</option>
+                        <option value="med">Medios</option>
+                        <option value="max">Muchos</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="boardSizeSelect">Tamaño del Tablero:</label>
+                    <select id="boardSizeSelect">
+                        <option value="small" selected>Pequeño (12x15)</option>
+                        <option value="medium">Mediano (18x25)</option>
+                        <option value="large">Grande (24x35)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="initialUnitsCount">Límite Despliegue:</label>
+                    <select id="initialUnitsCount">
+                        <option value="1">1 Unidad</option>
+                        <option value="3" selected>3 Unidades</option>
+                        <option value="5">5 Unidades</option>
+                        <option value="unlimited">Ilimitadas</option>
+                    </select>
+                </div>
             </div>    
-
-            <div>
-                <label for="initialUnitsCount">Límite Despliegue:</label>
-                <select id="initialUnitsCount">
-                    <option value="1">1 Unidad</option>
-                    <option value="3" selected>3 Unidades</option>
-                    <option value="5">5 Unidades</option>
-                    <option value="unlimited">Ilimitadas</option>
-                </select>
+            <div class="setup-actions" style="margin-top: 25px; display: flex; justify-content: space-around; gap: 10px;">
+                <button id="startLocalGameBtn" style="flex: 1; padding: 12px; font-size: 1.05em;">Empezar Partida (Local)</button>
+                <button id="createNetworkGameBtn" style="flex: 1; padding: 12px; font-size: 1.05em; background-color: #007bff;">Crear Partida en Red</button>
             </div>
-        </div>
-            
-
-            <button id="startGameBtn">Empezar Juego</button>
             <button id="backToMainMenuBtn_fromSetup" style="margin-top:15px; background-color: #6c757d; width:auto; padding: 10px 15px;">Volver al Menú</button>
         </div>
     </div>
 
     <!-- ====================================================================== -->
-    <!-- ============= PANTALLA DE LOBBY MULTIJUGADOR (LAN) ============== -->
+    <!-- ========= PANTALLA DE LOBBY DEL ANFITRIÓN (ESPERANDO JUGADOR) ======== -->
     <!-- ====================================================================== -->
-    <div id="lanLobbyScreen" class="modal" style="display: none;">
+    <div id="hostLobbyScreen" class="modal" style="display: none;">
         <div class="modal-content">
-            <h2>Lobby Multijugador en Red Local</h2>
-            
-            <!-- Panel de Conexión (Siempre visible) -->
-            <div id="lan-connection-panel" class="container">
-                <h3>Conexión</h3>
-                <p>El ID de esta sala es: <b id="lan-room-id">Generando...</b> <i style="font-size:0.8em; cursor:pointer;" id="lan-copy-id-btn"> (Copiar)</i></p>
-                <p><i>Para unirse, el otro jugador debe introducir este ID en su lobby.</i></p>
-                <hr>
-                <label for="lan-remote-id">Unirse a la sala de otro jugador:</label>
-                <input type="text" id="lan-remote-id" placeholder="Pega el ID aquí">
-                <button id="lan-connect-btn">Unirse</button>
+            <h2>Lobby de Partida en Red</h2>
+            <div class="container">
+                <h3>Tu partida está lista</h3>
+                <p>Comparte este código con el otro jugador para que pueda unirse:</p>
+                <p style="font-size: 1.8em; font-weight: bold; color: #007bff; letter-spacing: 3px; margin: 15px 0; user-select: all;" id="short-game-code">Generando...</p>
+                <p><i>El juego comenzará automáticamente cuando se una.</i></p>
             </div>
-
-            <!-- Panel de Estado y Jugadores -->
-            <div id="lan-status-panel" class="container">
-                <p>Estado: <span id="lan-status" class="status desconectado">Esperando...</span></p>
-                <ul id="lan-player-list">
+            <div class="container">
+                <p>Estado: <span id="host-status" class="status desconectado">Esperando jugador...</span></p>
+                <ul id="host-player-list">
                     <!-- Los nombres de los jugadores aparecerán aquí -->
                 </ul>
             </div>
-            
-            <!-- Contenedor donde moveremos las opciones de partida para el anfitrión -->
-            <div id="lan-game-options-host" class="container" style="display: none;">
-                <h3>Opciones de la Partida (Solo Anfitrión)</h3>
-                <div id="lan-skirmish-options-placeholder">
-                    <!-- Las opciones de la partida aparecerán aquí vía JS -->
-                </div>
-                <button id="lan-start-game-btn">¡Comenzar Partida!</button>
-            </div>
-
-            <button id="backToMainMenuBtn_fromLan" style="margin-top:20px; background-color: #6c757d;">Volver al Menú</button>
+            <button id="backToMainMenuBtn_fromHostLobby" style="margin-top:20px; background-color: #6c757d;">Cancelar y Volver</button>
         </div>
     </div>
 
     <!-- ====================================================================== -->
-    <!-- ================== PANTALLA DEL ARBOL DE TECNOLOGÍA ================== -->
+    <!-- =================== PANTALLA DEL ARBOL DE TECNOLOGÍA ================== -->
     <!-- ====================================================================== -->
-
-     <div id="techTreeScreen" class="modal" style="display: none; background-color: rgba(0,0,0,0.85);">
-    <div class="modal-content tech-tree-content" style="width: 80%; max-width: 700px; height: 70vh; overflow: auto; background-color: #1e2a38; border: 2px solid #4a5568; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 10px;">
-        <span class="close-button" id="closeTechTreeBtn" title="Cerrar">×</span>
-        <h2 style="text-align: center; color: #e2e8f0; margin-top:15px; margin-bottom: 15px; font-size: 1.5em;">Árbol de Tecnologías</h2>
-        <div id="techTreeContainer" style="position: relative; width: 1500px; height: 1000px; /* Tamaño del canvas interno, ajusta según tu árbol */ background-color: #2d3748; /* Fondo más oscuro para el área del árbol */ margin: 0 auto; border-radius: 5px;">
-            <!-- Los nodos de tecnología se añadirán aquí por JS -->
+    <div id="techTreeScreen" class="modal" style="display: none; background-color: rgba(0,0,0,0.85);">
+        <div class="modal-content tech-tree-content" style="width: 80%; max-width: 700px; height: 70vh; overflow: auto; background-color: #1e2a38; border: 2px solid #4a5568; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 10px;">
+            <span class="close-button" id="closeTechTreeBtn" title="Cerrar">×</span>
+            <h2 style="text-align: center; color: #e2e8f0; margin-top:15px; margin-bottom: 15px; font-size: 1.5em;">Árbol de Tecnologías</h2>
+            <div id="techTreeContainer" style="position: relative; width: 1500px; height: 1000px; background-color: #2d3748; margin: 0 auto; border-radius: 5px;"></div>
         </div>
     </div>
-    </div>
-
 
     <!-- ====================================================================== -->
     <!-- =================== PANTALLA DEL MAPA MUNDIAL (CAMPAÑA) =================== -->
@@ -252,12 +220,11 @@
     <!-- ====================================================================== -->
     <div class="game-container" style="display: none;"> 
         <div id="gameBoard"></div>
-        
         <div id="floatingMenuPanel" class="floating-panel top-left-panel" style="display: none;">
             <h4 id="floatingMenuTitle">Fase: - <br> Turno 1 - Jugador -</h4>
             <div id="playerResourcesGrid_float" class="playerResourcesGrid_common">
             <div class="resource-labels">
-            <span>Oro</span><span>Fe</span><span>Pi</span><span>Ma</span><span>Com</span><span>Inv</span><span>PR</span> <!-- Añadida etiqueta PR -->
+            <span>Oro</span><span>Fe</span><span>Pi</span><span>Ma</span><span>Com</span><span>Inv</span><span>PR</span>
             </div>
                 <div class="resource-values">
                     <span data-resource="oro">0</span>
@@ -266,7 +233,7 @@
                     <span data-resource="madera">0</span>
                     <span data-resource="comida">0</span>
                     <span data-resource="researchPoints">0</span>
-                    <span data-resource="puntosReclutamiento">0</span> <!-- Añadido span para el valor de PR -->
+                    <span data-resource="puntosReclutamiento">0</span>
                 </div>
             </div>
             <button id="concedeBattleBtn_float" class="panel-button">Rendirse</button>
@@ -275,7 +242,6 @@
             <input type="file" id="loadGameInput_float" accept=".json" style="display: none;">
             <button id="backToMainFromBattleBtn" class="panel-button" style="background-color:#6c757d;">Volver al Menú Principal</button>
         </div>
-
         <div id="contextualInfoPanel" class="floating-panel bottom-panel">
             <div id="contextualHeader">
                 <h3 id="contextualTitle">Información</h3>
@@ -284,7 +250,6 @@
             <div id="contextualContent"></div>
             <div id="contextualActions"></div>
         </div>
-
         <div id="gameMessagesMobile" class="floating-messages bottom-center">
             <p>Mensajes del juego...</p>
         </div>
@@ -297,8 +262,6 @@
         <div class="modal-content unit-detail-content">
             <span class="close-button" id="closeUnitDetailModalBtn">×</span>
             <h3 id="unitDetailTitle">Detalles de la División</h3>
-            
-            <!-- Contenedor para las Estadísticas Principales -->
             <div class="unit-main-stats">
                 <div class="stat-row">
                     <span class="stat-label">Salud:</span>
@@ -317,16 +280,8 @@
                     <span id="unitDetailXP">XP: 120/150 (Regular)</span>
                 </div>
             </div>
-
-            <!-- Título para la sección de regimientos -->
             <h4 class="regiment-section-title">Regimientos</h4>
-
-            <!-- Lista de Regimientos Detallada -->
-            <ul id="unitDetailRegimentList" class="regiments-list detailed-regiments-list">
-                <!-- Los regimientos se listarán aquí por JS -->
-            </ul>
-            
-            <!-- <<== NUEVO: Pie de página con el botón para disolver ==>> -->
+            <ul id="unitDetailRegimentList" class="regiments-list detailed-regiments-list"></ul>
             <div id="unitDetailFooter" style="text-align: center; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 15px;">
                 <button id="disbandUnitBtn" class="button-danger">Disolver Unidad</button>
             </div>
@@ -340,60 +295,30 @@
         <div class="modal-content wiki-content">
             <span class="close-button" id="closeWikiModalBtn">×</span>
             <h2>Wiki del Juego</h2>
-            
-            <!-- Pestañas de Navegación -->
             <div class="wiki-tabs">
                 <button class="wiki-tab-btn active" data-tab="regimientos">Regimientos</button>
                 <button class="wiki-tab-btn" data-tab="estructuras">Estructuras e Ingresos</button>
                 <button class="wiki-tab-btn" data-tab="tecnologias">Investigación</button>
                 <button class="wiki-tab-btn" data-tab="conceptos">Conceptos Clave</button>
             </div>
-
-            <!-- Contenedor de Contenido de las Pestañas -->
             <div class="wiki-tab-content">
-
-                <!-- Pestaña de Regimientos -->
                 <div id="wiki-tab-regimientos" class="wiki-page active">
                     <p>Valoraciones de 1 a 5 estrellas (⭐) para Ataque, Defensa, Salud, Movimiento y Rango.</p>
-                    <div class="table-container">
-                        <table id="wikiRegimentsTable">
-                            <!-- El contenido se generará por JS -->
-                        </table>
-                    </div>
+                    <div class="table-container"><table id="wikiRegimentsTable"></table></div>
                 </div>
-
-                <!-- Pestaña de Estructuras e Ingresos -->
                 <div id="wiki-tab-estructuras" class="wiki-page">
                     <h3>Estructuras</h3>
-                    <div class="table-container">
-                        <table id="wikiStructuresTable">
-                            <!-- El contenido se generará por JS -->
-                        </table>
-                    </div>
+                    <div class="table-container"><table id="wikiStructuresTable"></table></div>
                     <h3>Ingresos por Territorio (Base)</h3>
-                    <div class="table-container">
-                        <table id="wikiIncomeTable">
-                            <!-- El contenido se generará por JS -->
-                        </table>
-                    </div>
+                    <div class="table-container"><table id="wikiIncomeTable"></table></div>
                 </div>
-
-                <!-- Pestaña de Tecnologías -->
                 <div id="wiki-tab-tecnologias" class="wiki-page">
                     <p>Las tecnologías desbloquean nuevas unidades y estructuras.</p>
-                    <div class="table-container">
-                        <table id="wikiTechTable">
-                            <!-- El contenido se generará por JS -->
-                        </table>
-                    </div>
+                    <div class="table-container"><table id="wikiTechTable"></table></div>
                 </div>
-
-                <!-- Pestaña de Conceptos -->
                 <div id="wiki-tab-conceptos" class="wiki-page">
                     <h3>Conceptos Clave del Juego</h3>
-                    <div id="wikiConceptsContent">
-                        <!-- El contenido se generará por JS -->
-                    </div>
+                    <div id="wikiConceptsContent"></div>
                 </div>
             </div>
         </div>
@@ -403,33 +328,22 @@
     <!-- =================== MODALES DE JUEGO TÁCTICO ========================= -->
     <!-- ====================================================================== -->
 
-    <!-- <<< INICIO DE LA MODIFICACIÓN: NUEVO MODAL DE GESTIÓN DE UNIDADES >>> -->
     <div id="unitManagementModal" class="modal" style="display: none;">
         <div class="modal-content unit-management-content">
             <span class="close-button" id="closeUnitManagementModalBtn">×</span>
             <h3 id="unitManagementTitle">Crear Nueva División</h3>
-            
             <div class="unit-management-body">
-                <!-- Columna Izquierda: Selección de Regimientos -->
                 <div class="unit-selection-panel">
-                    <div id="unitCategoryTabs" class="category-tabs">
-                        <!-- Las pestañas de categoría se generarán por JS aquí -->
-                    </div>
-                    <div id="availableUnitsList" class="available-units-list">
-                        <!-- Las unidades de la categoría seleccionada se generarán por JS aquí -->
-                    </div>
+                    <div id="unitCategoryTabs" class="category-tabs"></div>
+                    <div id="availableUnitsList" class="available-units-list"></div>
                 </div>
-
-                <!-- Columna Derecha: Resumen de la División -->
                 <div class="division-summary-panel">
                     <h4>Resumen de la División</h4>
                     <div class="division-name-editor">
                         <label for="divisionNameInput">Nombre:</label>
                         <input type="text" id="divisionNameInput" value="Nueva División" maxlength="25">
                     </div>
-                    <ul id="divisionCompositionList">
-                        <!-- El resumen de la composición se generará por JS aquí -->
-                    </ul>
+                    <ul id="divisionCompositionList"></ul>
                     <div class="summary-details">
                         <p><strong>Coste Total:</strong> <span id="divisionCostSummary">0 Oro</span></p>
                         <p><strong>Stats Agregados:</strong> <span id="divisionStatsSummary">A:0 D:0 M:0</span></p>
@@ -437,15 +351,13 @@
                     </div>
                 </div>
             </div>
-
             <div class="modal-footer-actions">
                 <button id="cancelUnitManagementBtn" class="button-secondary">Cancelar</button>
                 <button id="finalizeUnitManagementBtn">Finalizar y Colocar</button>
             </div>
         </div>
     </div>
-    <!-- <<< FIN DE LA MODIFICACIÓN >>> -->
-
+    
     <div id="buildStructureModal" class="modal">
         <div class="modal-content">
             <span class="close-button">×</span>
@@ -497,14 +409,13 @@
     <button id="floatingSplitBtn" title="Dividir Unidad">✂</button>
     <button id="floatingBuildBtn" title="Construir Estructura">🏗️</button>
     <button id="floatingPillageBtn" title="Saquear Hexágono">💰</button>
-   <!-- <button id="floatingManageBtn" title="Gestionar División">⚙️</button> -->
     <button id="floatingWikiBtn" title="Wiki del Juego">i</button>
     <div id="combatPredictionPanel" style="display: none;"></div>
 
     <!-- ====================================================================== -->
     <!-- ===================== CARGA DE SCRIPTS ===================== -->
     <!-- ====================================================================== -->
-     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="constants.js"></script>
     <script src="state.js"></script>
     <script src="technologyTree.js"></script> 
