@@ -38,6 +38,17 @@ domElements.startSkirmishBtnEl = null;
 domElements.startTutorialBtn = null;
 domElements.floatingPillageBtn = null;
 domElements.startGameBtn = null;
+// NUEVO: Botones de la pantalla de configuración y lobby
+domElements.startLocalGameBtn = null;
+domElements.createNetworkGameBtn = null;
+domElements.joinNetworkGameBtn = null; // En el menú principal
+domElements.hostLobbyScreen = null; // Nueva pantalla de lobby
+domElements.shortGameCodeEl = null;
+domElements.hostStatusEl = null;
+domElements.hostPlayerListEl = null;
+domElements.backToMainMenuBtn_fromHostLobby = null;
+
+// Antiguo botón startGameBtn se renombra a startLocalGameBtn
 domElements.player1TypeSelect = null;
 domElements.player1AiLevelDiv = null;
 domElements.player1AiLevelSelect = null;
@@ -150,27 +161,13 @@ domElements.player2Civ = null;
     domElements.wikiModal = null;
     domElements.closeWikiModalBtn = null;
 
-
 // Variables para el control de Zoom
 domElements.isPinching = false;
 domElements.initialPinchDistance = 0;
 domElements.currentBoardScale = 1;    
 
-// Elementos para el Lobby LAN
-domElements.startLanModeBtn = null;
-domElements.lanLobbyScreen = null;
-domElements.lanRoomIdEl = null;
-domElements.lanStatusEl = null;
-domElements.lanPlayerListEl = null;
-domElements.lanRemoteIdInput = null;
-domElements.lanConnectBtn = null;
-// domElements.lanGameStartPanel = null; <-- YA EXISTÍA, PERO LO REORDENO AQUÍ PARA CLARIDAD
-domElements.lanStartGameBtn = null;
-domElements.backToMainMenuBtn_fromLan = null;
-domElements.skirmishOptionsContainer = null; // Para el bloque de opciones original
-domElements.lanSkirmishOptionsPlaceholder = null; // El destino en el lobby
-domElements.lanCopyIdBtn = null; // Botón para copiar el ID de la sala
-
+// Elementos para el Lobby LAN (Antiguos eliminados o re-purposed, esta es la lista limpia)
+domElements.skirmishOptionsContainer = null;
 
 function initializeDomElements() {
     if (domElements.domElementsInitialized) return;
@@ -214,12 +211,24 @@ function initializeDomElements() {
     domElements.startCampaignBtnEl = document.getElementById('startCampaignBtn');
     domElements.startSkirmishBtnEl = document.getElementById('startSkirmishBtn'); 
     domElements.startTutorialBtn = document.getElementById('startTutorialBtn'); 
-    domElements.startGameBtn = document.getElementById('startGameBtn');
-    domElements.player1TypeSelect = document.getElementById('player1Type');
 
+    // --- CORRECCIONES Y ADICIONES PARA EL NUEVO FLUJO ---
+    domElements.startGameBtn = document.getElementById('startGameBtn'); // Original preservado
+    domElements.startLocalGameBtn = document.getElementById('startLocalGameBtn'); // Nuevo para el botón Local
+    domElements.createNetworkGameBtn = document.getElementById('createNetworkGameBtn'); // Nuevo para el botón de Red
+    domElements.joinNetworkGameBtn = document.getElementById('joinNetworkGameBtn'); // Nuevo en el menú principal
+    domElements.hostLobbyScreen = document.getElementById('hostLobbyScreen');
+    domElements.shortGameCodeEl = document.getElementById('short-game-code');
+    domElements.hostStatusEl = document.getElementById('host-status');
+    domElements.hostPlayerListEl = document.getElementById('host-player-list');
+    domElements.backToMainMenuBtn_fromHostLobby = document.getElementById('backToMainMenuBtn_fromHostLobby');
+    // --- FIN CORRECCIONES Y ADICIONES ---
+    
+    domElements.player1TypeSelect = document.getElementById('player1Type');
+    
     domElements.player1Civ = document.getElementById('player1Civ');
     domElements.player2Civ = document.getElementById('player2Civ');
-
+    domElements.player1TypeSelect = document.getElementById('player1Type');
     domElements.player1AiLevelDiv = document.getElementById('player1AiLevelDiv');
     domElements.player1AiLevelSelect = document.getElementById('player1AiLevel');
     domElements.player2TypeSelect = document.getElementById('player2Type');
@@ -228,21 +237,6 @@ function initializeDomElements() {
     domElements.boardSizeSelect = document.getElementById('boardSizeSelect');
     domElements.backToMainMenuBtn_fromSetup = document.getElementById('backToMainMenuBtn_fromSetup');
 
-    // Elementos del Lobby LAN
-    domElements.startLanModeBtn = document.getElementById('startLanModeBtn');
-    domElements.lanLobbyScreen = document.getElementById('lanLobbyScreen');
-    domElements.lanRoomIdEl = document.getElementById('lan-room-id');
-    domElements.lanStatusEl = document.getElementById('lan-status');
-    domElements.lanPlayerListEl = document.getElementById('lan-player-list');
-    domElements.lanRemoteIdInput = document.getElementById('lan-remote-id');
-    domElements.lanConnectBtn = document.getElementById('lan-connect-btn');
-    // domElements.lanGameStartPanel = document.getElementById('lan-game-start-panel'); // Lo obtendremos por otro medio, eliminamos de aquí
-    domElements.lanSkirmishOptionsPlaceholder = document.getElementById('lan-skirmish-options-placeholder'); // El destino
-    domElements.lanStartGameBtn = document.getElementById('lan-start-game-btn');
-    domElements.backToMainMenuBtn_fromLan = document.getElementById('backToMainMenuBtn_fromLan');
-    domElements.lanCopyIdBtn = document.getElementById('lan-copy-id-btn'); // <<== AÑADIDO
-
-    
     domElements.worldMapImageEl = document.getElementById('worldMapImage');
     domElements.territoryMarkerContainerEl = document.getElementById('territoryMarkerContainer');
     domElements.campaignMessagesEl = document.getElementById('campaignMessages');
@@ -287,7 +281,7 @@ function initializeDomElements() {
     domElements.contextualTitle = document.getElementById('contextualTitle');
     domElements.contextualContent = document.getElementById('contextualContent');
     domElements.contextualActions = document.getElementById('contextualActions');
-
+    
     // Inicialización de modales específicos (normales)
     domElements.createDivisionModal = document.getElementById('createDivisionModal');
     domElements.divisionNameInput = document.getElementById('divisionNameInput');
@@ -347,7 +341,7 @@ function initializeDomElements() {
     domElements.floatingReinforceBtn = document.getElementById('floatingReinforceBtn');
     domElements.floatingSplitBtn = document.getElementById('floatingSplitBtn');
     domElements.floatingBuildBtn = document.getElementById('floatingBuildBtn');
-
+    
     // Asignaciones a variables más generales o de conveniencia (compatibilidad)
     domElements.endTurnBtn = domElements.floatingEndTurnBtn;
     domElements.saveGameBtn = domElements.saveGameBtn_float;
@@ -358,7 +352,7 @@ function initializeDomElements() {
     domElements.floatingWikiBtn = document.getElementById('floatingWikiBtn');
     domElements.wikiModal = document.getElementById('wikiModal');
     domElements.closeWikiModalBtn = document.getElementById('closeWikiModalBtn');
-
+    
     // Verificaciones y logs de inicialización CRÍTICOS
     if (!domElements.divisionNameInput) {domElements.divisionNameInput = document.getElementById('divisionNameInput');
 }
@@ -383,10 +377,8 @@ function initializeDomElements() {
     else console.log("DOM OK: startSkirmishBtnEl encontrado.");
 
     if (!domElements.startTutorialBtn) console.error("DOM CRIT: startTutorialBtn NO ENCONTRADO"); 
-    if (!domElements.startGameBtn) console.error("DOM CRIT: startGameBtn NO ENCONTRADO");
-
-
-
+    //if (!domElements.startGameBtn) console.warn("DOM WARN: El antiguo startGameBtn ya no se usa, pero se busca por compatibilidad. Usar startLocalGameBtn.");
+    
     domElements.domElementsInitialized = true;
     console.log("domElements.js: Referencias a elementos DOM completamente inicializadas.");
      console.log("domElements object:", domElements); // Loguear el objeto completo para depuración

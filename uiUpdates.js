@@ -301,14 +301,11 @@ const UIManager = {
         this._domElements.contextualContent.innerHTML = contentHTML;
 
         // --- LÓGICA DE BOTONES SIMPLIFICADA ---
-
-        // El botón de Gestionar/Reforzar (💪) se mostrará siempre que haya una unidad seleccionada (sea propia o enemiga)
         if (this._domElements.floatingReinforceBtn) {
             this._domElements.floatingReinforceBtn.style.display = 'flex';
             this._domElements.floatingReinforceBtn.title = 'Gestionar / Ver Detalles de Unidad';
         }
 
-        // El resto de botones solo aparecen para unidades propias y bajo ciertas condiciones
         if (isPlayerUnit && gameState.currentPhase === 'play') {
             const canAct = !unit.hasMoved && !unit.hasAttacked;
 
@@ -323,13 +320,41 @@ const UIManager = {
                 if (unitHex && unitHex.owner !== null && unitHex.owner !== unit.player) {
                     if (this._domElements.floatingPillageBtn) this._domElements.floatingPillageBtn.style.display = 'flex';
                 }
-                const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
+                
+                console.groupCollapsed(`[Builder Check] Verificando si ${unit.name} puede construir.`);
+                let isBuilderUnit = false; // Asumimos que no por defecto.
+                if (unit.regiments && unit.regiments.length > 0) {
+                    // Iteramos sobre cada regimiento para ver si CUALQUIERA de ellos es un constructor.
+                    for (const reg of unit.regiments) {
+                        const regData = REGIMENT_TYPES[reg.type];
+                        if (regData) {
+                            console.log(`- Chequeando regimiento: ${reg.type}`);
+                            // Condición 1: Es un Colono (isSettler: true)
+                            if (regData.isSettler === true) {
+                                isBuilderUnit = true;
+                                console.log(`  -> Es Colono. ¡Puede construir!`);
+                                break; // Si encontramos un constructor, no hace falta seguir mirando.
+                            }
+                            // Condición 2: Tiene la habilidad de construir caminos
+                            if (Array.isArray(regData.abilities) && regData.abilities.includes("build_road")) {
+                                isBuilderUnit = true;
+                                console.log(`  -> Tiene la habilidad 'build_road'. ¡Puede construir!`);
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                console.log(`Resultado final del chequeo: isBuilderUnit = ${isBuilderUnit}`);
+                console.groupEnd();
+                
                 if (isBuilderUnit) {
                     if (this._domElements.floatingBuildBtn) {
                         hexToBuildOn = { r: unit.r, c: unit.c };
                         this._domElements.floatingBuildBtn.style.display = 'flex';
                     }
                 }
+
             }
         }
         
