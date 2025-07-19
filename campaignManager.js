@@ -13,27 +13,36 @@ let campaignState = {
 };
 
 // --- INICIALIZACIÓN Y NAVEGACIÓN ENTRE PANTALLAS ---
-// --- INICIO DE FUNCIÓN: showScreen ---
+// En campaignManager.js, REEMPLAZA la función showScreen COMPLETA
+
 function showScreen(screenToShow) {
-    // console.log("[CM] showScreen intentando mostrar:", screenToShow ? screenToShow.id : "null");
-    // --- ¡CORRECCIÓN CLAVE AQUÍ! Acceder a los elementos a través de domElements ---
+    console.log(`[showScreen] Intentando mostrar: ${screenToShow ? screenToShow.id : 'NADA'} y ocultar el resto.`);
+    
+    // Creamos una lista COMPLETA de todas las pantallas/contenedores que actúan como "pantallas principales".
     const screens = [
         domElements.mainMenuScreenEl, 
-        domElements.setupScreen, 
+        domElements.setupScreen,
+        domElements.hostLobbyScreen, // <<-- AÑADIDO: Ahora se ocultará correctamente.
+        domElements.lanLobbyScreen,  // Mantenemos el antiguo por si acaso.
         domElements.worldMapScreenEl, 
         domElements.gameContainer, 
         domElements.scenarioBriefingModalEl
     ];
+
+    // Ocultamos todas las pantallas de la lista.
     screens.forEach(s => {
-        if (s) s.style.display = 'none';
+        if (s && s.style) { // Añadida verificación de seguridad
+            s.style.display = 'none';
+        }
     });
+    
+    // Mostramos solo la pantalla que queremos.
     if (screenToShow) {
-        const displayStyle = screenToShow.classList.contains('modal') || screenToShow === domElements.gameContainer ? 'flex' : 'block';
+        // Usamos 'flex' para modales y el contenedor del juego para un centrado correcto.
+        const displayStyle = (screenToShow.classList.contains('modal') || screenToShow === domElements.gameContainer) ? 'flex' : 'block';
         screenToShow.style.display = displayStyle;
     }
-    // --- FIN CORRECCIÓN CLAVE ---
 }
-// --- FIN DE FUNCIÓN: showScreen ---
 
 
 // --- INICIO DE FUNCIÓN: initializeCampaignMode ---
