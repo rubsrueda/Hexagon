@@ -817,32 +817,36 @@ function iniciarPartidaLAN(settings) {
  * y luego retransmite la acción confirmada a todos los jugadores.
  * @param {object} action - El objeto de acción enviado por un jugador.
  */
+// En main.js, REEMPLAZA la función processActionRequest completa
+
+/**
+ * [SOLO ANFITRIÓN] Procesa una PETICIÓN de acción de un jugador (cliente o él mismo).
+ * Valida la acción, la ejecuta si es válida y luego la retransmite a TODOS los jugadores.
+ * @param {object} action - El objeto de acción recibido.
+ */
 function processActionRequest(action) {
-    // Validación básica: un jugador no puede actuar fuera de su turno.
-    if (action.payload.playerId !== gameState.currentPlayer) {
+    // Validación de turno: No se puede actuar fuera de turno (excepto en despliegue)
+    if (action.payload.playerId !== gameState.currentPlayer && gameState.currentPhase !== 'deployment') {
         console.warn(`[Red - Anfitrión] Acción rechazada: El jugador ${action.payload.playerId} intentó actuar fuera de turno (Turno actual: ${gameState.currentPlayer}).`);
         return;
     }
 
     let actionToBroadcast = null;
     let payload = action.payload;
-    let isValid = true; // Asumimos que la acción es válida hasta que se demuestre lo contrario.
+    let actionExecuted = false; // Bandera para saber si la acción fue válida y se ejecutó
 
     switch (action.type) {
         // --- ACCIONES DE TURNO Y GESTIÓN ---
         case 'endTurn':
-            // La lógica de 'endTurn' es compleja y ya la manejas dentro de handleEndTurn,
-            // que a su vez se encarga de retransmitir el nuevo estado.
             handleEndTurn();
-            return; // Detenemos la ejecución aquí, handleEndTurn se encarga del resto.
+            return; // endTurn tiene su propia lógica de red y se detiene aquí.
 
         case 'researchTech':
             const tech = TECHNOLOGY_TREE_DATA[payload.techId];
             const playerRes = gameState.playerResources[payload.playerId];
-            // Validación del anfitrión: ¿Puede el jugador pagarlo y tiene los prerrequisitos?
             if (tech && playerRes && (playerRes.researchPoints || 0) >= (tech.cost.researchPoints || 0) && hasPrerequisites(playerRes.researchedTechnologies, payload.techId)) {
-                attemptToResearch(payload.techId); // El anfitrión ejecuta la acción
-                actionToBroadcast = { type: 'researchTech', payload };
+                attemptToResearch(payload.techId);
+                actionExecuted = true;
             }
             break;
 
@@ -851,7 +855,7 @@ function processActionRequest(action) {
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
                 moveUnit(unitToMove, payload.toR, payload.toC);
-                actionToBroadcast = { type: 'moveUnit', payload };
+                actionExecuted = true;
             }
             break;
 
@@ -860,87 +864,79 @@ function processActionRequest(action) {
             const defender = units.find(u => u.id === payload.defenderId);
             if (attacker && defender && isValidAttack(attacker, defender)) {
                 attackUnit(attacker, defender);
-                actionToBroadcast = { type: 'attackUnit', payload };
+                actionExecuted = true;
             }
             break;
             
         case 'mergeUnits':
             const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
-            if(mergingUnit && targetUnitMerge) { // La validación completa está dentro de mergeUnits
+            if (mergingUnit && targetUnitMerge) {
                 mergeUnits(mergingUnit, targetUnitMerge);
-                actionToBroadcast = { type: 'mergeUnits', payload };
+                actionExecuted = true;
             }
             break;
             
         case 'splitUnit':
             const originalUnit = units.find(u => u.id === payload.originalUnitId);
-            // El anfitrión asigna los datos de los regimientos a su gameState.preparingAction temporalmente para ejecutar la acción.
             gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
             if (originalUnit) {
                  splitUnit(originalUnit, payload.targetR, payload.targetC);
-                 actionToBroadcast = { type: 'splitUnit', payload };
+                 actionExecuted = true;
             }
-            gameState.preparingAction = null; // Limpiar después de usar
+            gameState.preparingAction = null;
             break;
             
         case 'pillageHex':
             const pillager = units.find(u => u.id === payload.unitId);
-            if(pillager) { // La validación está dentro de la función handle
+            if (pillager) {
+                // El handler de saqueo depende de 'selectedUnit', así que lo establecemos temporalmente
+                selectedUnit = pillager; 
                 handlePillageAction();
-                actionToBroadcast = { type: 'pillageHex', payload };
+                selectedUnit = null; // Limpiamos después
+                actionExecuted = true;
             }
             break;
 
         case 'disbandUnit':
              const unitToDisband = units.find(u => u.id === payload.unitId);
-             if(unitToDisband){
+             if (unitToDisband){
                 handleDisbandUnit(unitToDisband);
-                actionToBroadcast = { type: 'disbandUnit', payload };
+                actionExecuted = true;
              }
              break;
             
         // --- ACCIONES DESDE MODALES ---
-        case 'placeUnit': 
-             if (isValid) {
-                // El anfitrión ejecuta la acción. ESTO AÑADE .element a payload.unitData
+        case 'placeUnit':
+            const hexToPlace = board[payload.r]?.[payload.c];
+            if (hexToPlace && !hexToPlace.unit) {
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
-                
-                // <<== ¡SOLUCIÓN CLAVE AQUÍ! ==>>
-                // Creamos un nuevo payload para la retransmisión, asegurándonos de que
-                // la unidad se vuelve a limpiar para no enviar el elemento DOM.
-                const replacer = (key, value) => (key === 'element' ? undefined : value);
-                const cleanUnitDataForBroadcast = JSON.parse(JSON.stringify(payload.unitData, replacer));
-
-                const broadcastPayload = {
-                    ...payload, // Copia otras propiedades como r, c, playerId
-                    unitData: cleanUnitDataForBroadcast // Usa la versión limpia de unitData
-                };
-
-                actionToBroadcast = { type: 'placeUnit', payload: broadcastPayload };
-             }
-             break;
+                actionExecuted = true;
+            }
+            break;
             
         case 'buildStructure':
-            // El anfitrión valida que el jugador tiene los recursos.
             const builderPlayerRes = gameState.playerResources[payload.playerId];
             const structureCost = STRUCTURE_TYPES[payload.structureType].cost;
-            isValid = true;
+            let canAfford = true;
             for(const res in structureCost){
-                if((builderPlayerRes[res] || 0) < structureCost[res]) isValid = false;
+                if (res !== 'Colono' && (builderPlayerRes[res] || 0) < structureCost[res]) {
+                    canAfford = false;
+                    break;
+                }
             }
-            if(isValid){
+            if(canAfford){
                 handleConfirmBuildStructure(payload);
-                actionToBroadcast = { type: 'buildStructure', payload };
+                actionExecuted = true;
             }
             break;
 
         case 'reinforceRegiment':
             const divisionToReinforce = units.find(u => u.id === payload.divisionId);
             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
-            if(divisionToReinforce && regimentToReinforce) { // Validación de coste y condiciones está dentro de la función.
+            if(divisionToReinforce && regimentToReinforce) {
                  handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
-                 actionToBroadcast = { type: 'reinforceRegiment', payload };
+                 actionExecuted = true;
             }
             break;
 
@@ -949,11 +945,26 @@ function processActionRequest(action) {
             break;
     }
 
-    if (actionToBroadcast) {
+    // Si la acción fue válida y se ejecutó, el Anfitrión la retransmite a todos.
+    if (actionExecuted) {
+        // "Limpiamos" el payload de la acción para asegurarnos de no enviar elementos del DOM.
+        const replacer = (key, value) => (key === 'element' ? undefined : value);
+        const cleanPayload = JSON.parse(JSON.stringify(payload, replacer));
+        
+        const actionToBroadcast = {
+            type: action.type,
+            payload: cleanPayload
+        };
+
         console.log(`[Red - Anfitrión] Acción '${action.type}' validada. Retransmitiendo...`);
         NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
+
+        // El Anfitrión también actualiza su propia UI después de ejecutar una acción con éxito.
+        if (UIManager) {
+            UIManager.updateAllUIDisplays();
+        }
     } else {
-        console.warn(`[Red - Anfitrión] Acción '${action.type}' rechazada por validación fallida.`);
+        console.warn(`[Red - Anfitrión] Acción '${action.type}' de ${payload.playerId} fue inválida o falló la validación.`);
     }
 }
 
