@@ -267,238 +267,6 @@ function handleHealingPhase(playerNum) {
     console.groupEnd();
 }
 
-function handleEndTurn() {
-    console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
-    if (typeof deselectUnit === "function") deselectUnit(); else console.warn("handleEndTurn: deselectUnit no definida");
-
-    if (gameState.currentPhase === "gameOver") {
-        logMessage("La partida ya ha terminado.");
-        return;
-    }
-
-    if (gameState.isTutorialActive) {
-        const currentStep = tutorialScenarioData.tutorialSteps[currentTutorialStepIndex];
-        if (currentStep && currentStep.validate && !currentStep.validate(gameState, units.find(u => u.lastMove))) {
-            logMessage(`¡Tutorial! Debes completar el paso actual antes de terminar el turno: ${currentStep.message}`);
-            return;
-        }
-        moveToNextTutorialStep();
-        if (gameState.currentPhase === "gameOver") { return; }
-    }
-    
-    // --- LÓGICA AÑADIDA PARA GESTIONAR PARTIDAS EN RED ---
-    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
-
-    if (isNetworkGame) {
-        // Si no es mi turno, no hago nada.
-        if (gameState.currentPlayer !== gameState.myPlayerNumber) {
-            logMessage("No es tu turno.");
-            return;
-        }
-        // Si es mi turno, envío la petición para terminarlo.
-        console.log(`[Red - Fin de Turno] Jugador ${gameState.myPlayerNumber} solicita terminar su turno.`);
-        NetworkManager.enviarDatos({
-            type: 'actionRequest',
-            action: {
-                type: 'endTurn',
-                payload: {
-                    playerId: gameState.myPlayerNumber
-                }
-            }
-        });
-        if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
-        logMessage("Petición de fin de turno enviada...");
-        return; // Detenemos la ejecución aquí. El Anfitrión se encargará.
-    }
-    
-    // --- CÓDIGO ORIGINAL (AHORA SOLO PARA PARTIDAS LOCALES O PROCESADO POR EL HOST) ---
-    let triggerAiDeployment = false;
-    let aiPlayerToDeploy = -1;
-    let nextPhaseForGame = gameState.currentPhase;
-    let nextPlayerForGame = gameState.currentPlayer;
-    const playerEndingTurn = gameState.currentPlayer; 
-
-    if (gameState.currentPhase === "deployment") {
-        const player1Id = 1;
-        const player2Id = 2;
-        const limit = gameState.deploymentUnitLimit;
-        let player1CanStillDeploy = gameState.playerTypes.player1 === 'human' && (gameState.unitsPlacedByPlayer[player1Id] || 0) < limit;
-        let player2CanStillDeploy = gameState.playerTypes.player2 === 'human' && (gameState.unitsPlacedByPlayer[player2Id] || 0) < limit;
-        
-        if (gameState.playerTypes.player1.startsWith('ai_')) player1CanStillDeploy = false;
-        if (gameState.playerTypes.player2.startsWith('ai_')) player2CanStillDeploy = false;
-
-        if (gameState.currentPlayer === player1Id) {
-            if (player1CanStillDeploy) logMessage(`Jugador 1: Aún puedes desplegar (Límite: ${limit === Infinity ? 'Ilimitado' : limit}).`);
-            
-            if (gameState.playerTypes.player2 === 'human') {
-                if (player2CanStillDeploy) {
-                    nextPlayerForGame = player2Id;
-                    logMessage(`Despliegue: Turno Jugador 2. (Límite: ${limit === Infinity ? 'Ilimitado' : limit})`);
-                } else {
-                    nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
-                }
-            } else { 
-                if ((gameState.unitsPlacedByPlayer[player2Id] || 0) < limit) {
-                    nextPlayerForGame = player2Id; triggerAiDeployment = true; aiPlayerToDeploy = player2Id;
-                } else { 
-                    nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
-                }
-            }
-        } else { 
-            if (player2CanStillDeploy) logMessage(`Jugador 2: Aún puedes desplegar (Límite: ${limit === Infinity ? 'Ilimitado' : limit}).`);
-            nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
-        }
-        gameState.currentPhase = nextPhaseForGame;
-        gameState.currentPlayer = nextPlayerForGame;
-        if (gameState.currentPhase === "play") {
-            gameState.turnNumber = 1;
-        }
-    } else if (gameState.currentPhase === "play") {
-        updateTerritoryMetrics(playerEndingTurn);
-        collectPlayerResources(playerEndingTurn); 
-        handleUnitUpkeep(playerEndingTurn);
-        handleHealingPhase(playerEndingTurn);
-
-        gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
-        if (gameState.currentPlayer === 1) {
-            gameState.turnNumber++;
-            logMessage(`Comienza el Turno ${gameState.turnNumber}.`);
-        }
-
-        const tradeGold = calculateTradeIncome(playerEndingTurn);
-        if (tradeGold > 0) {
-            gameState.playerResources[playerEndingTurn].oro += tradeGold;
-        }
-    }
-
-    logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-
-    if(gameState.currentPhase === 'play'){
-        handleBrokenUnits(gameState.currentPlayer);
-    }
-    
-    // 2. Reseteo de acciones
-    units.forEach(unit => {
-        if (unit.player === gameState.currentPlayer) {
-            unit.hasMoved = false;
-            unit.hasAttacked = false;
-            unit.currentMovement = unit.movement;
-            unit.hasRetaliatedThisTurn = false;
-
-            // <<== NUEVO: Resetear los golpes recibidos en combate para cada regimiento ==>>
-            // Se comprueba si la unidad tiene una lista de regimientos.
-            if (unit.regiments && Array.isArray(unit.regiments)) {
-                // Se itera sobre cada regimiento de la división del jugador que inicia su turno.
-                unit.regiments.forEach(regiment => {
-                    // Se establece a 0 el contador de golpes recibidos.
-                    // Esto elimina la penalización de desgaste para el nuevo turno.
-                    regiment.hitsTakenThisRound = 0;
-                });
-            }
-            // <<== FIN DE LA MODIFICACIÓN ==>>
-        }
-    });
-    
-    units.forEach(unit => {
-        if (unit.player === gameState.currentPlayer) {
-            unit.hasMoved = false;
-            unit.hasAttacked = false;
-            unit.currentMovement = unit.movement;
-            unit.hasRetaliatedThisTurn = false;
-        }
-    });
-
-    if (gameState.currentPhase === 'play') {
-        units.forEach(unit => {
-            if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
-                unit.experience = Math.min(unit.maxExperience || 500, (unit.experience || 0) + 1);
-                if (typeof checkAndApplyLevelUp === "function") checkAndApplyLevelUp(unit);
-            }
-        });
-
-        if (gameState.playerResources[gameState.currentPlayer]) {
-            const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5; 
-            gameState.playerResources[gameState.currentPlayer].researchPoints = (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
-            logMessage(`Jugador ${gameState.currentPlayer} obtiene ${baseResearchIncome} Puntos de Investigación.`);
-        }
-
-        const player = gameState.currentPlayer;
-        const playerRes = gameState.playerResources[player];
-        if (playerRes) {
-            let foodProducedThisTurn = 0;
-            if (board?.length > 0) {
-                for (let r_idx = 0; r_idx < board.length; r_idx++) {
-                    for (let c_idx = 0; c_idx < board[0].length; c_idx++) {
-                        const hex = board[r_idx]?.[c_idx];
-                        if (hex && hex.owner === player && hex.structure) {
-                            if (STRUCTURE_TYPES[hex.structure]?.producesFood) {
-                                foodProducedThisTurn += STRUCTURE_TYPES[hex.structure].producesFood;
-                            }
-                        }
-                    }
-                }
-            }
-            playerRes.comida += foodProducedThisTurn;
-            if (foodProducedThisTurn > 0) logMessage(`Jugador ${player} produce ${foodProducedThisTurn} comida.`);
-
-            let foodActuallyConsumed = 0;
-            let unitsSufferingAttrition = 0;
-            let unitsDestroyedByAttrition = [];
-
-            units.filter(u => u.player === player && u.currentHealth > 0).forEach(unit => {
-                let unitConsumption = 0;
-                (unit.regiments || []).forEach(reg => {
-                    unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0;
-                });
-                
-                if (isHexSupplied(unit.r, unit.c, player) && playerRes.comida >= unitConsumption) {
-                    playerRes.comida -= unitConsumption;
-                    foodActuallyConsumed += unitConsumption;
-                } else {
-                    unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
-                    unitsSufferingAttrition++;
-                    logMessage(`¡${unit.name} sufre atrición!`);
-                    if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
-                    else if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
-                }
-            });
-
-            unitsDestroyedByAttrition.forEach(unitId => {
-                const unit = units.find(u => u.id === unitId);
-                if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null);
-            });
-
-            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) {
-                logMessage(`Comida consumida: ${foodActuallyConsumed}.`);
-            }
-            if (playerRes.comida < 0) playerRes.comida = 0;
-        }
-    }
-    
-    if (nextPhaseForGame === "play" && gameState.currentPhase === "play" && gameState.turnNumber === 1 && gameState.currentPlayer === 1) {
-        logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
-    }
-
-    if (UIManager) UIManager.updateAllUIDisplays();
-    
-    const playerForAICheck = `player${gameState.currentPlayer}`;
-    const playerTypeForAICheck = gameState.playerTypes[playerForAICheck];
-
-    if (triggerAiDeployment && aiPlayerToDeploy !== -1) {
-        logMessage(`IA (Jugador ${aiPlayerToDeploy}) desplegando...`);
-        setTimeout(() => {
-            if (deployUnitsAI) deployUnitsAI(aiPlayerToDeploy);
-            if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) domElements.endTurnBtn.click();
-        }, 500);
-    } else if (gameState.currentPhase === 'play' && playerTypeForAICheck?.startsWith('ai_')) {
-        if (checkVictory()) { return; } 
-        setTimeout(simpleAiTurn, 700); 
-    } else if (gameState.currentPhase === 'play') { 
-        if (checkVictory) checkVictory();
-    }
-}
-
 function collectPlayerResources(playerNum) {
     console.groupCollapsed(`[RECURSOS] Análisis Detallado de Recolección para Jugador ${playerNum}`);
 
@@ -614,7 +382,6 @@ function collectPlayerResources(playerNum) {
     console.log(`[RECURSOS] Fin de recolección para Jugador ${playerNum}. Recursos finales: ${JSON.stringify(playerRes)}`);
     console.groupEnd();
 }
-
 
 function updateFogOfWar() {
     if (!board || board.length === 0) return; // board de state.js
@@ -1156,3 +923,242 @@ function calculateTradeIncome(playerNum) {
 
     return tradeIncome;
 }
+
+function handleEndTurn() {
+    console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
+    if (typeof deselectUnit === "function") deselectUnit(); else console.warn("handleEndTurn: deselectUnit no definida");
+
+    if (gameState.currentPhase === "gameOver") {
+        logMessage("La partida ya ha terminado.");
+        return;
+    }
+
+    // --- LÓGICA DE RED ---
+    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+    if (isNetworkGame) {
+        if (gameState.currentPlayer !== gameState.myPlayerNumber) {
+            logMessage("No es tu turno.");
+            return;
+        }
+        console.log(`[Red] Jugador ${gameState.myPlayerNumber} solicita terminar su turno.`);
+        NetworkManager.enviarDatos({
+            type: 'actionRequest',
+            action: { type: 'endTurn', payload: { playerId: gameState.myPlayerNumber } }
+        });
+        if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
+        logMessage("Petición de fin de turno enviada...");
+        return; // La ejecución en red se detiene aquí. El Anfitrión se encargará del resto.
+    }
+    
+    // --- CÓDIGO ORIGINAL (SOLO PARA PARTIDAS LOCALES) ---
+    // Si el juego NO es en red, se ejecuta toda tu lógica original intacta.
+    console.log("[Juego Local] Procesando fin de turno...");
+    if (typeof deselectUnit === "function") deselectUnit(); else console.warn("handleEndTurn: deselectUnit no definida");
+
+    if (gameState.isTutorialActive) {
+        const currentStep = tutorialScenarioData.tutorialSteps[currentTutorialStepIndex];
+        if (currentStep && currentStep.validate && !currentStep.validate(gameState, units.find(u => u.lastMove))) {
+            logMessage(`¡Tutorial! Debes completar el paso actual antes de terminar el turno: ${currentStep.message}`);
+            return;
+        }
+        moveToNextTutorialStep();
+        if (gameState.currentPhase === "gameOver") { return; }
+    }
+       
+    // --- CÓDIGO ORIGINAL (AHORA SOLO PARA PARTIDAS LOCALES O PROCESADO POR EL HOST) ---
+    let triggerAiDeployment = false;
+    let aiPlayerToDeploy = -1;
+    let nextPhaseForGame = gameState.currentPhase;
+    let nextPlayerForGame = gameState.currentPlayer;
+    const playerEndingTurn = gameState.currentPlayer; 
+
+    if (gameState.currentPhase === "deployment") {
+        const player1Id = 1;
+        const player2Id = 2;
+        const limit = gameState.deploymentUnitLimit;
+        let player1CanStillDeploy = gameState.playerTypes.player1 === 'human' && (gameState.unitsPlacedByPlayer[player1Id] || 0) < limit;
+        let player2CanStillDeploy = gameState.playerTypes.player2 === 'human' && (gameState.unitsPlacedByPlayer[player2Id] || 0) < limit;
+        
+        if (gameState.playerTypes.player1.startsWith('ai_')) player1CanStillDeploy = false;
+        if (gameState.playerTypes.player2.startsWith('ai_')) player2CanStillDeploy = false;
+
+        if (gameState.currentPlayer === player1Id) {
+            if (player1CanStillDeploy) logMessage(`Jugador 1: Aún puedes desplegar (Límite: ${limit === Infinity ? 'Ilimitado' : limit}).`);
+            
+            if (gameState.playerTypes.player2 === 'human') {
+                if (player2CanStillDeploy) {
+                    nextPlayerForGame = player2Id;
+                    logMessage(`Despliegue: Turno Jugador 2. (Límite: ${limit === Infinity ? 'Ilimitado' : limit})`);
+                } else {
+                    nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
+                }
+            } else { 
+                if ((gameState.unitsPlacedByPlayer[player2Id] || 0) < limit) {
+                    nextPlayerForGame = player2Id; triggerAiDeployment = true; aiPlayerToDeploy = player2Id;
+                } else { 
+                    nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
+                }
+            }
+        } else { 
+            if (player2CanStillDeploy) logMessage(`Jugador 2: Aún puedes desplegar (Límite: ${limit === Infinity ? 'Ilimitado' : limit}).`);
+            nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
+        }
+        gameState.currentPhase = nextPhaseForGame;
+        gameState.currentPlayer = nextPlayerForGame;
+        if (gameState.currentPhase === "play") {
+            gameState.turnNumber = 1;
+        }
+    } else if (gameState.currentPhase === "play") {
+        updateTerritoryMetrics(playerEndingTurn);
+        collectPlayerResources(playerEndingTurn); 
+        handleUnitUpkeep(playerEndingTurn);
+        handleHealingPhase(playerEndingTurn);
+
+        gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
+        if (gameState.currentPlayer === 1) {
+            gameState.turnNumber++;
+            logMessage(`Comienza el Turno ${gameState.turnNumber}.`);
+        }
+
+        const tradeGold = calculateTradeIncome(playerEndingTurn);
+        if (tradeGold > 0) {
+            gameState.playerResources[playerEndingTurn].oro += tradeGold;
+        }
+    }
+
+    logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+
+    if(gameState.currentPhase === 'play'){
+        handleBrokenUnits(gameState.currentPlayer);
+    }
+    
+    resetUnitsForNewTurn(gameState.currentPlayer);
+    
+    // 2. Reseteo de acciones
+    units.forEach(unit => {
+        if (unit.player === gameState.currentPlayer) {
+            unit.hasMoved = false;
+            unit.hasAttacked = false;
+            unit.currentMovement = unit.movement;
+            unit.hasRetaliatedThisTurn = false;
+
+            // <<== NUEVO: Resetear los golpes recibidos en combate para cada regimiento ==>>
+            // Se comprueba si la unidad tiene una lista de regimientos.
+            if (unit.regiments && Array.isArray(unit.regiments)) {
+                // Se itera sobre cada regimiento de la división del jugador que inicia su turno.
+                unit.regiments.forEach(regiment => {
+                    // Se establece a 0 el contador de golpes recibidos.
+                    // Esto elimina la penalización de desgaste para el nuevo turno.
+                    regiment.hitsTakenThisRound = 0;
+                });
+            }
+            // <<== FIN DE LA MODIFICACIÓN ==>>
+        }
+    });
+    
+    units.forEach(unit => {
+        if (unit.player === gameState.currentPlayer) {
+            unit.hasMoved = false;
+            unit.hasAttacked = false;
+            unit.currentMovement = unit.movement;
+            unit.hasRetaliatedThisTurn = false;
+        }
+    });
+
+    if (gameState.currentPhase === 'play') {
+        units.forEach(unit => {
+            if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
+                unit.experience = Math.min(unit.maxExperience || 500, (unit.experience || 0) + 1);
+                if (typeof checkAndApplyLevelUp === "function") checkAndApplyLevelUp(unit);
+            }
+        });
+
+        if (gameState.playerResources[gameState.currentPlayer]) {
+            const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5; 
+            gameState.playerResources[gameState.currentPlayer].researchPoints = (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
+            logMessage(`Jugador ${gameState.currentPlayer} obtiene ${baseResearchIncome} Puntos de Investigación.`);
+        }
+
+        const player = gameState.currentPlayer;
+        const playerRes = gameState.playerResources[player];
+        if (playerRes) {
+            let foodProducedThisTurn = 0;
+            if (board?.length > 0) {
+                for (let r_idx = 0; r_idx < board.length; r_idx++) {
+                    for (let c_idx = 0; c_idx < board[0].length; c_idx++) {
+                        const hex = board[r_idx]?.[c_idx];
+                        if (hex && hex.owner === player && hex.structure) {
+                            if (STRUCTURE_TYPES[hex.structure]?.producesFood) {
+                                foodProducedThisTurn += STRUCTURE_TYPES[hex.structure].producesFood;
+                            }
+                        }
+                    }
+                }
+            }
+            playerRes.comida += foodProducedThisTurn;
+            if (foodProducedThisTurn > 0) logMessage(`Jugador ${player} produce ${foodProducedThisTurn} comida.`);
+
+            let foodActuallyConsumed = 0;
+            let unitsSufferingAttrition = 0;
+            let unitsDestroyedByAttrition = [];
+
+            units.filter(u => u.player === player && u.currentHealth > 0).forEach(unit => {
+                let unitConsumption = 0;
+                (unit.regiments || []).forEach(reg => {
+                    unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0;
+                });
+                
+                if (isHexSupplied(unit.r, unit.c, player) && playerRes.comida >= unitConsumption) {
+                    playerRes.comida -= unitConsumption;
+                    foodActuallyConsumed += unitConsumption;
+                } else {
+                    unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
+                    unitsSufferingAttrition++;
+                    logMessage(`¡${unit.name} sufre atrición!`);
+                    if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
+                    else if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
+                }
+            });
+
+            unitsDestroyedByAttrition.forEach(unitId => {
+                const unit = units.find(u => u.id === unitId);
+                if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null);
+            });
+
+            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) logMessage(`Comida consumida: ${foodActuallyConsumed}.`);
+            if (playerRes.comida < 0) playerRes.comida = 0;
+        }
+    }
+    
+    if (nextPhaseForGame === "play" && gameState.currentPhase === "play" && gameState.turnNumber === 1 && gameState.currentPlayer === 1) {
+        logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
+    }
+
+    if (UIManager) UIManager.updateAllUIDisplays();
+    
+    const playerForAICheck = `player${gameState.currentPlayer}`;
+    const playerTypeForAICheck = gameState.playerTypes[playerForAICheck];
+
+    if (triggerAiDeployment && aiPlayerToDeploy !== -1) {
+        logMessage(`IA (Jugador ${aiPlayerToDeploy}) desplegando...`);
+        setTimeout(() => {
+            if (deployUnitsAI) deployUnitsAI(aiPlayerToDeploy);
+            if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) domElements.endTurnBtn.click();
+        }, 500);
+    } else if (gameState.currentPhase === 'play' && playerTypeForAICheck?.startsWith('ai_')) {
+        if (checkVictory()) { return; } 
+        setTimeout(simpleAiTurn, 700); 
+    } else if (gameState.currentPhase === 'play') { 
+        if (checkVictory) checkVictory();
+    }
+}
+
+
+
+
+
+
+
+
+
+

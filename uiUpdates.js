@@ -496,23 +496,21 @@ const UIManager = {
     },
 
     updateTurnIndicatorAndBlocker: function() {
-        if (!this._domElements || !gameState) return;
+        if (!this._domElements || !gameState || typeof gameState.myPlayerNumber === 'undefined') return;
 
         const blocker = document.getElementById('turnBlocker');
         const endTurnBtn = this._domElements.floatingEndTurnBtn;
-
-        if (!blocker || !endTurnBtn) {
-            console.error("UI Error: No se encuentra el turnBlocker o el floatingEndTurnBtn");
-            return;
-        }
+        if (!blocker || !endTurnBtn) return;
 
         const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+        
+        console.log(`[UI Update] Chequeando estado del turno. Soy J${gameState.myPlayerNumber}, es el turno de J${gameState.currentPlayer}. ¿Es mi turno? ${isMyTurn}`);
 
         if (isMyTurn) {
             // ES MI TURNO
             blocker.style.display = 'none'; // Ocultar el bloqueador
             endTurnBtn.disabled = false;    // Habilitar el botón de fin de turno
-            this.showMessageTemporarily("¡Es tu turno!", 2000); // Mensaje temporal
+            this.showMessageTemporarily("¡Es tu turno!", 2500);
         } else {
             // NO ES MI TURNO
             blocker.style.display = 'flex'; // Mostrar el bloqueador
@@ -520,4 +518,5 @@ const UIManager = {
             endTurnBtn.disabled = true;     // Deshabilitar el botón
         }
     },
+
 };
