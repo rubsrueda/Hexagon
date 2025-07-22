@@ -940,11 +940,25 @@ function handleEndTurn() {
             logMessage("No es tu turno.");
             return;
         }
-        console.log(`[Red] Jugador ${gameState.myPlayerNumber} solicita terminar su turno.`);
-        NetworkManager.enviarDatos({
-            type: 'actionRequest',
-            action: { type: 'endTurn', payload: { playerId: gameState.myPlayerNumber } }
-        });
+
+        // Creamos la acción que se va a realizar.
+        const endTurnAction = {
+            type: 'endTurn',
+            payload: { playerId: gameState.myPlayerNumber }
+        };
+
+        // BIFURCACIÓN CLAVE: ¿Soy el Anfitrión o un Cliente?
+        if (NetworkManager.esAnfitrion) {
+            // SOY EL ANFITRIÓN: Proceso mi propia acción directamente, sin enviar petición.
+            console.log("[Red - Anfitrión] Procesando mi propio fin de turno directamente...");
+            processActionRequest(endTurnAction);
+        } else {
+            // SOY EL CLIENTE: Envío la petición al Anfitrión para que la procese.
+            console.log(`[Red - Cliente] Enviando petición para terminar mi turno...`);
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
+        }
+        
+        // En ambos casos de red, deshabilitamos el botón para evitar clics múltiples.
         if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
         logMessage("Petición de fin de turno enviada...");
         return; // La ejecución en red se detiene aquí. El Anfitrión se encargará del resto.
@@ -1152,6 +1166,8 @@ function handleEndTurn() {
         if (checkVictory) checkVictory();
     }
 }
+
+
 
 
 
