@@ -1221,6 +1221,7 @@ function RequestReinforceRegiment(division, regiment) {
     const healthToRestore = regData.health - regiment.health;
     if (healthToRestore <= 0) return;
 
+    // --- CÓDIGO DE CÁLCULO DE COSTE AÑADIDO (tomado de handleReinforceRegiment) ---
     const reinforceCostMultiplier = 1.5;
     const baseRegCost = regData.cost.oro || 0;
     const costPerHp = baseRegCost / regData.health;

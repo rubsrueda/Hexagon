@@ -145,48 +145,48 @@ function initApp() {
     
     // Función que se ejecuta cuando recibimos datos del otro jugador
     function onDatosLANRecibidos(datos) {
-        console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
+    console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
 
-        // --- Lógica del CLIENTE: Reaccionar a mensajes del anfitrión ---
-        if (!NetworkManager.esAnfitrion) {
-            switch (datos.type) {
-                case 'startGame':
-                    logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
-                    iniciarPartidaLAN(datos.settings); 
-                    break;
-                
-                // <<== NUEVO: El cliente escucha la retransmisión del anfitrión ==>>
-                case 'actionBroadcast':
-                    // Cuando el anfitrión confirma una acción, la ejecutamos localmente
-                    executeConfirmedAction(datos.action);
-                    break;
-                
-                default:
-                    console.warn("Cliente ha recibido un tipo de paquete de datos desconocido:", datos.type);
-                    break;
-            }
-        }
-        
-        // --- Lógica del ANFITRIÓN: Procesar peticiones y retransmitir ---
-        if (NetworkManager.esAnfitrion) {
-            switch (datos.type) {
-                // <<== NUEVO: El anfitrión escucha peticiones de acción ==>>
-                case 'actionRequest':
-                    // Cuando un cliente (o él mismo) pide hacer algo
-                    processActionRequest(datos.action);
-                    break;
+    // --- Lógica del CLIENTE: Reaccionar a mensajes del anfitrión ---
+    if (!NetworkManager.esAnfitrion) {
+        switch (datos.type) {
+            case 'startGame':
+                logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
+                iniciarPartidaLAN(datos.settings);
+                break;
 
-                // El anfitrión también debe escuchar sus propias retransmisiones
-                case 'actionBroadcast':
-                    executeConfirmedAction(datos.action);
-                    break;
-                    
-                default:
-                    console.log(`Anfitrión recibió un paquete tipo '${datos.type}' del cliente (lógica de manejo futura).`);
-                    break;
-            }
+            // --- ¡NUEVA LÓGICA AÑADIDA! ---
+            case 'initialGameSetup':
+                reconstruirJuegoDesdeDatos(datos.payload);
+                break;
+
+            case 'actionBroadcast':
+                executeConfirmedAction(datos.action);
+                break;
+
+            default:
+                console.warn("Cliente ha recibido un tipo de paquete de datos desconocido:", datos.type);
+                break;
         }
     }
+
+    // --- Lógica del ANFITRIÓN: Procesar peticiones y retransmitir ---
+    if (NetworkManager.esAnfitrion) {
+        switch (datos.type) {
+            case 'actionRequest':
+                processActionRequest(datos.action);
+                break;
+                
+            // El anfitrión NO debe procesar retransmisiones (actionBroadcast) aquí,
+            // ya que él es quien las origina y ejecuta la acción en processActionRequest.
+            // Si lo necesita para acciones propias, debe manejarse de otra forma.
+
+            default:
+                console.log(`Anfitrión recibió un paquete tipo '${datos.type}' del cliente (lógica de manejo futura).`);
+                break;
+        }
+    }
+}
 
     function onConexionLANCerrada() {
          if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
@@ -1089,6 +1089,75 @@ function executeConfirmedAction(action) {
                 console.error(`[Red - Sincronización] Error: No se encontró la unidad ${unitId} para mover.`);
             }
             break;
+    }
+}
+
+/**
+ * [SOLO CLIENTE] Construye todo el estado visual y lógico del juego a partir 
+ * de los datos recibidos del anfitrión.
+ * @param {object} datos - El payload del paquete 'initialGameSetup'.
+ */
+function reconstruirJuegoDesdeDatos(datos) {
+    console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
+
+    try {
+        // Limpiar el estado local antes de cargar el nuevo
+        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
+        board = [];
+        units = [];
+
+        // Cargar estado del juego, tablero, unidades y contador
+        Object.assign(gameState, datos.gameState);
+        const boardData = datos.board;
+        const unitsData = datos.units;
+        unitIdCounter = datos.unitIdCounter;
+
+        // Reconstruir el tablero (board y elementos DOM)
+        const boardSize = { rows: boardData.length, cols: boardData[0].length };
+        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
+        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+
+        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
+
+        for (let r = 0; r < boardSize.rows; r++) {
+            for (let c = 0; c < boardSize.cols; c++) {
+                const hexElement = createHexDOMElementWithListener(r, c);
+                domElements.gameBoard.appendChild(hexElement);
+                board[r][c] = {
+                    ...boardData[r][c],
+                    element: hexElement,
+                    unit: null
+                };
+            }
+        }
+
+        // Reconstruir las unidades (units y elementos DOM)
+        unitsData.forEach(unitData => {
+            const unitElement = document.createElement('div');
+            unitElement.classList.add('unit', `player${unitData.player}`);
+            unitElement.textContent = unitData.sprite;
+            unitElement.dataset.id = unitData.id;
+            const strengthDisplay = document.createElement('div');
+            strengthDisplay.classList.add('unit-strength');
+            unitElement.appendChild(strengthDisplay);
+            domElements.gameBoard.appendChild(unitElement);
+
+            unitData.element = unitElement;
+            units.push(unitData);
+
+            if (unitData.r !== -1 && board[unitData.r]?.[unitData.c]) {
+                board[unitData.r][unitData.c].unit = unitData;
+            }
+        });
+
+        // Renderizar todo y actualizar la UI
+        renderFullBoardVisualState();
+        UIManager.updateAllUIDisplays();
+        logMessage("¡Sincronización completada! La partida está lista.");
+
+    } catch (error) {
+        console.error("Error crítico al reconstruir el juego en el cliente:", error);
+        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
 }
 
