@@ -494,4 +494,30 @@ const UIManager = {
             });
         }
     },
+
+    updateTurnIndicatorAndBlocker: function() {
+        if (!this._domElements || !gameState) return;
+
+        const blocker = document.getElementById('turnBlocker');
+        const endTurnBtn = this._domElements.floatingEndTurnBtn;
+
+        if (!blocker || !endTurnBtn) {
+            console.error("UI Error: No se encuentra el turnBlocker o el floatingEndTurnBtn");
+            return;
+        }
+
+        const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+
+        if (isMyTurn) {
+            // ES MI TURNO
+            blocker.style.display = 'none'; // Ocultar el bloqueador
+            endTurnBtn.disabled = false;    // Habilitar el botón de fin de turno
+            this.showMessageTemporarily("¡Es tu turno!", 2000); // Mensaje temporal
+        } else {
+            // NO ES MI TURNO
+            blocker.style.display = 'flex'; // Mostrar el bloqueador
+            blocker.textContent = `Esperando al Jugador ${gameState.currentPlayer}...`;
+            endTurnBtn.disabled = true;     // Deshabilitar el botón
+        }
+    },
 };

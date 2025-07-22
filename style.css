@@ -2627,3 +2627,29 @@ body {
     padding: 12px;
     background-color: #28a745;
 }
+
+.turn-blocker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* Fondo oscuro semitransparente */
+    z-index: 5000; /* Por encima de todo en el tablero */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.5em;
+    color: white;
+    text-shadow: 2px 2px 4px black;
+    text-align: center;
+    cursor: not-allowed; /* Indica que no se puede interactuar */
+}
+
+/* Estilo para el botón de terminar turno cuando está deshabilitado */
+#floatingEndTurnBtn:disabled {
+    background-color: #6c757d !important;
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: scale(1) !important;
+}
