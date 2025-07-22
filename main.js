@@ -1053,51 +1053,92 @@ function executeConfirmedAction(action) {
  * @param {object} action - El objeto de acción retransmitido por el anfitrión.
  */
 function executeConfirmedAction(action) {
-    console.log("[Red - Sincronizando] Ejecutando acción confirmada:", action.type);
+    console.log(`[Red - Sincronizando] Ejecutando acción confirmada por el anfitrión: ${action.type}`);
+    const payload = action.payload;
 
+    // Detener la simulación de la IA del cliente si el anfitrión va a ejecutar el turno de la IA
+    const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+    if (!isMyTurn && gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_')) {
+        console.log("[Red - Cliente] Es el turno de una IA, deteniendo cualquier simulación local y esperando broadcast del anfitrión.");
+    }
+    
     switch (action.type) {
-        case 'syncGameState':
-            // Por ahora, la forma más simple de sincronizar es reemplazar nuestro gameState
-            // con el que nos envía el anfitrión.
-            const oldPlayer = gameState.currentPlayer;
+        // --- ACCIONES DE TURNO Y GESTIÓN ---
+        case 'syncGameState': // Se recibe tras un endTurn
             Object.assign(gameState, action.payload.newGameState);
+            resetUnitsForNewTurn(gameState.currentPlayer);
+            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+            if (gameState.currentPlayer === gameState.myPlayerNumber) {
+                domElements.floatingEndTurnBtn.disabled = false;
+            }
+            break;
+
+        case 'researchTech':
+            attemptToResearch(payload.techId);
+            break;
+
+        // --- ACCIONES DE UNIDAD EN EL MAPA ---
+        case 'moveUnit':
+            const unitToMove = units.find(u => u.id === payload.unitId);
+            if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC);
+            break;
+
+        case 'attackUnit':
+            const attacker = units.find(u => u.id === payload.attackerId);
+            const defender = units.find(u => u.id === payload.defenderId);
+            if (attacker && defender) attackUnit(attacker, defender);
+            break;
             
-            // Después de sincronizar, actualizamos toda la UI.
-            UIManager.updateAllUIDisplays();
-
-            // Lógica específica que debe ocurrir al cambiar de turno
-            if (oldPlayer !== gameState.currentPlayer) {
-                 logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-                 resetUnitsForNewTurn(gameState.currentPlayer);
-                 
-                 // Si ahora es el turno del jugador local, habilitamos su botón de fin de turno.
-                 if (gameState.currentPlayer === gameState.myPlayerNumber) {
-                     domElements.floatingEndTurnBtn.disabled = false;
-                 }
-                 
-                 // Si es un turno de IA en red, el anfitrión lo ejecuta.
-                 const playerForAICheck = `player${gameState.currentPlayer}`;
-                 const isAITurn = gameState.playerTypes[playerForAICheck]?.startsWith('ai_');
-                 if (isAITurn && NetworkManager.esAnfitrion) {
-                     console.log("[Red - Anfitrión] Es turno de una IA, ejecutándola...");
-                     setTimeout(simpleAiTurn, 700);
-                 }
+        case 'mergeUnits':
+             const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
+             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
+             if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge);
+             break;
+            
+        case 'splitUnit':
+            const originalUnit = units.find(u => u.id === payload.originalUnitId);
+            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
+            if (originalUnit) splitUnit(originalUnit, payload.targetR, payload.targetC);
+            gameState.preparingAction = null;
+            break;
+        
+        case 'pillageHex':
+            const pillager = units.find(u => u.id === payload.unitId);
+            if (pillager) {
+                selectedUnit = pillager;
+                handlePillageAction();
+                selectedUnit = null; 
             }
             break;
 
-                // <<== NUEVO: Case para ejecutar un movimiento confirmado ==>>
-        case 'moveUnitConfirmed':
-            const { unitId, toR, toC } = action.payload;
-            const unit = units.find(u => u.id === unitId);
-            if (unit) {
-                console.log(`[Red - Sincronizando] Moviendo ${unit.name} a (${toR},${toC}).`);
-                
-                // Todos los jugadores ejecutan la versión LOCAL de la función
-                moveUnit_LOCAL(unit, toR, toC);
-            } else {
-                console.error(`[Red - Sincronización] Error: No se encontró la unidad ${unitId} para mover.`);
-            }
+        case 'disbandUnit':
+             const unitToDisband = units.find(u => u.id === payload.unitId);
+             if (unitToDisband) handleDisbandUnit(unitToDisband);
+             break;
+
+        // --- ACCIONES DESDE MODALES ---
+        case 'placeUnit':
+            placeFinalizedDivision(payload.unitData, payload.r, payload.c);
             break;
+            
+        case 'buildStructure':
+             handleConfirmBuildStructure(payload);
+             break;
+
+        case 'reinforceRegiment':
+             const divisionToReinforce = units.find(u => u.id === payload.divisionId);
+             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
+             if (divisionToReinforce && regimentToReinforce) handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
+             break;
+    }
+
+    // --- ¡SOLUCIÓN CLAVE AQUÍ! ---
+    // Después de CUALQUIER acción retransmitida, actualizamos toda la UI para reflejar el cambio.
+    // Esto asegura que las unidades nuevas se dibujen, las barras de vida se actualicen,
+    // los recursos se muestren correctamente, etc.
+    if (UIManager) {
+        console.log("[Red - Sincronizando] Actualizando toda la UI después de la acción...");
+        UIManager.updateAllUIDisplays();
     }
 }
 
