@@ -926,48 +926,48 @@ function calculateTradeIncome(playerNum) {
 
 function handleEndTurn() {
     console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
-    if (gameState.currentPhase === "gameOver") {
-        logMessage("La partida ya ha terminado.");
-        return;
-    }
-
-    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
 
     // --- LÓGICA DE RED ---
+    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
     if (isNetworkGame) {
-        // Validación universal: Solo el dueño del turno puede actuar.
+        // Validación: Solo el jugador actual puede finalizar el turno.
         if (gameState.currentPlayer !== gameState.myPlayerNumber) {
             logMessage("No es tu turno.");
             return;
         }
 
-        // Preparamos la acción que se va a realizar.
+        // Preparamos la acción que se va a ejecutar.
         const endTurnAction = {
             type: 'endTurn',
             payload: { playerId: gameState.myPlayerNumber }
         };
 
-        // BIFURCACIÓN CLAVE: ¿Quién soy? ¿El Árbitro o un Jugador?
+        // Bifurcación clave: ¿Soy el Anfitrión (Árbitro) o un Cliente?
         if (NetworkManager.esAnfitrion) {
-            // SOY EL ANFITRIÓN/ÁRBITRO: Ejecuto la acción directamente. No notifico, ordeno.
+            // SOY EL ANFITRIÓN: Proceso mi propia acción directamente, no envío una petición.
             console.log("[Red - Anfitrión] Ejecutando mi propio fin de turno directamente...");
-            processActionRequest(endTurnAction); 
+            processActionRequest(endTurnAction);
         } else {
-            // SOY UN CLIENTE/JUGADOR: Le notifico al árbitro mi intención.
-            console.log(`[Red - Cliente] Notificando al anfitrión que quiero terminar mi turno...`);
+            // SOY EL CLIENTE: Envío la notificación (petición) al Anfitrión.
+            console.log(`[Red - Cliente] Notificando al anfitrión para terminar mi turno...`);
             NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
         }
         
         // En cualquier caso de red, deshabilitamos el botón para evitar clics múltiples.
         if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
         
-        return; // La ejecución en red siempre termina aquí.
+        return; // La ejecución en una partida en red siempre termina aquí.
     }
     
-    // --- CÓDIGO ORIGINAL (SOLO PARA PARTIDAS LOCALES) ---
-    // Si el juego NO es en red, se ejecuta toda tu lógica original intacta.
+    // --- CÓDIGO ORIGINAL ÍNTEGRO (SOLO PARA PARTIDAS LOCALES) ---
+    // Si el juego NO es en red, toda tu lógica existente se ejecuta a continuación.
     console.log("[Juego Local] Procesando fin de turno...");
     if (typeof deselectUnit === "function") deselectUnit(); else console.warn("handleEndTurn: deselectUnit no definida");
+
+    if (gameState.currentPhase === "gameOver") {
+        logMessage("La partida ya ha terminado.");
+        return;
+    }
 
     if (gameState.isTutorialActive) {
         const currentStep = tutorialScenarioData.tutorialSteps[currentTutorialStepIndex];
@@ -1078,12 +1078,17 @@ function handleEndTurn() {
             }
             playerRes.comida += foodProducedThisTurn;
             if (foodProducedThisTurn > 0) logMessage(`Jugador ${player} produce ${foodProducedThisTurn} comida.`);
+
             let foodActuallyConsumed = 0;
             let unitsSufferingAttrition = 0;
             let unitsDestroyedByAttrition = [];
+
             units.filter(u => u.player === player && u.currentHealth > 0).forEach(unit => {
                 let unitConsumption = 0;
-                (unit.regiments || []).forEach(reg => { unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0; });
+                (unit.regiments || []).forEach(reg => {
+                    unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0;
+                });
+                
                 if (isHexSupplied(unit.r, unit.c, player) && playerRes.comida >= unitConsumption) {
                     playerRes.comida -= unitConsumption;
                     foodActuallyConsumed += unitConsumption;
@@ -1095,23 +1100,40 @@ function handleEndTurn() {
                     else if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
                 }
             });
-            unitsDestroyedByAttrition.forEach(unitId => { const unit = units.find(u => u.id === unitId); if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null); });
-            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) { logMessage(`Comida consumida: ${foodActuallyConsumed}.`); }
+
+            unitsDestroyedByAttrition.forEach(unitId => {
+                const unit = units.find(u => u.id === unitId);
+                if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null);
+            });
+
+            if (foodActuallyConsumed > 0 || unitsSufferingAttrition > 0) {
+                logMessage(`Comida consumida: ${foodActuallyConsumed}.`);
+            }
             if (playerRes.comida < 0) playerRes.comida = 0;
         }
     }
     
+    if (nextPhaseForGame === "play" && gameState.currentPhase === "play" && gameState.turnNumber === 1 && gameState.currentPlayer === 1) {
+        logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
+    }
+
     if (UIManager) {
         UIManager.updateAllUIDisplays();
-        UIManager.updateTurnIndicatorAndBlocker(); // Actualizar UI en local
+        // Llamada para actualizar el bloqueador y el indicador en modo local
+        if (UIManager.updateTurnIndicatorAndBlocker) UIManager.updateTurnIndicatorAndBlocker();
     }
     
     const playerForAICheck = `player${gameState.currentPlayer}`;
     const playerTypeForAICheck = gameState.playerTypes[playerForAICheck];
 
-    if (triggerAiDeployment && aiPlayerToDeploy !== -1) { /* tu lógica IA aquí */ } 
-    else if (gameState.currentPhase === 'play' && playerTypeForAICheck?.startsWith('ai_')) {
-        if (checkVictory()) return; 
+    if (triggerAiDeployment && aiPlayerToDeploy !== -1) {
+        logMessage(`IA (Jugador ${aiPlayerToDeploy}) desplegando...`);
+        setTimeout(() => {
+            if (deployUnitsAI) deployUnitsAI(aiPlayerToDeploy);
+            if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) domElements.endTurnBtn.click();
+        }, 500);
+    } else if (gameState.currentPhase === 'play' && playerTypeForAICheck?.startsWith('ai_')) {
+        if (checkVictory()) { return; } 
         setTimeout(simpleAiTurn, 700); 
     } else if (gameState.currentPhase === 'play') { 
         if (checkVictory) checkVictory();
