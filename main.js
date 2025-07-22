@@ -144,49 +144,47 @@ function initApp() {
     }
     
     // Función que se ejecuta cuando recibimos datos del otro jugador
+
     function onDatosLANRecibidos(datos) {
-    console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
+        console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
 
-    // --- Lógica del CLIENTE: Reaccionar a mensajes del anfitrión ---
-    if (!NetworkManager.esAnfitrion) {
-        switch (datos.type) {
-            case 'startGame':
-                logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
-                iniciarPartidaLAN(datos.settings);
-                break;
+        // --- Lógica del CLIENTE: Reaccionar a mensajes del anfitrión ---
+        if (!NetworkManager.esAnfitrion) {
+            switch (datos.type) {
+                case 'startGame':
+                    logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
+                    iniciarPartidaLAN(datos.settings);
+                    break;
 
-            // --- ¡NUEVA LÓGICA AÑADIDA! ---
-            case 'initialGameSetup':
-                reconstruirJuegoDesdeDatos(datos.payload);
-                break;
+                case 'initialGameSetup':
+                    reconstruirJuegoDesdeDatos(datos.payload);
+                    break;
 
-            case 'actionBroadcast':
-                executeConfirmedAction(datos.action);
-                break;
+                case 'actionBroadcast':
+                    // El cliente SÍ procesa las retransmisiones del anfitrión.
+                    executeConfirmedAction(datos.action);
+                    break;
 
-            default:
-                console.warn("Cliente ha recibido un tipo de paquete de datos desconocido:", datos.type);
-                break;
+                default:
+                    console.warn(`[Red - Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'. Se ignora.`);
+                    break;
+            }
+        }
+
+        // --- Lógica del ANFITRIÓN: Procesar peticiones de los clientes ---
+        if (NetworkManager.esAnfitrion) {
+            switch (datos.type) {
+                case 'actionRequest':
+                    // El anfitrión SÍ procesa las peticiones de acción de los clientes.
+                    processActionRequest(datos.action);
+                    break;
+
+                default:
+                    console.warn(`[Red - Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'. Se ignora.`);
+                    break;
+            }
         }
     }
-
-    // --- Lógica del ANFITRIÓN: Procesar peticiones y retransmitir ---
-    if (NetworkManager.esAnfitrion) {
-        switch (datos.type) {
-            case 'actionRequest':
-                processActionRequest(datos.action);
-                break;
-                
-            // El anfitrión NO debe procesar retransmisiones (actionBroadcast) aquí,
-            // ya que él es quien las origina y ejecuta la acción en processActionRequest.
-            // Si lo necesita para acciones propias, debe manejarse de otra forma.
-
-            default:
-                console.log(`Anfitrión recibió un paquete tipo '${datos.type}' del cliente (lógica de manejo futura).`);
-                break;
-        }
-    }
-}
 
     function onConexionLANCerrada() {
          if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;

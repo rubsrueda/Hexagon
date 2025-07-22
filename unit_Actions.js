@@ -1860,7 +1860,7 @@ function handleDisbandUnit(unitToDisband) {
 }
 
 function handlePlacementModeClick(r, c) {
-    // --- LÍNEA 1 HASTA 59: CÓDIGO ORIGINAL ÍNTEGRO (SIN NINGUNA MODIFICACIÓN) ---
+    // --- Toda tu lógica de validación inicial se mantiene intacta ---
     console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
     
     if (!placementMode.active || !placementMode.unitData) {
@@ -1873,7 +1873,6 @@ function handlePlacementModeClick(r, c) {
     const unitToPlace = placementMode.unitData;
     const hexData = board[r]?.[c];
 
-    // 2. Validar el hexágono de destino
     if (!hexData) {
         logMessage("Hexágono inválido.");
         return; 
@@ -1887,7 +1886,6 @@ function handlePlacementModeClick(r, c) {
     let canPlace = false;
     let reasonForNoPlacement = "";
 
-    // Lógica para reclutamiento DURANTE la partida (desde ciudad/fortaleza)
     if (gameState.currentPhase === "play") {
         if (!placementMode.recruitHex) {
             reasonForNoPlacement = "Error: Falta el origen del reclutamiento.";
@@ -1901,12 +1899,7 @@ function handlePlacementModeClick(r, c) {
                 canPlace = true;
             }
         }
-    }
-    // Lógica para despliegue al INICIO de la partida
-    else if (gameState.currentPhase === "deployment") {
-        // En despliegue, también ignoramos las reglas de movimiento. Se asume que la zona de despliegue es válida.
-        // Aquí puedes añadir tu lógica de zona de despliegue si la tienes.
-        // Por ahora, permitimos colocar en cualquier casilla que no sea agua.
+    } else if (gameState.currentPhase === "deployment") {
         if (hexData.terrain === 'water') {
             reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
             canPlace = false;
@@ -1915,55 +1908,58 @@ function handlePlacementModeClick(r, c) {
         }
     }
 
-    // --- LÍNEAS 60 A 80: LÓGICA AÑADIDA PARA GESTIONAR PARTIDAS EN RED ---
-    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+    // --- A partir de aquí, integramos la lógica de red corregida ---
 
     if (canPlace) {
+        const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+
         if (isNetworkGame) {
-            // Si es un juego en red, interceptamos la acción antes de ejecutarla localmente.
-            console.log("[Red] Interceptando acción 'placeUnit' para enviar al anfitrión.");
+            // Preparamos la acción que se va a ejecutar/enviar.
             const replacer = (key, value) => (key === 'element' ? undefined : value);
             const cleanUnitData = JSON.parse(JSON.stringify(unitToPlace, replacer));
-            
-            // Enviamos una PETICIÓN de acción. La ejecución real la decidirá el anfitrión.
-            NetworkManager.enviarDatos({
-                type: 'actionRequest',
-                action: {
-                    type: 'placeUnit',
-                    payload: { 
-                        playerId: gameState.myPlayerNumber, // Añadimos quién la solicita
-                        unitData: cleanUnitData,
-                        r: r,
-                        c: c
-                    }
+            const action = {
+                type: 'placeUnit',
+                payload: { 
+                    playerId: gameState.myPlayerNumber,
+                    unitData: cleanUnitData,
+                    r: r,
+                    c: c
                 }
-            });
-            // Importante: No se coloca la unidad aquí, se espera la retransmisión del anfitrión.
-            placementMode.active = false; // Se desactiva el modo localmente
+            };
+
+            // Bifurcación clave: el Anfitrión se procesa a sí mismo, el Cliente envía una petición.
+            if (NetworkManager.esAnfitrion) {
+                console.log("[Red - Anfitrión] Procesando acción local de colocación de unidad...");
+                processActionRequest(action); 
+            } else {
+                console.log("[Red - Cliente] Enviando petición al anfitrión para colocar unidad...");
+                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            }
+
+            // Desactivamos el modo de colocación localmente.
+            placementMode.active = false;
             placementMode.unitData = null;
             if (UIManager) UIManager.clearHighlights();
-            logMessage(`Petición para colocar ${unitToPlace.name} enviada...`);
-            return; // Se detiene aquí, no se ejecuta el código local de abajo.
-        }
+            logMessage(`Petición para colocar ${unitToPlace.name} procesada/enviada...`);
 
-        // --- CÓDIGO ORIGINAL QUE AHORA SOLO SE EJECUTA EN PARTIDAS LOCALES ---
-        placeFinalizedDivision(unitToPlace, r, c);
-        
-        // Limpiar y salir del modo de colocación
-        placementMode.active = false;
-        placementMode.unitData = null;
-        placementMode.recruitHex = null;
-        if (UIManager) UIManager.clearHighlights();
-        
-        logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
-        if (UIManager) {
-            UIManager.clearHighlights();
-            UIManager.updateAllUIDisplays();
-            UIManager.hideContextualPanel();
+        } else {
+            // --- JUEGO LOCAL (funciona como siempre) ---
+            placeFinalizedDivision(unitToPlace, r, c);
+            
+            placementMode.active = false;
+            placementMode.unitData = null;
+            placementMode.recruitHex = null;
+            if (UIManager) UIManager.clearHighlights();
+            
+            logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
+            if (UIManager) {
+                UIManager.updateAllUIDisplays();
+                UIManager.hideContextualPanel();
+            }
         }
 
     } else {
-        // --- CÓDIGO ORIGINAL PARA CASO DE FALLO (INTACTO) ---
+        // --- Tu lógica original para el caso de fallo (se mantiene intacta) ---
         logMessage(`No se puede colocar: ${reasonForNoPlacement}`);
         
         if (unitToPlace.cost) {
