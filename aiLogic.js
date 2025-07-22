@@ -979,97 +979,6 @@ function selectUnitTypeAndRegiments(playerNumber, mission, visibleHumanUnits, re
     };
 }
 
-// ========================================================================
-// === SUB-FUNCIÓN: Encuentra el mejor spot de despliegue ===
-// ========================================================================
-function findBestPlacementSpot(playerNumber, mission, availableSpots, visibleHumanUnits, board, aiCapital, allResourceNodes) {
-     console.log(`%c[DeployAI V30.1 - Paso 5] Buscando mejor spot para misión en (${mission.r},${mission.c}). Spots disponibles: ${availableSpots.length}.`, "color: #ADD8E6");
-
-    if (availableSpots.length === 0) {
-        console.warn("[DeployAI V30.1 - Paso 5] No hay spots disponibles.");
-        return null; 
-    }
-
-    let placementSpot = null;
-    let bestSpotScore = -Infinity;
-    const debugSpotScores = true;
-
-    const estimatedMaxMapDistance = 30;
-    const dangerRadius = 4;
-
-    for (const hex of availableSpots) {
-         let score = 0;
-         const distanceToMission = hexDistance(hex.r, hex.c, mission.r, mission.c);
-
-         score += (estimatedMaxMapDistance - distanceToMission) * 1000;
-
-         if (hex.r === mission.r && hex.c === mission.c) {
-             if (mission.type.indexOf('RESOURCE') !== -1) {
-                  score += 200000;
-             } else if (mission.type === 'HILL_FOR_FORTRESS') {
-                  score += 150000;
-             } else if (mission.type === 'CAPITAL_RUSH') {
-                  // <<== LA LÍNEA CORREGIDA ==>>
-                  const enemiesAdjacentToObjective = visibleHumanUnits.filter(hu => hexDistance(hu.r, hu.c, hex.r, hex.c) <= 1);
-                  // <<== FIN DE LA CORRECCIÓN ==>>
-                  if (enemiesAdjacentToObjective.length === 0) {
-                       score += 100000;
-                  } else {
-                       score -= 80000;
-                  }
-             } else if (mission.type === 'DEFEND_CAPITAL') {
-                  score += 150000;
-             }
-         } else {
-              if (distanceToMission === 1) {
-                  if (mission.type === 'CAPITAL_RUSH') score += 10000;
-                  else if (mission.type.indexOf('RESOURCE') !== -1) score += 5000;
-              }
-         }
-
-         const hexTerrain = board[hex.r]?.[hex.c]?.terrain;
-         if (hexTerrain === 'hills') score += 200;
-         if (hexTerrain === 'forest') score += 100;
-
-         if (visibleHumanUnits.length > 0) {
-             const nearestEnemyDist = visibleHumanUnits.reduce((minDist, enemy) => {
-                 return Math.min(minDist, hexDistance(hex.r, hex.c, enemy.r, enemy.c));
-             }, Infinity);
-             if (nearestEnemyDist <= dangerRadius) {
-                 score -= (dangerRadius - nearestEnemyDist + 1) * 200;
-             }
-         }
-
-         if(debugSpotScores) console.log(`[DeployAI V30.1 - Paso 5 Debug]     Spot (${hex.r},${hex.c}) - Score: ${score.toFixed(2)} (Dist to Mission: ${distanceToMission})`);
-
-         if (score > bestSpotScore) {
-             bestSpotScore = score;
-             placementSpot = { r: hex.r, c: hex.c };
-         }
-    }
-
-    const scoreThreshold = -100000;
-    if (!placementSpot || bestSpotScore < scoreThreshold) {
-         console.warn(`[DeployAI V30.1 - Paso 5] No se encontró un spot válido...`);
-         if (availableSpots.length > 0) {
-              const closestSpot = availableSpots.reduce((closest, spot) => {
-                  const dist = hexDistance(spot.r, spot.c, mission.r, mission.c);
-                  if (dist < closest.dist) return { spot, dist };
-                  return closest;
-              }, { spot: null, dist: Infinity }).spot;
-               if (closestSpot) {
-                 placementSpot = closestSpot;
-               } else {
-                 return null;
-               }
-         } else {
-             return null;
-         }
-    }
-
-    console.log(`%c[DeployAI V30.1 - Paso 5] Mejor spot seleccionado para misión en (${mission.r},${mission.c}): (${placementSpot.r},${placementSpot.c}) (Score: ${bestSpotScore.toFixed(2)})`, "color: green");
-    return placementSpot;
-}
 // aiLogic.js - Función deployUnitsAI V29.1 (Corrección SyntaxError + Posicionamiento EXTREMO + Decisión Rol por Spot Inmediato)
 console.log("aiLogic.js - deployUnitsAI V29.1 - Corrección SyntaxError + Posicionamiento EXTREMO + Decisión Rol por Spot Inmediato");
 
@@ -1327,7 +1236,6 @@ function decideUnitForDeploymentBasedOnSpot(playerNumber, placementSpot, visible
     };
 }
 
-
 // ========================================================================
 // === PASO 5: Encontrar el mejor lugar de despliegue para UNA unidad ===
 // ========================================================================
@@ -1368,7 +1276,7 @@ function findBestPlacementSpot(playerNumber, mission, availableSpots, visibleHum
                   score += 150000; // PREMIO MUY ALTO por estar directamente en colina objetivo
              } else if (mission.type === 'CAPITAL_RUSH') {
                   // Si es capital enemiga: solo un gran premio si NO hay enemigos adyacentes (visiblemente).
-                  const enemiesAdjacentToObjective = visibleHumanUnits.filter(hu => hexDistance(hu.r, hu.c, hex.r, c) <= 1); // Usar visibleHumanUnits
+                  const enemiesAdjacentToObjective = visibleHumanUnits.filter(hu => hexDistance(hu.r, hu.c, hex.r, hex.c) <= 1);; // Usar visibleHumanUnits
                   if (enemiesAdjacentToObjective.length === 0) { // Si la capital enemiga visible está vacía a su alrededor
                        score += 100000; // Premio ALTO
                   } else {

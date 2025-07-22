@@ -403,3 +403,31 @@ function refreshTechTreeContent() {
         }
     }
 }
+
+function RequestAttemptToResearch(techId) {
+    // Toda la validación local (prerrequisitos, coste) se hace PRIMERO
+    const techToResearch = TECHNOLOGY_TREE_DATA[techId];
+    if (!techToResearch || /*...el resto de validaciones...*/ !canAfford) {
+        // Muestra mensaje de error y para
+        return;
+    }
+
+    if (isNetworkGame()) {
+        NetworkManager.enviarDatos({
+            type: 'actionRequest',
+            action: {
+                type: 'researchTech',
+                payload: {
+                    playerId: gameState.currentPlayer,
+                    techId: techId
+                }
+            }
+        });
+        closeTechTreeScreen();
+        logMessage("Petición de investigación enviada...");
+        return;
+    }
+
+    // Si es juego local, ejecuta la lógica
+    attemptToResearch(techId);
+}

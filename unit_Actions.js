@@ -586,9 +586,7 @@ function cancelPreparingAction() {
 }
 
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
-    if (!selectedUnit) {
-        return false; 
-    }
+    if (!selectedUnit) return false; 
 
     if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.id === selectedUnit.id) {
         if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
@@ -604,76 +602,47 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 
         if (actionType === "move") {
             if (!clickedUnitOnTargetHex && isValidMove(selectedUnit, r_target, c_target, false)) {
-                moveUnit(selectedUnit, r_target, c_target);
+                RequestMoveUnit(selectedUnit, r_target, c_target); // CAMBIO AQUÍ
                 actionSuccessful = true;
             } else if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.player === selectedUnit.player) {
                 if (isValidMove(selectedUnit, r_target, c_target, true)) {
-                    if (typeof mergeUnits === "function") mergeUnits(selectedUnit, clickedUnitOnTargetHex); else console.error("mergeUnits no definida.");
+                    RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex); // CAMBIO AQUÍ
                     actionSuccessful = true;
-                } else {
-                    logMessage("No se puede mover allí para fusionar.");
-                }
-            } else {
-                logMessage("Movimiento preparado inválido.");
-            }
+                } else { logMessage("No se puede mover allí para fusionar."); }
+            } else { logMessage("Movimiento preparado inválido."); }
         } else if (actionType === "attack") {
             if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.player !== selectedUnit.player && isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
-                attackUnit(selectedUnit, clickedUnitOnTargetHex);
+                RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex); // CAMBIO AQUÍ
                 actionSuccessful = true;
-            } else {
-                logMessage("Objetivo de ataque preparado inválido.");
-            }
+            } else { logMessage("Objetivo de ataque preparado inválido."); }
         } else if (actionType === "split_unit") {
-            if (typeof splitUnit === "function") {
-                actionSuccessful = splitUnit(selectedUnit, r_target, c_target);
-                // Si la acción NO fue exitosa (ej. clic inválido), NO cancelamos la acción preparada
-                // para que el jugador pueda intentarlo de nuevo.
-                if (actionSuccessful) {
-                    cancelPreparingAction(); 
-                }
-                return actionSuccessful; // Importante: retornar directamente aquí
-            } else {
-                console.error("splitUnit no definida.");
+            // La validación se hace dentro de la propia función de split.
+            // RequestSplitUnit se encargará de la red
+            if (splitUnit(selectedUnit, r_target, c_target)) { // splitUnit ahora valida y llama a Request... si es necesario.
+                actionSuccessful = true;
             }
         }
-        
-        // Solo cancelar la acción si fue exitosa (para move y attack)
-        if (actionSuccessful) {
-            cancelPreparingAction();
-        }
+        if (actionSuccessful) { cancelPreparingAction(); }
         return actionSuccessful;
     }
 
     // Clic directo
     if (clickedUnitOnTargetHex) {
         if (clickedUnitOnTargetHex.player === selectedUnit.player) {
-            if (isValidMove(selectedUnit, r_target, c_target, true)) {
-                if (typeof mergeUnits === "function") { 
-                    mergeUnits(selectedUnit, clickedUnitOnTargetHex); 
-                    return true;
-                }
-            } else {
-                logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`);
-            }
+            if (isValidMove(selectedUnit, r_target, c_target, true)) { 
+                RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex); return true; // CAMBIO AQUÍ
+            } else { logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`); }
         } else {
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
-                if (typeof attackUnit === "function") { 
-                    attackUnit(selectedUnit, clickedUnitOnTargetHex);
-                    return true;
-                }
-            } else {
-                if (typeof logMessage === "function") logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
-            }
+                RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex); return true; // CAMBIO AQUÍ
+            } else { logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`); }
         }
     } else {
-        if (isValidMove(selectedUnit, r_target, c_target, false)) {
-            if (typeof moveUnit === "function") { 
-                moveUnit(selectedUnit, r_target, c_target); 
-                return true;
-            }
+        if (isValidMove(selectedUnit, r_target, c_target, false)) { 
+            RequestMoveUnit(selectedUnit, r_target, c_target); return true; // CAMBIO AQUÍ
         }
     }
-    return false; // Si ninguna acción se completó
+    return false;
 }
 
 function selectUnit(unit) {
@@ -897,6 +866,36 @@ function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotential
 }
 
 async function moveUnit(unit, toR, toC) {
+    // <<== INICIO DE LA MODIFICACIÓN DE RED ==>>
+    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+    const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+
+    if (isNetworkGame) {
+        // En una partida en red, no ejecutamos la lógica de movimiento directamente.
+        // En su lugar, enviamos la petición de acción al anfitrión.
+        console.log(`[Red - Petición] Solicitando mover ${unit.name} a (${toR},${toC}).`);
+        NetworkManager.enviarDatos({
+            type: 'actionRequest',
+            action: {
+                type: 'moveUnit',
+                payload: {
+                    playerId: unit.player,
+                    unitId: unit.id,
+                    fromR: unit.r, // Útil para validación del anfitrión
+                    fromC: unit.c,
+                    toR: toR,
+                    toC: toC
+                }
+            }
+        });
+
+        // MUY IMPORTANTE: Detenemos la ejecución aquí. La unidad NO se moverá visualmente
+        // hasta que el anfitrión confirme la acción y la retransmita a todos.
+        return; 
+    }
+    // <<== FIN DE LA MODIFICACIÓN DE RED ==>>
+
+    // --- EL CÓDIGO ORIGINAL SE EJECUTA SOLO PARA PARTIDAS LOCALES ---
     const fromR = unit.r;
     const fromC = unit.c;
     const targetHexData = board[toR]?.[toC];
@@ -1853,46 +1852,11 @@ function recalculateUnitStats(unit) {
 }
 
 function handlePillageAction() {
-    if (!selectedUnit) {
-        logMessage("Debes tener una unidad seleccionada para saquear.");
-        return;
-    }
+    RequestPillageAction();
+}
 
-    const hex = board[selectedUnit.r]?.[selectedUnit.c];
-    if (!hex || hex.owner === selectedUnit.player || hex.owner === null) {
-        logMessage("Solo puedes saquear hexágonos enemigos.");
-        return;
-    }
-    
-    const playerNum = selectedUnit.player;
-    const goldGained = 10;
-    const resourcesGained = 5;
-    
-    gameState.playerResources[playerNum].oro += goldGained;
-    gameState.playerResources[playerNum].madera = (gameState.playerResources[playerNum].madera || 0) + resourcesGained;
-    gameState.playerResources[playerNum].piedra = (gameState.playerResources[playerNum].piedra || 0) + resourcesGained;
-
-    const originalOwner = hex.owner;
-    hex.estabilidad = 0; 
-    
-    // <<== CORRECCIÓN: Usamos MAX_NACIONALIDAD como referencia ==>>
-    if(hex.nacionalidad[originalOwner] < MAX_NACIONALIDAD) {
-       hex.nacionalidad[originalOwner] = MAX_NACIONALIDAD;
-    }
-    
-    selectedUnit.hasMoved = true;
-    selectedUnit.hasAttacked = true;
-
-    logMessage(`¡Has saqueado el territorio! Ganas ${goldGained} de oro y ${resourcesGained} de madera/piedra. El hexágono ha sido devastado.`);
-
-    if (UIManager) {
-        UIManager.updateAllUIDisplays();
-        UIManager.hideContextualPanel();
-    }
-    if(selectedUnit) {
-       clearHighlights();
-    }
-    deselectUnit();
+function handleDisbandUnit(unitToDisband) {
+    RequestDisbandUnit(unitToDisband);
 }
 
 function handlePlacementModeClick(r, c) {
@@ -2018,56 +1982,71 @@ function handlePlacementModeClick(r, c) {
     }
 }
 
-/**
- * Gestiona el proceso de disolver una unidad para recuperar parte de sus recursos.
- * @param {object} unitToDisband - La unidad que se va a disolver.
- */
-function handleDisbandUnit(unitToDisband) {
-    if (!unitToDisband || !unitToDisband.regiments) {
-        logMessage("No se puede disolver: unidad inválida.", "error");
+//==============================================================
+//== NUEVAS FUNCIONES DE RED (PARA AGREGAR EN unit_Actions.js) ==
+//==============================================================
+
+async function RequestMoveUnit(unit, toR, toC) {
+    if (isNetworkGame()) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: toR, toC: toC }}});
         return;
     }
+    await moveUnit(unit, toR, toC);
+}
 
-    // 1. Calcular el coste original de la unidad
-    let originalCost = { oro: 0, puntosReclutamiento: 0 };
-    unitToDisband.regiments.forEach(reg => {
-        const regCost = REGIMENT_TYPES[reg.type]?.cost || {};
-        originalCost.oro += regCost.oro || 0;
-        originalCost.puntosReclutamiento += regCost.puntosReclutamiento || 0;
-    });
+async function RequestAttackUnit(attacker, defender) {
+    if (isNetworkGame()) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }}});
+        return;
+    }
+    await attackUnit(attacker, defender);
+}
 
-    // 2. Calcular los recursos a recuperar (50% del coste, redondeado hacia abajo)
-    const recoveryRate = 0.5;
-    const recoveredOro = Math.floor(originalCost.oro * recoveryRate);
-    const recoveredPR = Math.floor(originalCost.puntosReclutamiento * recoveryRate);
+function RequestMergeUnits(mergingUnit, targetUnit) {
+    if (isNetworkGame()) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }}});
+        return;
+    }
+    mergeUnits(mergingUnit, targetUnit);
+}
 
-    // 3. Pedir confirmación al jugador
-    const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"? Se recuperará ${recoveredOro} de oro y ${recoveredPR} de Puntos de Reclutamiento. Esta acción es irreversible.`;
-    
+function RequestSplitUnit(originalUnit, targetR, targetC) {
+    const actionData = gameState.preparingAction;
+    if (isNetworkGame()) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'splitUnit', payload: { playerId: originalUnit.player, originalUnitId: originalUnit.id, newUnitRegiments: actionData.newUnitRegiments, remainingOriginalRegiments: actionData.remainingOriginalRegiments, targetR: targetR, targetC: targetC }}});
+        cancelPreparingAction();
+        return;
+    }
+    splitUnit(originalUnit, targetR, targetC);
+}
+
+function RequestPillageAction() {
+    if (!selectedUnit) return;
+    if (isNetworkGame()) {
+        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }}});
+        return;
+    }
+    handlePillageAction();
+}
+
+function RequestDisbandUnit(unitToDisband) {
+    if (!unitToDisband) return;
+    // La confirmación debe ocurrir ANTES de enviar la petición de red
+    const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"? ...`; // Mensaje completo
     if (window.confirm(confirmationMessage)) {
-        // 4. Si se confirma, añadir los recursos al jugador
-        const playerRes = gameState.playerResources[unitToDisband.player];
-        if (playerRes) {
-            playerRes.oro += recoveredOro;
-            playerRes.puntosReclutamiento += recoveredPR;
-        }
-
-        logMessage(`"${unitToDisband.name}" ha sido disuelta. Recursos recuperados.`);
-
-        // 5. Eliminar la unidad del juego
-        handleUnitDestroyed(unitToDisband, null); // null porque no hay un vencedor
-
-        // 6. Actualizar la interfaz de usuario
-        if (domElements.unitDetailModal) {
-            domElements.unitDetailModal.style.display = 'none';
-        }
-        if (UIManager) {
-            UIManager.updateAllUIDisplays();
+        if (isNetworkGame()) {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }}});
+            // Cerramos el modal localmente para dar feedback inmediato
+            if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
             UIManager.hideContextualPanel();
+            return;
         }
-    } else {
-        logMessage("Disolución cancelada.");
+        handleDisbandUnit(unitToDisband);
     }
 }
 
+// Pequeña función de utilidad para no repetir código
+function isNetworkGame() {
+    return NetworkManager.conn && NetworkManager.conn.open;
+}
 ;

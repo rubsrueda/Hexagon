@@ -1,5 +1,20 @@
 // modalLogic.js
 
+// NUEVA FUNCIÓN "REQUEST" PARA CONSTRUIR
+function RequestConfirmBuildStructure() {
+    if (!selectedStructureToBuild || !hexToBuildOn) return;
+
+    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+    if (isNetworkGame) {
+         console.log(`[Red - Petición] Solicitando construir ${selectedStructureToBuild}.`);
+         NetworkManager.enviarDatos({ /* ... payload de red ... */ });
+         domElements.buildStructureModal.style.display = 'none';
+         UIManager.hideContextualPanel();
+         return;
+    }
+    handleConfirmBuildStructure();
+}
+
 function addModalEventListeners() {
     console.log("modalLogic: addModalEventListeners INICIADO.");
 
@@ -1162,6 +1177,73 @@ function populateWikiConceptsTab() {
             <p><strong>Flanqueo:</strong> Atacar a una unidad enemiga que ya está en combate con otra de tus unidades la considera "flanqueada", reduciendo drásticamente su defensa y moral.</p>
         </div>
     `;
+}
+
+//=======================================================================
+//== AÑADE ESTAS NUEVAS FUNCIONES DE RED EN modalLogic.js              ==
+//=======================================================================
+
+function RequestConfirmBuildStructure() {
+    if (!selectedStructureToBuild || !hexToBuildOn) return;
+
+    if (isNetworkGame()) {
+        const { r, c } = hexToBuildOn;
+        const unitOnHex = getUnitOnHex(r,c);
+        console.log(`[Red - Petición] Solicitando construir ${selectedStructureToBuild} en (${r},${c}).`);
+        
+        NetworkManager.enviarDatos({
+            type: 'actionRequest',
+            action: {
+                type: 'buildStructure',
+                payload: {
+                    playerId: gameState.currentPlayer,
+                    r: r, c: c,
+                    structureType: selectedStructureToBuild,
+                    builderUnitId: unitOnHex && STRUCTURE_TYPES[selectedStructureToBuild].cost.Colono ? unitOnHex.id : null
+                }
+            }
+        });
+
+        // Feedback inmediato para el jugador
+        domElements.buildStructureModal.style.display = 'none';
+        UIManager.hideContextualPanel();
+        cancelPreparingAction();
+        return;
+    }
+    
+    // Si es un juego local, llama a la función original.
+    handleConfirmBuildStructure();
+}
+
+function RequestReinforceRegiment(division, regiment) {
+    // La validación y el `confirm` se quedan aquí, porque son parte de la "intención" del jugador.
+    const regData = REGIMENT_TYPES[regiment.type];
+    const healthToRestore = regData.health - regiment.health;
+    if (healthToRestore <= 0) return;
+    
+    const totalCost = /* ... tu cálculo original para el coste ... */;
+    
+    if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+        if (isNetworkGame()) {
+            console.log(`[Red - Petición] Solicitando reforzar regimiento en ${division.name}.`);
+            NetworkManager.enviarDatos({
+                type: 'actionRequest',
+                action: {
+                    type: 'reinforceRegiment',
+                    payload: {
+                        playerId: division.player,
+                        divisionId: division.id,
+                        regimentId: regiment.id // Requiere IDs únicos
+                    }
+                }
+            });
+            logMessage("Petición de refuerzo enviada...");
+            return;
+        }
+
+        // Si es juego local, llama a la función original que ya incluye el confirm.
+        handleReinforceRegiment(division, regiment);
+    }
 }
 
 /*

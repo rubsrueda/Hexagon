@@ -152,24 +152,38 @@ function initApp() {
             switch (datos.type) {
                 case 'startGame':
                     logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
-                    // ESTA ES LA LÍNEA CLAVE QUE HACE QUE EL CLIENTE CAMBIE DE PANTALLA
                     iniciarPartidaLAN(datos.settings); 
                     break;
                 
-                // Los casos para 'initialGameSetup', 'actionBroadcast', etc., se añadirán aquí en el futuro.
+                // <<== NUEVO: El cliente escucha la retransmisión del anfitrión ==>>
+                case 'actionBroadcast':
+                    // Cuando el anfitrión confirma una acción, la ejecutamos localmente
+                    executeConfirmedAction(datos.action);
+                    break;
+                
                 default:
                     console.warn("Cliente ha recibido un tipo de paquete de datos desconocido:", datos.type);
                     break;
             }
         }
         
-        // --- Lógica del ANFITRIÓN (en el futuro recibirá peticiones de acción aquí) ---
+        // --- Lógica del ANFITRIÓN: Procesar peticiones y retransmitir ---
         if (NetworkManager.esAnfitrion) {
-             switch (datos.type) {
-                // Aquí irían los 'case' para 'actionRequest'
+            switch (datos.type) {
+                // <<== NUEVO: El anfitrión escucha peticiones de acción ==>>
+                case 'actionRequest':
+                    // Cuando un cliente (o él mismo) pide hacer algo
+                    processActionRequest(datos.action);
+                    break;
+
+                // El anfitrión también debe escuchar sus propias retransmisiones
+                case 'actionBroadcast':
+                    executeConfirmedAction(datos.action);
+                    break;
+                    
                 default:
-                     console.log(`Anfitrión recibió un paquete tipo '${datos.type}' del cliente (lógica de manejo futura).`);
-                     break;
+                    console.log(`Anfitrión recibió un paquete tipo '${datos.type}' del cliente (lógica de manejo futura).`);
+                    break;
             }
         }
     }
@@ -457,11 +471,35 @@ function initApp() {
     } else { console.warn("main.js: startLocalGameBtn no encontrado."); }
 
     if (domElements.floatingEndTurnBtn) { 
-        domElements.floatingEndTurnBtn.addEventListener('click', () => { 
+    domElements.floatingEndTurnBtn.addEventListener('click', () => { 
+        // <<== INICIO DE LA MODIFICACIÓN ==>>
+        const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
+        const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+
+        if (isNetworkGame) {
+            // Es un juego en red
+            if (isMyTurn) {
+                console.log("[Red] Solicitando terminar el turno...");
+                // 1. Enviamos la PETICIÓN al anfitrión
+                NetworkManager.enviarDatos({
+                    type: 'actionRequest',
+                    action: {
+                        type: 'endTurn',
+                        payload: { playerId: gameState.myPlayerNumber }
+                    }
+                });
+                domElements.floatingEndTurnBtn.disabled = true; // Deshabilitamos el botón para no enviarlo múltiples veces
+            } else {
+                logMessage("No es tu turno.");
+            }
+        } else {
+            // Es un juego local, funciona como siempre
             if (typeof handleEndTurn === "function") handleEndTurn();
             else console.error("main.js Error: handleEndTurn no definida."); 
-        }); 
-    } else { console.warn("main.js: floatingEndTurnBtn no encontrado."); }
+        }
+        // <<== FIN DE LA MODIFICACIÓN ==>>
+    }); 
+} else { console.warn("main.js: floatingEndTurnBtn no encontrado."); }
 
     
     if (domElements.floatingMenuBtn && domElements.floatingMenuPanel) { 
@@ -772,6 +810,169 @@ function iniciarPartidaLAN(settings) {
     } else {
         console.log("[iniciarPartidaLAN - Cliente] Esperando a que el anfitrión envíe el estado del juego...");
         logMessage("Esperando datos del anfitrión para sincronizar la partida...");
+    }
+}
+
+/**
+ * [SOLO ANFITRIÓN] Procesa una PETICIÓN de acción de un jugador.
+ * Valida, ejecuta en el estado del anfitrión y luego retransmite.
+ * @param {object} action - El objeto de acción enviado por un jugador.
+ */
+function processActionRequest(action) {
+    if (action.payload.playerId !== gameState.currentPlayer && action.type !== 'placeUnit') {
+        console.warn(`[Red - Anfitrión] Acción rechazada: El jugador ${action.payload.playerId} intentó actuar fuera de turno.`);
+        return;
+    }
+
+    let actionToBroadcast = null;
+    let payload = action.payload;
+
+    // Todas las acciones necesitan una validación del lado del anfitrión.
+    // Aquí se muestra un ejemplo, deberías expandir la validación.
+    let isValid = true; 
+
+    switch (action.type) {
+        // -- ACCIONES GLOBALES --
+        case 'endTurn':
+            handleEndTurn();
+            // Para 'endTurn', la retransmisión se maneja dentro de handleEndTurn si es de red.
+            return; // Se detiene aquí
+        
+        case 'researchTech':
+            if (isValid) { // Aquí iría la validación de coste y prereqs
+                attemptToResearch(payload.techId);
+                actionToBroadcast = { type: 'researchTech', payload };
+            }
+            break;
+            
+        // -- ACCIONES DE UNIDAD --
+        case 'moveUnit':
+            const unitToMove = units.find(u => u.id === payload.unitId);
+            if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
+                moveUnit(unitToMove, payload.toR, payload.toC);
+                actionToBroadcast = { type: 'moveUnit', payload };
+            }
+            break;
+
+        case 'attackUnit':
+            const attacker = units.find(u => u.id === payload.attackerId);
+            const defender = units.find(u => u.id === payload.defenderId);
+            if (attacker && defender && isValidAttack(attacker, defender)) {
+                attackUnit(attacker, defender);
+                actionToBroadcast = { type: 'attackUnit', payload };
+            }
+            break;
+        
+        // ... (Agrega aquí los `case` para `mergeUnits`, `splitUnit`, `pillageHex`, `disbandUnit`, etc.) ...
+        // ... Siguiendo el mismo patrón: buscar por ID, validar, ejecutar, preparar broadcast ...
+
+        // -- ACCIONES DE MODALES --
+        case 'placeUnit': // Acción de 'handlePlacementModeClick'
+             if (isValid) { // Validar si la casilla está vacía, etc.
+                placeFinalizedDivision(payload.unitData, payload.r, payload.c);
+                actionToBroadcast = { type: 'placeUnit', payload };
+             }
+             break;
+        case 'buildStructure':
+             if (isValid) { // Validar coste y tecnología
+                handleConfirmBuildStructure(payload); // Pasamos el payload para que sepa qué y dónde
+                actionToBroadcast = { type: 'buildStructure', payload };
+             }
+             break;
+    }
+
+    if (actionToBroadcast) {
+        NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
+    }
+}
+
+/**
+ * [TODOS LOS JUGADORES] Ejecuta ACCIONES CONFIRMADAS.
+ */
+function executeConfirmedAction(action) {
+    console.log("[Red - Sincronizando] Ejecutando acción confirmada:", action.type);
+    const payload = action.payload;
+
+    switch (action.type) {
+        case 'endTurn':
+             Object.assign(gameState, payload.newGameState);
+             // ...
+             break;
+        case 'researchTech':
+            attemptToResearch(payload.techId);
+            break;
+        case 'moveUnit':
+            const unitToMove = units.find(u => u.id === payload.unitId);
+            if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC);
+            break;
+        case 'attackUnit':
+            const attacker = units.find(u => u.id === payload.attackerId);
+            const defender = units.find(u => u.id === payload.defenderId);
+            if (attacker && defender) attackUnit(attacker, defender);
+            break;
+            
+        // ... (Añadir aquí los `case` para todas las demás acciones) ...
+        
+        case 'placeUnit':
+            placeFinalizedDivision(payload.unitData, payload.r, payload.c);
+            break;
+        case 'buildStructure':
+             handleConfirmBuildStructure(payload);
+             break;
+    }
+}
+
+/**
+ * [TODOS LOS JUGADORES] Ejecuta una ACCIÓN CONFIRMADA que el anfitrión ha retransmitido.
+ * Esto actualiza el estado local de todos para que coincida con el del anfitrión.
+ * @param {object} action - El objeto de acción retransmitido por el anfitrión.
+ */
+function executeConfirmedAction(action) {
+    console.log("[Red - Sincronizando] Ejecutando acción confirmada:", action.type);
+
+    switch (action.type) {
+        case 'syncGameState':
+            // Por ahora, la forma más simple de sincronizar es reemplazar nuestro gameState
+            // con el que nos envía el anfitrión.
+            const oldPlayer = gameState.currentPlayer;
+            Object.assign(gameState, action.payload.newGameState);
+            
+            // Después de sincronizar, actualizamos toda la UI.
+            UIManager.updateAllUIDisplays();
+
+            // Lógica específica que debe ocurrir al cambiar de turno
+            if (oldPlayer !== gameState.currentPlayer) {
+                 logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+                 resetUnitsForNewTurn(gameState.currentPlayer);
+                 
+                 // Si ahora es el turno del jugador local, habilitamos su botón de fin de turno.
+                 if (gameState.currentPlayer === gameState.myPlayerNumber) {
+                     domElements.floatingEndTurnBtn.disabled = false;
+                 }
+                 
+                 // Si es un turno de IA en red, el anfitrión lo ejecuta.
+                 const playerForAICheck = `player${gameState.currentPlayer}`;
+                 const isAITurn = gameState.playerTypes[playerForAICheck]?.startsWith('ai_');
+                 if (isAITurn && NetworkManager.esAnfitrion) {
+                     console.log("[Red - Anfitrión] Es turno de una IA, ejecutándola...");
+                     setTimeout(simpleAiTurn, 700);
+                 }
+            }
+            break;
+
+                // <<== NUEVO: Case para ejecutar un movimiento confirmado ==>>
+        case 'moveUnitConfirmed':
+            const { unitId, toR, toC } = action.payload;
+            const unit = units.find(u => u.id === unitId);
+            if (unit) {
+                console.log(`[Red - Sincronizando] Moviendo ${unit.name} a (${toR},${toC}).`);
+                
+                // Todos los jugadores ejecutan la versión LOCAL de la función
+                moveUnit_LOCAL(unit, toR, toC);
+            } else {
+                console.error(`[Red - Sincronización] Error: No se encontró la unidad ${unitId} para mover.`);
+            }
+            break;
     }
 }
 
