@@ -1220,8 +1220,11 @@ function RequestReinforceRegiment(division, regiment) {
     const regData = REGIMENT_TYPES[regiment.type];
     const healthToRestore = regData.health - regiment.health;
     if (healthToRestore <= 0) return;
-    
-    const totalCost = /* ... tu cálculo original para el coste ... */;
+
+    const reinforceCostMultiplier = 1.5;
+    const baseRegCost = regData.cost.oro || 0;
+    const costPerHp = baseRegCost / regData.health;
+    const totalCost = Math.ceil(costPerHp * healthToRestore * reinforceCostMultiplier);
     
     if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
         if (isNetworkGame()) {
@@ -1233,7 +1236,7 @@ function RequestReinforceRegiment(division, regiment) {
                     payload: {
                         playerId: division.player,
                         divisionId: division.id,
-                        regimentId: regiment.id // Requiere IDs únicos
+                        regimentId: regiment.id // Requiere IDs únicos, ¡asegúrate de que los regimientos los tengan!
                     }
                 }
             });
@@ -1245,180 +1248,3 @@ function RequestReinforceRegiment(division, regiment) {
         handleReinforceRegiment(division, regiment);
     }
 }
-
-/*
-function openCreateDivisionModal() {
-    if (!domElements || !domElements.createDivisionModal) return;
-    if (domElements.divisionNameInput) {
-        const currentPlayerUnitsCount = units.filter(u => u.player === gameState.currentPlayer).length;
-        domElements.divisionNameInput.value = `División ${currentPlayerUnitsCount + 1}`;
-    }
-    currentDivisionBuilder = [];
-    populateAvailableRegimentsForModal();
-    updateCreateDivisionModalDisplay();
-    domElements.createDivisionModal.style.display = 'flex';
-}
-
-function populateAvailableRegimentsForModal() {
-    if (!domElements?.availableRegimentsListEl || !REGIMENT_TYPES || !gameState?.playerResources || !TECHNOLOGY_TREE_DATA) {
-        if(domElements?.availableRegimentsListEl) domElements.availableRegimentsListEl.innerHTML = '<li>Error: No se pueden cargar regimientos.</li>';
-        return;
-    }
-    
-    domElements.availableRegimentsListEl.innerHTML = ''; 
-    const playerResearchedTechs = gameState.playerResources[gameState.currentPlayer]?.researchedTechnologies || [];
-
-    // <<< INICIO DE CORRECCIÓN: Declaración de la variable que faltaba >>>
-    let unlockedUnitTypesByTech = new Set();
-    playerResearchedTechs.forEach(techId => {
-        TECHNOLOGY_TREE_DATA[techId]?.unlocksUnits?.forEach(unitTypeKey => {
-            unlockedUnitTypesByTech.add(unitTypeKey);
-        });
-    });
-    // <<< FIN DE CORRECCIÓN >>>
-    
-    const baseUnits = TECHNOLOGY_TREE_DATA["ORGANIZATION"]?.unlocksUnits || [];
-
-    let regimentsAddedCount = 0;
-    for (const regimentKey in REGIMENT_TYPES) {
-        // La condición ahora usa 'unlockedUnitTypesByTech' que sí está definida.
-        if (unlockedUnitTypesByTech.has(regimentKey) || baseUnits.includes(regimentKey)) {
-            const regiment = REGIMENT_TYPES[regimentKey];
-            const listItem = document.createElement('li');
-            listItem.innerHTML = `${regiment.sprite} ${regimentKey} (Oro: ${regiment.cost?.oro || 0})`;
-            listItem.dataset.type = regimentKey;
-            listItem.onclick = () => addRegimentToBuilder(regimentKey);
-            domElements.availableRegimentsListEl.appendChild(listItem);
-            regimentsAddedCount++;
-        }
-    }
-
-    if (regimentsAddedCount === 0) { 
-        domElements.availableRegimentsListEl.innerHTML = '<li>No hay regimientos disponibles (investiga más).</li>';
-    }
-}
-
-function addRegimentToBuilder(type) {
-    if (REGIMENT_TYPES[type]) {
-        currentDivisionBuilder.push(JSON.parse(JSON.stringify({ ...REGIMENT_TYPES[type], type })));
-        updateCreateDivisionModalDisplay();
-    }
-}
-
-function removeRegimentFromBuilder(index) {
-    if (index >= 0 && index < currentDivisionBuilder.length) {
-        currentDivisionBuilder.splice(index, 1);
-        updateCreateDivisionModalDisplay();
-    }
-}
-
-function updateCreateDivisionModalDisplay() {
-    if (!domElements) return;
-    domElements.currentDivisionRegimentsListEl.innerHTML = '';
-    let totalCost = {}, totalStats = { attack: 0, defense: 0, health: 0, movement: Infinity, vision: 0, attackRange: 0, initiative: 0 };
-    currentDivisionBuilder.forEach((reg, index) => {
-        const li = document.createElement('li');
-        li.innerHTML = `${reg.sprite} ${reg.type} <span style="float:right; cursor:pointer; color:red;" title="Quitar">(X)</span>`;
-        li.querySelector('span').onclick = (e) => { e.stopPropagation(); removeRegimentFromBuilder(index); };
-        domElements.currentDivisionRegimentsListEl.appendChild(li);
-        for (const res in reg.cost) totalCost[res] = (totalCost[res] || 0) + reg.cost[res];
-        totalStats.attack += reg.attack || 0;
-        totalStats.defense += reg.defense || 0;
-        totalStats.health += reg.health || 0;
-        totalStats.movement = Math.min(totalStats.movement, reg.movement || Infinity);
-        totalStats.vision = Math.max(totalStats.vision, reg.visionRange || 0);
-        totalStats.attackRange = Math.max(totalStats.attackRange, reg.attackRange || 0);
-        totalStats.initiative = Math.max(totalStats.initiative, reg.initiative || 0);
-    });
-
-    let costParts = [];
-    if(totalCost.oro) costParts.push(`${totalCost.oro} Oro`);
-    if(totalCost.puntosReclutamiento) costParts.push(`${totalCost.puntosReclutamiento} PR`);
-    // Puedes añadir hierro, madera, etc., si los regimientos los cuestan
-    let costStr = costParts.join(', ') || "Gratis";
-    //let costStr = Object.entries(totalCost).map(([res, val]) => `${val} ${res}`).join(', ') || "0 Oro";
-    
-    domElements.totalDivisionCostDisplay.textContent = costStr;
-    domElements.totalDivisionStatsDisplay.textContent = `A:${totalStats.attack}/D:${totalStats.defense}/S:${totalStats.health}/M:${totalStats.movement === Infinity ? 0 : totalStats.movement}/V:${totalStats.vision}/R:${totalStats.attackRange}`;
-    domElements.finalizeCreateDivisionBtn.disabled = currentDivisionBuilder.length === 0;
-}
-
-function handleFinalizeDivision() {
-    if (currentDivisionBuilder.length === 0) {
-        logMessage("Una división debe tener al menos un regimiento.");
-        return;
-    }
-
-    let finalCost = {};
-    for (const reg of currentDivisionBuilder) {
-        for (const res in reg.cost) {
-            if (res !== 'upkeep') {
-                finalCost[res] = (finalCost[res] || 0) + reg.cost[res];
-            }
-        }
-    }
-
-    const currentPlayer = gameState.currentPlayer; // Guardamos el jugador actual
-
-    for (const res in finalCost) {
-        if ((gameState.playerResources[currentPlayer][res] || 0) < finalCost[res]) {
-            logMessage(`No tienes suficiente ${res} para crear esta división.`);
-            return;
-        }
-    }
-    
-    // <<== LA SOLUCIÓN (Parte 1): Pasamos explícitamente el jugador a la función ==>>
-    console.log(`Llamando a calculateRegimentStats desde handleFinalizeDivision para Jugador ${currentPlayer}`);
-    const stats = calculateRegimentStats(currentDivisionBuilder, currentPlayer);
-    // <<== FIN DE LA SOLUCIÓN ==>>
-
-    for (const res in finalCost) {
-        if ((gameState.playerResources[currentPlayer][res] || 0) < finalCost[res]) {
-            logMessage(`No tienes suficiente ${res} para crear esta división.`);
-            return;
-        }
-        gameState.playerResources[currentPlayer][res] -= finalCost[res];
-    }
-    
-    if (UIManager) UIManager.updatePlayerAndPhaseInfo();
-
-    const newDivisionDataObject = {
-        id: `u${unitIdCounter++}`,
-        player: currentPlayer,
-        name: domElements.divisionNameInput.value.trim() || "División Anónima",
-        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)),
-        // Usamos los stats que ahora deberían ser correctos
-        attack: stats.attack,
-        defense: stats.defense,
-        maxHealth: stats.maxHealth,
-        currentHealth: stats.maxHealth,
-        movement: stats.movement,
-        currentMovement: stats.movement,
-        visionRange: stats.visionRange,
-        attackRange: stats.attackRange,
-        initiative: stats.initiative,
-        sprite: stats.sprite,
-        experience: 0,
-        maxExperience: 500,
-        hasRetaliatedThisTurn: false,
-        morale: 50,
-        maxMorale: 125,
-        isDemoralized: false,
-        r: -1, c: -1,
-        element: null,
-        hasMoved: gameState.currentPhase === 'play',
-        hasAttacked: gameState.currentPhase === 'play',
-        cost: finalCost,
-        recruitedFromHex: (gameState.currentPhase === 'play' && placementMode.recruitHex) ? { r: placementMode.recruitHex.r, c: placementMode.recruitHex.c } : null,
-        isSettler: currentDivisionBuilder.some(reg => reg.isSettler === true)
-    };
-    
-    console.log("[Creación Finalizada] Stats calculados:", JSON.parse(JSON.stringify(stats)));
-    
-    placementMode.active = true;
-    placementMode.unitData = newDivisionDataObject;
-    domElements.createDivisionModal.style.display = 'none';
-    currentDivisionBuilder = [];
-    logMessage(`División "${newDivisionDataObject.name}" creada. Clic para colocar.`);
-}
-*/

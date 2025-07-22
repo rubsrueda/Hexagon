@@ -814,38 +814,41 @@ function iniciarPartidaLAN(settings) {
 }
 
 /**
- * [SOLO ANFITRIÓN] Procesa una PETICIÓN de acción de un jugador.
- * Valida, ejecuta en el estado del anfitrión y luego retransmite.
+ * [SOLO ANFITRIÓN] Procesa una PETICIÓN de acción de cualquier jugador.
+ * Valida la acción contra el estado autoritario del juego, la ejecuta si es válida,
+ * y luego retransmite la acción confirmada a todos los jugadores.
  * @param {object} action - El objeto de acción enviado por un jugador.
  */
 function processActionRequest(action) {
-    if (action.payload.playerId !== gameState.currentPlayer && action.type !== 'placeUnit') {
-        console.warn(`[Red - Anfitrión] Acción rechazada: El jugador ${action.payload.playerId} intentó actuar fuera de turno.`);
+    // Validación básica: un jugador no puede actuar fuera de su turno.
+    if (action.payload.playerId !== gameState.currentPlayer) {
+        console.warn(`[Red - Anfitrión] Acción rechazada: El jugador ${action.payload.playerId} intentó actuar fuera de turno (Turno actual: ${gameState.currentPlayer}).`);
         return;
     }
 
     let actionToBroadcast = null;
     let payload = action.payload;
-
-    // Todas las acciones necesitan una validación del lado del anfitrión.
-    // Aquí se muestra un ejemplo, deberías expandir la validación.
-    let isValid = true; 
+    let isValid = true; // Asumimos que la acción es válida hasta que se demuestre lo contrario.
 
     switch (action.type) {
-        // -- ACCIONES GLOBALES --
+        // --- ACCIONES DE TURNO Y GESTIÓN ---
         case 'endTurn':
+            // La lógica de 'endTurn' es compleja y ya la manejas dentro de handleEndTurn,
+            // que a su vez se encarga de retransmitir el nuevo estado.
             handleEndTurn();
-            // Para 'endTurn', la retransmisión se maneja dentro de handleEndTurn si es de red.
-            return; // Se detiene aquí
-        
+            return; // Detenemos la ejecución aquí, handleEndTurn se encarga del resto.
+
         case 'researchTech':
-            if (isValid) { // Aquí iría la validación de coste y prereqs
-                attemptToResearch(payload.techId);
+            const tech = TECHNOLOGY_TREE_DATA[payload.techId];
+            const playerRes = gameState.playerResources[payload.playerId];
+            // Validación del anfitrión: ¿Puede el jugador pagarlo y tiene los prerrequisitos?
+            if (tech && playerRes && (playerRes.researchPoints || 0) >= (tech.cost.researchPoints || 0) && hasPrerequisites(playerRes.researchedTechnologies, payload.techId)) {
+                attemptToResearch(payload.techId); // El anfitrión ejecuta la acción
                 actionToBroadcast = { type: 'researchTech', payload };
             }
             break;
-            
-        // -- ACCIONES DE UNIDAD --
+
+        // --- ACCIONES DE UNIDAD EN EL MAPA ---
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
@@ -862,62 +865,175 @@ function processActionRequest(action) {
                 actionToBroadcast = { type: 'attackUnit', payload };
             }
             break;
-        
-        // ... (Agrega aquí los `case` para `mergeUnits`, `splitUnit`, `pillageHex`, `disbandUnit`, etc.) ...
-        // ... Siguiendo el mismo patrón: buscar por ID, validar, ejecutar, preparar broadcast ...
+            
+        case 'mergeUnits':
+            const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
+            const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
+            if(mergingUnit && targetUnitMerge) { // La validación completa está dentro de mergeUnits
+                mergeUnits(mergingUnit, targetUnitMerge);
+                actionToBroadcast = { type: 'mergeUnits', payload };
+            }
+            break;
+            
+        case 'splitUnit':
+            const originalUnit = units.find(u => u.id === payload.originalUnitId);
+            // El anfitrión asigna los datos de los regimientos a su gameState.preparingAction temporalmente para ejecutar la acción.
+            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
+            if (originalUnit) {
+                 splitUnit(originalUnit, payload.targetR, payload.targetC);
+                 actionToBroadcast = { type: 'splitUnit', payload };
+            }
+            gameState.preparingAction = null; // Limpiar después de usar
+            break;
+            
+        case 'pillageHex':
+            const pillager = units.find(u => u.id === payload.unitId);
+            if(pillager) { // La validación está dentro de la función handle
+                handlePillageAction();
+                actionToBroadcast = { type: 'pillageHex', payload };
+            }
+            break;
 
-        // -- ACCIONES DE MODALES --
-        case 'placeUnit': // Acción de 'handlePlacementModeClick'
-             if (isValid) { // Validar si la casilla está vacía, etc.
+        case 'disbandUnit':
+             const unitToDisband = units.find(u => u.id === payload.unitId);
+             if(unitToDisband){
+                handleDisbandUnit(unitToDisband);
+                actionToBroadcast = { type: 'disbandUnit', payload };
+             }
+             break;
+            
+        // --- ACCIONES DESDE MODALES ---
+        case 'placeUnit':
+            const hexToPlace = board[payload.r]?.[payload.c];
+            // Validación simple del anfitrión
+            if (hexToPlace && !hexToPlace.unit) {
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
                 actionToBroadcast = { type: 'placeUnit', payload };
-             }
-             break;
+            }
+            break;
+            
         case 'buildStructure':
-             if (isValid) { // Validar coste y tecnología
-                handleConfirmBuildStructure(payload); // Pasamos el payload para que sepa qué y dónde
+            // El anfitrión valida que el jugador tiene los recursos.
+            const builderPlayerRes = gameState.playerResources[payload.playerId];
+            const structureCost = STRUCTURE_TYPES[payload.structureType].cost;
+            isValid = true;
+            for(const res in structureCost){
+                if((builderPlayerRes[res] || 0) < structureCost[res]) isValid = false;
+            }
+            if(isValid){
+                handleConfirmBuildStructure(payload);
                 actionToBroadcast = { type: 'buildStructure', payload };
-             }
-             break;
+            }
+            break;
+
+        case 'reinforceRegiment':
+            const divisionToReinforce = units.find(u => u.id === payload.divisionId);
+            const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
+            if(divisionToReinforce && regimentToReinforce) { // Validación de coste y condiciones está dentro de la función.
+                 handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
+                 actionToBroadcast = { type: 'reinforceRegiment', payload };
+            }
+            break;
+
+        default:
+            console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
+            break;
     }
 
     if (actionToBroadcast) {
+        console.log(`[Red - Anfitrión] Acción '${action.type}' validada. Retransmitiendo...`);
         NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
+    } else {
+        console.warn(`[Red - Anfitrión] Acción '${action.type}' rechazada por validación fallida.`);
     }
 }
 
+
 /**
- * [TODOS LOS JUGADORES] Ejecuta ACCIONES CONFIRMADAS.
+ * [TODOS LOS JUGADORES] Ejecuta una ACCIÓN CONFIRMADA que el anfitrión ha retransmitido.
+ * Esto actualiza el estado local de todos para que coincida con el del anfitrión.
+ * No se necesita validación aquí, ya que se confía en la decisión del anfitrión.
+ * @param {object} action - El objeto de acción retransmitido por el anfitrión.
  */
 function executeConfirmedAction(action) {
-    console.log("[Red - Sincronizando] Ejecutando acción confirmada:", action.type);
+    console.log("[Red - Sincronizando] Ejecutando acción confirmada por el anfitrión:", action.type);
     const payload = action.payload;
 
+    // Detener la simulación de la IA del cliente si el anfitrión va a ejecutar el turno de la IA
+    const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
+    if (!isMyTurn && gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_')) {
+        console.log("[Red - Cliente] Es el turno de una IA, deteniendo cualquier simulación local y esperando broadcast del anfitrión.");
+    }
+    
     switch (action.type) {
-        case 'endTurn':
-             Object.assign(gameState, payload.newGameState);
-             // ...
-             break;
+        // --- ACCIONES DE TURNO Y GESTIÓN ---
+        case 'syncGameState': // Se recibe tras un endTurn
+            Object.assign(gameState, action.payload.newGameState);
+            resetUnitsForNewTurn(gameState.currentPlayer);
+            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+            UIManager.updateAllUIDisplays();
+            if (gameState.currentPlayer === gameState.myPlayerNumber) {
+                domElements.floatingEndTurnBtn.disabled = false;
+            }
+            break;
+
         case 'researchTech':
             attemptToResearch(payload.techId);
             break;
+
+        // --- ACCIONES DE UNIDAD EN EL MAPA ---
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC);
             break;
+
         case 'attackUnit':
             const attacker = units.find(u => u.id === payload.attackerId);
             const defender = units.find(u => u.id === payload.defenderId);
             if (attacker && defender) attackUnit(attacker, defender);
             break;
             
-        // ... (Añadir aquí los `case` para todas las demás acciones) ...
+        case 'mergeUnits':
+             const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
+             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
+             if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge);
+             break;
+            
+        case 'splitUnit':
+            const originalUnit = units.find(u => u.id === payload.originalUnitId);
+            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
+            if (originalUnit) splitUnit(originalUnit, payload.targetR, payload.targetC);
+            gameState.preparingAction = null;
+            break;
         
+        case 'pillageHex':
+            // 'selectedUnit' necesita ser establecido temporalmente para que handlePillageAction funcione.
+            const pillager = units.find(u => u.id === payload.unitId);
+            if (pillager) {
+                selectedUnit = pillager;
+                handlePillageAction();
+                selectedUnit = null; // Limpiar después de la acción.
+            }
+            break;
+
+        case 'disbandUnit':
+             const unitToDisband = units.find(u => u.id === payload.unitId);
+             if (unitToDisband) handleDisbandUnit(unitToDisband);
+             break;
+
+        // --- ACCIONES DESDE MODALES ---
         case 'placeUnit':
             placeFinalizedDivision(payload.unitData, payload.r, payload.c);
             break;
+            
         case 'buildStructure':
              handleConfirmBuildStructure(payload);
+             break;
+
+        case 'reinforceRegiment':
+             const divisionToReinforce = units.find(u => u.id === payload.divisionId);
+             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
+             if (divisionToReinforce && regimentToReinforce) handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
              break;
     }
 }
