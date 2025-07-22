@@ -903,14 +903,25 @@ function processActionRequest(action) {
              break;
             
         // --- ACCIONES DESDE MODALES ---
-        case 'placeUnit':
-            const hexToPlace = board[payload.r]?.[payload.c];
-            // Validación simple del anfitrión
-            if (hexToPlace && !hexToPlace.unit) {
+        case 'placeUnit': 
+             if (isValid) {
+                // El anfitrión ejecuta la acción. ESTO AÑADE .element a payload.unitData
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
-                actionToBroadcast = { type: 'placeUnit', payload };
-            }
-            break;
+                
+                // <<== ¡SOLUCIÓN CLAVE AQUÍ! ==>>
+                // Creamos un nuevo payload para la retransmisión, asegurándonos de que
+                // la unidad se vuelve a limpiar para no enviar el elemento DOM.
+                const replacer = (key, value) => (key === 'element' ? undefined : value);
+                const cleanUnitDataForBroadcast = JSON.parse(JSON.stringify(payload.unitData, replacer));
+
+                const broadcastPayload = {
+                    ...payload, // Copia otras propiedades como r, c, playerId
+                    unitData: cleanUnitDataForBroadcast // Usa la versión limpia de unitData
+                };
+
+                actionToBroadcast = { type: 'placeUnit', payload: broadcastPayload };
+             }
+             break;
             
         case 'buildStructure':
             // El anfitrión valida que el jugador tiene los recursos.
