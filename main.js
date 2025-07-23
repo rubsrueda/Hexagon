@@ -847,6 +847,7 @@ function executeConfirmedAction(action) {
             const miNumero = gameState.myPlayerNumber; 
             Object.assign(gameState, payload.newGameState);
             gameState.myPlayerNumber = miNumero; 
+            
             resetUnitsForNewTurn(gameState.currentPlayer);
             logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
             if (UIManager) UIManager.updateTurnIndicatorAndBlocker();
@@ -857,9 +858,9 @@ function executeConfirmedAction(action) {
             placeFinalizedDivision(payload.unitData, payload.r, payload.c);
 
             // --- ¡SOLUCIÓN CLAVE Y DEFINITIVA! ---
-            // 2. Apagamos el "interruptor" de colocación. Esto asegura que el juego
-            //    vuelva a su estado normal de "seleccionar y actuar" en todas las máquinas,
-            //    no solo en la que inició la acción.
+            // 2. Apagamos el "interruptor" de colocación en esta máquina.
+            //    Esto asegura que el juego vuelva a su estado normal de "seleccionar y actuar"
+            //    para TODOS los jugadores, no solo para el que inició la acción.
             placementMode.active = false;
             placementMode.unitData = null;
             placementMode.recruitHex = null;
@@ -867,7 +868,7 @@ function executeConfirmedAction(action) {
             // --- FIN DE LA SOLUCIÓN ---
             break;
 
-        // El resto de tus cases, completos y sin cambios
+        // --- El resto de tu código original, completo y sin tocar ---
         case 'researchTech': 
             attemptToResearch(payload.techId); 
             break;
@@ -909,8 +910,8 @@ function executeConfirmedAction(action) {
             break;
     }
     
-    // Al final, SIEMPRE actualizamos la UI para asegurar la consistencia visual
-    if (UIManager) {
+    // Al final de CUALQUIER acción, actualizamos la UI para asegurar la consistencia visual.
+    if (UIManager && action.type !== 'syncGameState') {
         UIManager.updateAllUIDisplays();
     }
 }
