@@ -835,12 +835,12 @@ function reconstruirJuegoDesdeDatos(datos) {
 }
 
 function executeConfirmedAction(action) {
-    console.log(`%c[VIAJE-7] Jugador ${gameState.myPlayerNumber} sincronizando acción retransmitida: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
+    
     if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
          if (UIManager) UIManager.updateAllUIDisplays();
          return;
     }
-    
+    console.log(`%c[VIAJE-7] Jugador ${gameState.myPlayerNumber} sincronizando acción retransmitida: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
     console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por anfitrión: ${action.type}`);
     const payload = action.payload;
     
@@ -870,7 +870,6 @@ function executeConfirmedAction(action) {
             // --- FIN DE LA SOLUCIÓN ---
             break;
 
-        // --- El resto de tu código original, completo y sin tocar ---
         case 'researchTech': 
             attemptToResearch(payload.techId); 
             break;
@@ -878,6 +877,7 @@ function executeConfirmedAction(action) {
             const unitToMove = units.find(u => u.id === payload.unitId); 
             if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC); 
             break;
+
         case 'attackUnit': 
             const attacker = units.find(u => u.id === payload.attackerId); 
             const defender = units.find(u => u.id === payload.defenderId); 
@@ -1108,10 +1108,17 @@ function processActionRequest(action) {
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
+                
+                if (payload.unitData.id === null) { // Solo si el ID no ha sido asignado
+                    payload.unitData.id = `u${unitIdCounter++}`;
+                    console.log(`[Red - Anfitrión] ID Asignado: ${payload.unitData.id} a la nueva unidad de J${payload.playerId}`);
+                }
+
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
                 actionExecuted = true;
             }
             break;
+
         case 'buildStructure':
             const builderPlayerRes = gameState.playerResources[payload.playerId];
             const structureCost = STRUCTURE_TYPES[payload.structureType].cost;

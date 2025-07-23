@@ -697,7 +697,7 @@ function handleFinalizeDivision() {
 
     // 5. Crear el objeto de la nueva unidad CON TODAS SUS PROPIEDADES INICIALES
     const newDivisionDataObject = {
-        id: `u${unitIdCounter++}`,
+        id: null, 
         player: gameState.currentPlayer,
         name: domElements.divisionNameInput.value.trim() || "Nueva División",
         // <<== MODIFICACIÓN LÓGICA NECESARIA: Asignamos un ID único a cada regimiento para poder rastrearlo ==>>
