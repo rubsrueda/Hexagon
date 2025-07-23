@@ -586,46 +586,68 @@ function cancelPreparingAction() {
 }
 
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
-    if (!selectedUnit) return false;
+    // Log de Entrada: Para confirmar que la función se está llamando correctamente.
+    console.log(`--- DENTRO DE handleActionWithSelectedUnit ---`);
+    console.log(`Objetivo del Clic: ${clickedUnitOnTargetHex ? clickedUnitOnTargetHex.name : 'Casilla Vacía'} en (${r_target},${c_target})`);
 
-    // MANEJO DE ACCIÓN PREPARADA (como dividir)
+    if (!selectedUnit) {
+        console.error("[handleAction] ERROR FATAL: Se llamó a la función pero 'selectedUnit' es nulo.");
+        return false;
+    }
+
+    // --- MANEJO DE ACCIÓN PREPARADA (como dividir) ---
     if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
+        console.log(`[handleAction] Detectada acción preparada: ${gameState.preparingAction.type}`);
         let success = false;
         if (gameState.preparingAction.type === 'split_unit') {
-            if (splitUnit(selectedUnit, r_target, c_target)) success = true;
+            if (splitUnit(selectedUnit, r_target, c_target)) {
+                success = true;
+            }
         }
         cancelPreparingAction();
         return success;
     }
 
-    // MANEJO DE CLIC DIRECTO
+    // --- MANEJO DE CLIC DIRECTO ---
     
-    // CASO 1: Clic sobre una unidad
+    // CASO 1: Se hizo clic sobre una unidad.
     if (clickedUnitOnTargetHex) {
-        // Clic en ENEMIGO -> Iniciar ATAQUE
+        
+        // Subcaso 1.1: Es una unidad ENEMIGA.
         if (clickedUnitOnTargetHex.player !== selectedUnit.player) {
+            console.log(`[handleAction] Clic en ENEMIGO. Verificando ataque...`);
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
+                console.log(`[handleAction] ¡ATAQUE VÁLIDO! Iniciando RequestAttackUnit...`);
                 RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-                return true; // <-- Devuelve TRUE para detener onHexClick
+                return true; // <<< DEVUELVE TRUE
+            } else {
+                logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
             }
         }
-        // Clic en ALIADO -> Iniciar FUSIÓN
+        // Subcaso 1.2: Es una unidad AMIGA.
         else {
-            if (clickedUnitOnTargetHex.id !== selectedUnit.id && isValidMove(selectedUnit, r_target, c_target, true)) {
+            if (clickedUnitOnTargetHex.id === selectedUnit.id) return false;
+            
+            console.log(`[handleAction] Clic en ALIADO. Verificando fusión...`);
+            if (isValidMove(selectedUnit, r_target, c_target, true)) {
+                console.log(`[handleAction] ¡FUSIÓN VÁLIDA! Iniciando RequestMergeUnits...`);
                 RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                return true; // <-- Devuelve TRUE para detener onHexClick
+                return true; // <<< DEVUELVE TRUE
             }
         }
     }
-    // CASO 2: Clic en casilla VACÍA -> Iniciar MOVIMIENTO
+    // CASO 2: Se hizo clic sobre una casilla VACÍA.
     else {
+        console.log(`[handleAction] Clic en casilla VACÍA. Verificando movimiento...`);
         if (isValidMove(selectedUnit, r_target, c_target, false)) {
+            console.log(`[handleAction] ¡MOVIMIENTO VÁLIDO! Iniciando RequestMoveUnit...`);
             RequestMoveUnit(selectedUnit, r_target, c_target);
-            return true; // <-- Devuelve TRUE para detener onHexClick
+            return true; // <<< DEVUELVE TRUE
         }
     }
 
-    // Si no se inició ninguna acción, devuelve FALSE.
+    // Si ninguna acción fue posible, devuelve false.
+    console.log(`[handleAction] Ninguna acción válida se pudo iniciar. Devolviendo 'false'.`);
     return false;
 }
 
