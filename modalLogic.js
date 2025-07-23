@@ -686,7 +686,6 @@ function handleFinalizeDivision() {
             return;
         }
     }
-    console.log(`%c[VIAJE-1] Unidad CREADA en el cliente. ID debería ser null.`, 'color: #90EE90; font-weight: bold;', newDivisionDataObject);
     
     // 3. Deducir los recursos si puede pagar
     for (const res in finalCost) {
@@ -741,6 +740,8 @@ function handleFinalizeDivision() {
         isSettler: currentDivisionBuilder.some(reg => reg.isSettler === true),
         lastMove: null // Inicializar lastMove como nulo
     };
+    
+    console.log(`%c[VIAJE-1] Unidad CREADA en el cliente. ID debería ser null.`, 'color: #90EE90; font-weight: bold;', newDivisionDataObject);
     
     // 6. Activar el modo de colocación
     placementMode.active = true;
