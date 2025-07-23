@@ -279,87 +279,24 @@ const UIManager = {
         hexToBuildOn = null;
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
+        // ... (todo tu código para rellenar el panel de info, que está perfecto)
         const isPlayerUnit = unit.player === gameState.currentPlayer;
         this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (ID: ${unit.id})`;
+        // ...
         
-        let contentHTML = ``;
-        contentHTML += `<p>Salud: ${unit.currentHealth}/${unit.maxHealth}</p>`;
-        contentHTML += `<p>A/D/M: ${unit.attack}/${unit.defense}/${unit.currentMovement || unit.movement}</p>`;
-        let moralStatus = "Normal", moralColor = "#f0f0f0";
-        if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
-        else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
-        else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
-        contentHTML += `<p>Moral: <strong style="color:${moralColor};">${unit.morale}/${unit.maxMorale || 125} (${moralStatus})</strong></p>`;
-        const unitLevel = unit.level ?? 0, unitExperience = unit.experience || 0;
-        const levelData = XP_LEVELS[unitLevel];
-        if (levelData) {
-            const nextLevelXP = levelData.nextLevelXp;
-            let xpText = `Nivel: ${levelData.currentLevelName}`;
-            if (nextLevelXP !== 'Max') { xpText += ` (XP: ${unitExperience} / ${nextLevelXP})`; }
-            contentHTML += `<p>${xpText}</p>`;
+        // --- LÓGICA DE BOTONES ---
+        if (isOwnUnit && gameState.currentPhase === 'play') {
+            
+            // <<< ¡SOLUCIÓN TEMPORAL PERO CRUCIAL! >>>
+            // Comentamos la siguiente línea. Esto desactiva la predicción de combate
+            // que está causando el bucle de logs y bloqueando la acción del clic.
+            
+            // this.attachAttackPredictionListener(unit);
+            
+            // ... (el resto de tu lógica de botones, que está bien) ...
+        } else { 
+             this.removeAttackPredictionListener();
         }
-        this._domElements.contextualContent.innerHTML = contentHTML;
-
-        // --- LÓGICA DE BOTONES SIMPLIFICADA ---
-        if (this._domElements.floatingReinforceBtn) {
-            this._domElements.floatingReinforceBtn.style.display = 'flex';
-            this._domElements.floatingReinforceBtn.title = 'Gestionar / Ver Detalles de Unidad';
-        }
-
-        if (isPlayerUnit && gameState.currentPhase === 'play') {
-            const canAct = !unit.hasMoved && !unit.hasAttacked;
-
-            if (unit.lastMove && !unit.hasAttacked) {
-                this._domElements.floatingUndoMoveBtn.style.display = 'flex';
-            }
-            if (canAct) {
-                if ((unit.regiments?.length || 0) > 1) {
-                    this._domElements.floatingSplitBtn.style.display = 'flex';
-                }
-                const unitHex = board[unit.r]?.[unit.c];
-                if (unitHex && unitHex.owner !== null && unitHex.owner !== unit.player) {
-                    if (this._domElements.floatingPillageBtn) this._domElements.floatingPillageBtn.style.display = 'flex';
-                }
-                
-                console.groupCollapsed(`[Builder Check] Verificando si ${unit.name} puede construir.`);
-                let isBuilderUnit = false; // Asumimos que no por defecto.
-                if (unit.regiments && unit.regiments.length > 0) {
-                    // Iteramos sobre cada regimiento para ver si CUALQUIERA de ellos es un constructor.
-                    for (const reg of unit.regiments) {
-                        const regData = REGIMENT_TYPES[reg.type];
-                        if (regData) {
-                            console.log(`- Chequeando regimiento: ${reg.type}`);
-                            // Condición 1: Es un Colono (isSettler: true)
-                            if (regData.isSettler === true) {
-                                isBuilderUnit = true;
-                                console.log(`  -> Es Colono. ¡Puede construir!`);
-                                break; // Si encontramos un constructor, no hace falta seguir mirando.
-                            }
-                            // Condición 2: Tiene la habilidad de construir caminos
-                            if (Array.isArray(regData.abilities) && regData.abilities.includes("build_road")) {
-                                isBuilderUnit = true;
-                                console.log(`  -> Tiene la habilidad 'build_road'. ¡Puede construir!`);
-                                break;
-                            }
-                        }
-                    }
-                }
-                
-                console.log(`Resultado final del chequeo: isBuilderUnit = ${isBuilderUnit}`);
-                console.groupEnd();
-                
-                if (isBuilderUnit) {
-                    if (this._domElements.floatingBuildBtn) {
-                        hexToBuildOn = { r: unit.r, c: unit.c };
-                        this._domElements.floatingBuildBtn.style.display = 'flex';
-                    }
-                }
-
-            }
-        }
-        
-        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) { this.attachAttackPredictionListener(unit); }
-        else { this.removeAttackPredictionListener(); }
         
         this._domElements.contextualInfoPanel.classList.add('visible');
     },
@@ -449,6 +386,7 @@ const UIManager = {
     },
 
     hideContextualPanel: function() {
+        
         this.removeAttackPredictionListener();
         this.hideAllActionButtons();
         if (this._domElements.floatingCreateDivisionBtn && gameState.currentPhase !== "deployment") {
@@ -459,6 +397,7 @@ const UIManager = {
         if (this._domElements.contextualInfoPanel) {
             this._domElements.contextualInfoPanel.classList.remove('visible');
         }
+        this.hideAllActionButtons();
     },
     
     updateSelectedUnitInfoPanel: function() {

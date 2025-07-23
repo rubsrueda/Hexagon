@@ -102,6 +102,9 @@ const NetworkManager = {
      */
     enviarDatos: function(datos) {
         if (this.conn && this.conn.open) {
+            // --- AÑADE ESTE LOG ---
+            console.log(`%c[VIAJE-RED] Enviando datos a ${this.idRemoto}:`, 'color: #00FFFF;', datos);
+            // --- FIN ---
             this.conn.send(datos);
         } else {
             console.warn("[NetworkManager] Intento de enviar datos sin una conexión activa.");

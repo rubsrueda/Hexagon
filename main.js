@@ -175,6 +175,7 @@ function initApp() {
 
     function onDatosLANRecibidos(datos) {
         console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
+        console.log(`%c[VIAJE-3] Datos recibidos por Jugador ${gameState.myPlayerNumber}. Anfitrión: ${NetworkManager.esAnfitrion}`, 'color: #90EE90; font-weight: bold;', datos);
 
         // --- Lógica del CLIENTE: Reaccionar a mensajes del anfitrión ---
         if (!NetworkManager.esAnfitrion) {
@@ -834,6 +835,7 @@ function reconstruirJuegoDesdeDatos(datos) {
 }
 
 function executeConfirmedAction(action) {
+    console.log(`%c[VIAJE-7] Jugador ${gameState.myPlayerNumber} sincronizando acción retransmitida: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
     if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
          if (UIManager) UIManager.updateAllUIDisplays();
          return;
@@ -968,6 +970,7 @@ function iniciarPartidaLAN(settings) {
 }
 
 function processActionRequest(action) {
+    console.log(`%c[VIAJE-4] Anfitrión procesando acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     let payload = action.payload;
     let actionExecuted = false;
     let suppressBroadcast = false;
@@ -1064,6 +1067,7 @@ function processActionRequest(action) {
             const attacker = units.find(u => u.id === payload.attackerId);
             const defender = units.find(u => u.id === payload.defenderId);
             if (attacker && defender && isValidAttack(attacker, defender)) {
+                console.log(`%c[VIAJE-5] Anfitrión validó el ataque. Llamando a la función de combate...`, 'color: #FF69B4; font-weight: bold;');
                 attackUnit(attacker, defender);
                 actionExecuted = true;
             }
@@ -1140,6 +1144,7 @@ function processActionRequest(action) {
         const replacer = (key, value) => (key === 'element' ? undefined : value);
         const cleanPayload = JSON.parse(JSON.stringify(payload, replacer));
         const actionToBroadcast = { type: action.type, payload: cleanPayload };
+        console.log(`%c[VIAJE-6] Anfitrión retransmitiendo acción '${action.type}' a todos los jugadores.`, 'color: #FF69B4; font-weight: bold;');
         NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
     }
 }

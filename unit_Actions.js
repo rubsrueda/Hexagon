@@ -1061,6 +1061,7 @@ function isValidAttack(attacker, defender) {
  * @param {object} defenderDivision - La división que es atacada.
 **/
 async function attackUnit(attackerDivision, defenderDivision) {
+    console.log(`%c[VIAJE-DESTINO FINAL] La función de combate 'attackUnit' ha sido ejecutada. Atacante: ${attackerDivision.name}, Defensor: ${defenderDivision.name}`, 'background: #222; color: #bada55; font-size: 1.2em; font-weight: bold;');
     try {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
@@ -2021,15 +2022,20 @@ async function RequestMoveUnit(unit, toR, toC) {
 }
 
 async function RequestAttackUnit(attacker, defender) {
+    console.log(`%c[VIAJE-1] Dentro de RequestAttackUnit. Soy Jugador ${gameState.myPlayerNumber}. Anfitrión: ${NetworkManager.esAnfitrion}`, 'color: #FFA500; font-weight: bold;');
+    
     if (isNetworkGame()) {
         const action = { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
         if (NetworkManager.esAnfitrion) {
+            console.log('%c[VIAJE-2A] Soy Anfitrión. Procesando mi propio ataque directamente.', 'color: #FFA500; font-weight: bold;');
             processActionRequest(action);
         } else {
+            console.log('%c[VIAJE-2B] Soy Cliente. Enviando petición de ataque al anfitrión.', 'color: #FFA500; font-weight: bold;');
             NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
         return;
     }
+    // Juego local
     await attackUnit(attacker, defender);
 }
 
