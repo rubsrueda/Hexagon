@@ -588,64 +588,40 @@ function cancelPreparingAction() {
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
     if (!selectedUnit) return false;
 
-    // --- MANEJO DE ACCIONES PREPARADAS (COMO DIVIDIR) ---
-    // Tu lógica original, completa
-    if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
-        const actionType = gameState.preparingAction.type;
-        let actionSuccessful = false;
-
-        if (actionType === "move") {
-            if (!clickedUnitOnTargetHex && isValidMove(selectedUnit, r_target, c_target, false)) {
-                RequestMoveUnit(selectedUnit, r_target, c_target);
-                actionSuccessful = true;
-            } else if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.player === selectedUnit.player) {
-                if (isValidMove(selectedUnit, r_target, c_target, true)) {
-                    RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                    actionSuccessful = true;
-                } else { logMessage("No se puede mover allí para fusionar."); }
-            } else { logMessage("Movimiento preparado inválido."); }
-        } else if (actionType === "attack") {
-            if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.player !== selectedUnit.player && isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
+    // --- Manejo de Clic en una Unidad ---
+    if (clickedUnitOnTargetHex) {
+        // Es una unidad enemiga, intenta ATACAR
+        if (clickedUnitOnTargetHex.player !== selectedUnit.player) {
+            if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
                 RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-
-                actionSuccessful = true;
-            } else { logMessage("Objetivo de ataque preparado inválido."); }
-        } else if (actionType === "split_unit") {
-            if (splitUnit(selectedUnit, r_target, c_target)) {
-                actionSuccessful = true;
+                return true; // <-- Informa a onHexClick que se inició la acción de ataque.
+            } else {
+                logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
+                return false; // El ataque no es válido, permite que onHexClick intente otra cosa (nada).
             }
         }
-        if (actionSuccessful) { cancelPreparingAction(); }
-        return actionSuccessful;
+        // Es una unidad amiga, intenta FUSIONAR
+        else {
+            if (clickedUnitOnTargetHex.id === selectedUnit.id) return false; // Clic en sí mismo
+            if (isValidMove(selectedUnit, r_target, c_target, true)) {
+                RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
+                return true; // <-- Informa a onHexClick que se inició la acción de fusión.
+            } else {
+                 logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`);
+                 return false;
+            }
+        }
+    }
+    // --- Manejo de Clic en una Casilla Vacía ---
+    else {
+        // Intenta MOVER
+        if (isValidMove(selectedUnit, r_target, c_target, false)) {
+            RequestMoveUnit(selectedUnit, r_target, c_target);
+            return true; // <-- Informa a onHexClick que se inició la acción de movimiento.
+        }
     }
 
-    // --- LÓGICA DE CLIC DIRECTO (CON LA CORRECCIÓN) ---
-    if (clickedUnitOnTargetHex) {
-        // Clic en unidad AMIGA
-        if (clickedUnitOnTargetHex.player === selectedUnit.player) {
-            if (clickedUnitOnTargetHex.id === selectedUnit.id) return false;
-            if (isValidMove(selectedUnit, r_target, c_target, true)) { 
-                RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex); 
-                return true; // <-- CORRECCIÓN AÑADIDA
-            } else { logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`); }
-        } 
-        // Clic en unidad ENEMIGA
-        else {
-            if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
-                RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex); 
-                return true; // <-- CORRECCIÓN AÑADIDA
-            } else { logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`); }
-        }
-    } 
-    // Clic en casilla VACÍA
-    else {
-        if (isValidMove(selectedUnit, r_target, c_target, false)) { 
-            RequestMoveUnit(selectedUnit, r_target, c_target); 
-            return true; // <-- CORRECCIÓN AÑADIDA
-        }
-    }
-    
-    // Si nada de lo anterior funcionó, se devuelve false.
+    // Si ninguna acción fue posible, devuelve false.
     return false;
 }
 
@@ -1004,39 +980,50 @@ function positionUnitElement(unit) {
 }
 
 function isValidAttack(attacker, defender) {
-    if (!attacker || !defender) return false;
-    if (attacker.player === gameState.currentPlayer && gameState.currentPhase === 'play' && attacker.hasAttacked) return false;
-    if (attacker.id === defender.id) return false;
-    if (attacker.player === defender.player) return false;
+    // --- Guardias de seguridad iniciales ---
+    if (!attacker || !defender) {
+        console.error("[isValidAttack] Error: Atacante o defensor no definidos.");
+        return false;
+    }
+    if (attacker.player === defender.player) {
+        // Esta es la comprobación que puede estar fallando.
+        // logMessage(`${attacker.name} no puede atacar a una unidad aliada.`);
+        return false;
+    }
+    if (gameState.currentPhase === 'play' && attacker.player === gameState.currentPlayer && attacker.hasAttacked) {
+        // logMessage(`${attacker.name} ya ha atacado este turno.`);
+        return false;
+    }
 
+    // --- Depuración de Datos ---
+    const attackerName = attacker.name || 'Sin Nombre';
+    const defenderName = defender.name || 'Sin Nombre';
+    const attackerPosition = `(${attacker.r},${attacker.c})`;
+    const defenderPosition = `(${defender.r},${defender.c})`;
+    const range = attacker.attackRange || 1;
+    const distance = hexDistance(attacker.r, attacker.c, defender.r, defender.c);
+
+    // --- Lógica de Restricción Naval ---
     const attackerRegimentData = REGIMENT_TYPES[attacker.regiments[0]?.type];
     const defenderRegimentData = REGIMENT_TYPES[defender.regiments[0]?.type];
-
-    // <<== LÓGICA CLAVE DE RESTRICCIÓN DE ATAQUE NAVAL ==>>
-
-    // CASO 1: Una unidad de tierra intenta atacar a un barco.
     if (!attackerRegimentData?.is_naval && defenderRegimentData?.is_naval) {
-        if (defenderRegimentData?.canOnlyBeAttackedByRanged && (attacker.attackRange || 1) <= 1) {
-            // El barco es inmune a ataques cuerpo a cuerpo de unidades de tierra.
+        if (defenderRegimentData?.canOnlyBeAttackedByRanged && range <= 1) {
+            console.log(`[isValidAttack] FALLO: ${attackerName} (cuerpo a cuerpo) no puede atacar a la unidad naval ${defenderName}.`);
             return false; 
         }
     }
     
-    // CASO 2: Un barco intenta atacar a una unidad de tierra.
-    // Esto generalmente se permite, es el bombardeo costero.
-    // El barco ya debe tener attackRange > 1 por definición.
-
-    // CASO 3: Un barco ataca a otro barco.
-    // Se permite, ya que ambos son navales y se asume que pueden interactuar.
+    // --- Comprobación Final de Rango ---
+    const canAttack = distance <= range;
     
-    // <<== FIN DE LA LÓGICA DE RESTRICCIÓN ==>>
+    // Log detallado que nos dirá la verdad
+    console.log(`[Chequeo de Ataque]: ${attackerName} ${attackerPosition} vs ${defenderName} ${defenderPosition}. Distancia: ${distance}, Rango de Ataque: ${range}. ¿Válido?: ${canAttack}`);
     
-    // Comprobación final de distancia vs rango
-    const distance = hexDistance(attacker.r, attacker.c, defender.r, defender.c);
-    if (distance === Infinity) return false; // Inalcanzable
-
-    const range = attacker.attackRange || 1;
-    return distance <= range;
+    if (!canAttack) {
+        // logMessage(`${attackerName} está fuera de rango para atacar a ${defenderName}.`);
+    }
+    
+    return canAttack;
 }
 
 /**
