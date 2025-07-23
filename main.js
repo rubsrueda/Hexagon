@@ -904,32 +904,24 @@ function processActionRequest(action) {
     }
 }
 
-/**
- * [TODOS LOS JUGADORES] Ejecuta una ACCIÓN CONFIRMADA que el anfitrión ha retransmitido.
- * Esto actualiza el estado local de todos para que coincida con el del anfitrión.
- * No se necesita validación aquí, ya que se confía en la decisión del anfitrión.
- * @param {object} action - El objeto de acción retransmitido por el anfitrión.
- */
 function executeConfirmedAction(action) {
-    console.log("[Red - Sincronizando] Ejecutando acción confirmada por el anfitrión:", action.type);
-    const payload = action.payload;
-
-    // Detener la simulación de la IA del cliente si el anfitrión va a ejecutar el turno de la IA
-    const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
-    if (!isMyTurn && gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_')) {
-        console.log("[Red - Cliente] Es el turno de una IA, deteniendo cualquier simulación local y esperando broadcast del anfitrión.");
+    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
+         if (UIManager) UIManager.updateAllUIDisplays();
+         return;
     }
     
+    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por el anfitrión: ${action.type}`);
+    const payload = action.payload;
+    
     switch (action.type) {
-        // --- ACCIONES DE TURNO Y GESTIÓN ---
-        case 'syncGameState': // Se recibe tras un endTurn
-            Object.assign(gameState, action.payload.newGameState);
+        case 'syncGameState':
+            const miNumero = gameState.myPlayerNumber; 
+            Object.assign(gameState, payload.newGameState);
+            gameState.myPlayerNumber = miNumero; 
+            
             resetUnitsForNewTurn(gameState.currentPlayer);
             logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-            UIManager.updateAllUIDisplays();
-            if (gameState.currentPlayer === gameState.myPlayerNumber) {
-                domElements.floatingEndTurnBtn.disabled = false;
-            }
+            if (UIManager) UIManager.updateTurnIndicatorAndBlocker();
             break;
 
         case 'researchTech':
@@ -1075,31 +1067,36 @@ function executeConfirmedAction(action) {
     }
 }
 
-/**
- * [SOLO CLIENTE] Construye todo el estado visual y lógico del juego a partir 
- * de los datos recibidos del anfitrión.
- * @param {object} datos - El payload del paquete 'initialGameSetup'.
- */
 function reconstruirJuegoDesdeDatos(datos) {
     console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
 
     try {
+        // --- ¡SOLUCIÓN DE IDENTIDAD! ---
+        // 1. ANTES de sobrescribir nada, guardamos nuestra identidad local.
+        const miIdentidadLocal = gameState.myPlayerNumber;
+        // --- FIN DE LA SOLUCIÓN (PARTE 1) ---
+
         // Limpiar el estado local antes de cargar el nuevo
         if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
         board = [];
         units = [];
 
         // Cargar estado del juego, tablero, unidades y contador
-        Object.assign(gameState, datos.gameState);
+        Object.assign(gameState, datos.gameState); // <-- Aquí ocurre la sobrescritura
         const boardData = datos.board;
         const unitsData = datos.units;
         unitIdCounter = datos.unitIdCounter;
+        
+        // --- ¡SOLUCIÓN DE IDENTIDAD! ---
+        // 2. DESPUÉS de sobrescribir, restauramos nuestra identidad correcta.
+        gameState.myPlayerNumber = miIdentidadLocal;
+        // --- FIN DE LA SOLUCIÓN (PARTE 2) ---
+
 
         // Reconstruir el tablero (board y elementos DOM)
         const boardSize = { rows: boardData.length, cols: boardData[0].length };
         domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
         domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
-
         board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
 
         for (let r = 0; r < boardSize.rows; r++) {
@@ -1133,9 +1130,11 @@ function reconstruirJuegoDesdeDatos(datos) {
             }
         });
 
-        // Renderizar todo y actualizar la UI
+        // Renderizar todo y actualizar la UI, incluyendo el indicador de turno
         renderFullBoardVisualState();
         UIManager.updateAllUIDisplays();
+        UIManager.updateTurnIndicatorAndBlocker(); // Asegura el estado inicial correcto
+
         logMessage("¡Sincronización completada! La partida está lista.");
 
     } catch (error) {
