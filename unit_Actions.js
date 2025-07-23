@@ -586,69 +586,46 @@ function cancelPreparingAction() {
 }
 
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
-    if (!selectedUnit) {
-        return false;
-    }
+    if (!selectedUnit) return false;
 
-    // --- MANEJO DE ACCIONES PREPARADAS (COMO DIVIDIR) ---
-    // Si ya estábamos en medio de una acción de dos pasos, esto la gestiona.
+    // MANEJO DE ACCIÓN PREPARADA (como dividir)
     if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
-        let actionSuccessful = false;
+        let success = false;
         if (gameState.preparingAction.type === 'split_unit') {
-            // Intenta completar la división. splitUnit devolverá true si es válido.
-            if (splitUnit(selectedUnit, r_target, c_target)) {
-                actionSuccessful = true;
-            }
+            if (splitUnit(selectedUnit, r_target, c_target)) success = true;
         }
-        // Después de intentar la acción, sea exitosa o no, la cancelamos.
         cancelPreparingAction();
-        return actionSuccessful;
+        return success;
     }
 
-    // --- LÓGICA PARA UN CLIC DIRECTO (CUANDO NO HAY ACCIÓN PREPARADA) ---
-
-    // CASO 1: Se hizo clic sobre una unidad.
+    // MANEJO DE CLIC DIRECTO
+    
+    // CASO 1: Clic sobre una unidad
     if (clickedUnitOnTargetHex) {
-        // Subcaso 1.1: Es una unidad ENEMIGA.
+        // Clic en ENEMIGO -> Iniciar ATAQUE
         if (clickedUnitOnTargetHex.player !== selectedUnit.player) {
-            console.log(`[handleAction] Intento de acción sobre enemigo: ${clickedUnitOnTargetHex.name}`);
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
-                console.log("[handleAction] El ataque es válido. Llamando a RequestAttackUnit...");
                 RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-                return true; // ¡ACCIÓN INICIADA! Informamos a onHexClick para que se detenga.
-            } else {
-                logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
-                return false; // El ataque no es válido, permite que onHexClick siga.
+                return true; // <-- Devuelve TRUE para detener onHexClick
             }
         }
-        // Subcaso 1.2: Es una unidad AMIGA.
+        // Clic en ALIADO -> Iniciar FUSIÓN
         else {
-            // Si es la misma unidad, no es una acción.
-            if (clickedUnitOnTargetHex.id === selectedUnit.id) return false;
-            
-            console.log(`[handleAction] Intento de acción sobre aliado: ${clickedUnitOnTargetHex.name}`);
-            if (isValidMove(selectedUnit, r_target, c_target, true)) {
-                console.log("[handleAction] La fusión es válida. Llamando a RequestMergeUnits...");
+            if (clickedUnitOnTargetHex.id !== selectedUnit.id && isValidMove(selectedUnit, r_target, c_target, true)) {
                 RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                return true; // ¡ACCIÓN INICIADA!
-            } else {
-                logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`);
-                return false;
+                return true; // <-- Devuelve TRUE para detener onHexClick
             }
         }
     }
-    // CASO 2: Se hizo clic sobre una casilla VACÍA.
+    // CASO 2: Clic en casilla VACÍA -> Iniciar MOVIMIENTO
     else {
-        console.log(`[handleAction] Intento de acción sobre casilla vacía: (${r_target},${c_target})`);
         if (isValidMove(selectedUnit, r_target, c_target, false)) {
-            console.log("[handleAction] El movimiento es válido. Llamando a RequestMoveUnit...");
             RequestMoveUnit(selectedUnit, r_target, c_target);
-            return true; // ¡ACCIÓN INICIADA!
+            return true; // <-- Devuelve TRUE para detener onHexClick
         }
     }
 
-    // Si ninguna de las condiciones anteriores se cumplió, no se hizo ninguna acción válida.
-    console.log("[handleAction] Ninguna acción válida fue iniciada.");
+    // Si no se inició ninguna acción, devuelve FALSE.
     return false;
 }
 
