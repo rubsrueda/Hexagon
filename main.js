@@ -876,7 +876,7 @@ function executeConfirmedAction(action) {
 
         case 'moveUnit': 
             const unitToMove = units.find(u => u.id === payload.unitId); 
-            if (unitToMove) _executeMoveUnit(unitToMove, payload.toR, payload.toC);
+            if (unitToMove) MoveUnit(unitToMove, payload.toR, payload.toC);
             break;
 
         case 'attackUnit': 
