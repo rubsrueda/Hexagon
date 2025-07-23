@@ -2,18 +2,22 @@
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
-
+    // --- GUARDIÁN DE TURNO LÓGICO ---
+    // Este bloque es el primero que se ejecuta. Si es una partida en red
+    // y no es tu turno, muestra un mensaje y detiene toda la función.
+    // Esto impide que el jugador inactivo pueda realizar CUALQUIER acción.
     if (isNetworkGame() && gameState.currentPlayer !== gameState.myPlayerNumber) {
         console.log(`[Acción Bloqueada] Clic ignorado. Turno actual: ${gameState.currentPlayer}, Yo soy: ${gameState.myPlayerNumber}`);
         UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}`, 1500, true);
         return;
     }
-    
-    // --- ESTA ES LA CORRECCIÓN MÁS IMPORTANTE ---
-    // El "Guardia de Seguridad" que comprueba el modo de colocación ANTES que nada.
+    // --- FIN DEL GUARDIÁN ---
+
+    // --- MANEJO DEL MODO DE COLOCACIÓN ---
+    // Si el guardián anterior permitió pasar, lo siguiente más importante es
+    // comprobar si estás en modo "colocar unidad". Si es así, toda la lógica
+    // se delega a la función correspondiente y se detiene aquí.
     if (placementMode.active) {
-        // Si estamos en modo colocación, delegamos toda la lógica a esta función
-        // y nos detenemos inmediatamente con 'return'.
         if (typeof handlePlacementModeClick === "function") {
             handlePlacementModeClick(r, c);
         } else {
@@ -21,36 +25,53 @@ function onHexClick(r, c) {
         }
         return; 
     }
-    // --- FIN DE LA CORRECCIÓN ---
-
-    // El resto de verificaciones (paneo, fin de partida) se mantienen.
+    
+    // --- VERIFICACIONES GENERALES DEL JUEGO ---
+    // Se comprueba si el juego está en una condición que no permite clics,
+    // como justo después de mover el mapa, si no hay estado de juego o si la partida ha terminado.
     if (gameState?.justPanned || !gameState || gameState.currentPhase === "gameOver") {
         if (gameState) gameState.justPanned = false;
         return;
     }
     
+    // Obtenemos los datos del hexágono en el que se hizo clic.
     const hexDataClicked = board[r]?.[c];
     if (!hexDataClicked) return;
     
+    // Obtenemos la unidad que pueda estar en ese hexágono.
     const clickedUnit = getUnitOnHex(r, c);
 
-    // El resto del código que maneja la selección y acciones normales, que ya habíamos arreglado, se mantiene.
+    // --- LÓGICA DE SELECCIÓN Y ACCIÓN ---
+    // Este es el corazón de la interacción del jugador durante su turno.
+
+    // CASO 1: YA tienes una unidad seleccionada (selectedUnit existe).
     if (selectedUnit) {
+        // Se intenta realizar una acción con la unidad seleccionada en el hexágono objetivo.
         const actionTaken = handleActionWithSelectedUnit(r, c, clickedUnit);
+        
+        // Si no se realizó ninguna acción (por ejemplo, hiciste clic en una casilla vacía
+        // a la que no te puedes mover), se deselecciona la unidad actual
+        // y se procede a seleccionar lo que haya en la nueva casilla.
         if (!actionTaken) {
             deselectUnit();
             if (clickedUnit) {
+                // Si hay una unidad en la nueva casilla, la seleccionas.
                 selectUnit(clickedUnit);
                 UIManager.showUnitContextualInfo(clickedUnit, clickedUnit.player === gameState.currentPlayer);
             } else {
+                // Si no hay unidad, muestras la información del hexágono.
                 UIManager.showHexContextualInfo(r, c, hexDataClicked);
             }
         }
-    } else { 
+    } 
+    // CASO 2: NO tienes ninguna unidad seleccionada.
+    else { 
         if (clickedUnit) {
+            // Si hay una unidad en la casilla, la seleccionas.
             selectUnit(clickedUnit);
             UIManager.showUnitContextualInfo(clickedUnit, clickedUnit.player === gameState.currentPlayer);
         } else {
+            // Si no hay unidad, simplemente muestras la información del hexágono.
             UIManager.showHexContextualInfo(r, c, hexDataClicked);
         }
     }
@@ -745,23 +766,181 @@ function initApp() {
     console.log("main.js: initApp() FINALIZADO.");
 }
 
+function isNetworkGame() {
+    return NetworkManager.conn && NetworkManager.conn.open;
+}
+
+function reconstruirJuegoDesdeDatos(datos) {
+    console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
+    try {
+        // --- ¡SOLUCIÓN DE IDENTIDAD! (Paso A) ---
+        // 1. ANTES de sobrescribir, guardamos nuestra identidad local, que es la correcta.
+        const miIdentidadLocal = gameState.myPlayerNumber;
+
+        // Limpiar el estado local
+        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
+        board = [];
+        units = [];
+
+        // 2. Sincronizamos el estado. ESTO SOBREESCRIBE myPlayerNumber TEMPORALMENTE.
+        Object.assign(gameState, datos.gameState);
+        const boardData = datos.board;
+        const unitsData = datos.units;
+        unitIdCounter = datos.unitIdCounter;
+        
+        // 3. DESPUÉS de sobrescribir, restauramos nuestra verdadera identidad.
+        gameState.myPlayerNumber = miIdentidadLocal;
+        // --- FIN DE LA SOLUCIÓN (Paso A) ---
+
+        // Reconstrucción del tablero (tu código original intacto)
+        const boardSize = { rows: boardData.length, cols: boardData[0].length };
+        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
+        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
+        for (let r = 0; r < boardSize.rows; r++) {
+            for (let c = 0; c < boardSize.cols; c++) {
+                const hexElement = createHexDOMElementWithListener(r, c);
+                domElements.gameBoard.appendChild(hexElement);
+                board[r][c] = { ...boardData[r][c], element: hexElement, unit: null };
+            }
+        }
+        unitsData.forEach(unitData => {
+            const unitElement = document.createElement('div');
+            unitElement.classList.add('unit', `player${unitData.player}`);
+            unitElement.textContent = unitData.sprite;
+            unitElement.dataset.id = unitData.id;
+            const strengthDisplay = document.createElement('div');
+            strengthDisplay.classList.add('unit-strength');
+            unitElement.appendChild(strengthDisplay);
+            domElements.gameBoard.appendChild(unitElement);
+            unitData.element = unitElement;
+            units.push(unitData);
+            if (unitData.r !== -1 && board[unitData.r]?.[unitData.c]) {
+                board[unitData.r][unitData.c].unit = unitData;
+            }
+        });
+
+        // Renderizar y llamar a la función de bloqueo, que ahora funcionará correctamente.
+        renderFullBoardVisualState();
+        UIManager.updateAllUIDisplays();
+        UIManager.updateTurnIndicatorAndBlocker();
+
+        logMessage("¡Sincronización completada! La partida está lista.");
+
+    } catch (error) {
+        console.error("Error crítico al reconstruir el juego en el cliente:", error);
+        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
+    }
+}
+
+function executeConfirmedAction(action) {
+    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
+         if (UIManager) UIManager.updateAllUIDisplays();
+         return;
+    }
+    
+    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida: ${action.type}`);
+    const payload = action.payload;
+    
+    switch (action.type) {
+        case 'syncGameState':
+            // Aplicamos la misma "vacuna" de identidad aquí
+            const miNumero = gameState.myPlayerNumber; 
+            Object.assign(gameState, payload.newGameState);
+            gameState.myPlayerNumber = miNumero; 
+            
+            resetUnitsForNewTurn(gameState.currentPlayer);
+            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+            if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); // <-- Ahora sí funcionará
+            break;
+        
+        // El resto de tu función original se mantiene intacta, con todos los 'case'
+        case 'researchTech': attemptToResearch(payload.techId); break;
+        case 'moveUnit': const u_m = units.find(u => u.id === payload.unitId); if(u_m) moveUnit(u_m, payload.toR, payload.toC); break;
+        case 'attackUnit': const att = units.find(u=>u.id===payload.attackerId); const def = units.find(u=>u.id===payload.defenderId); if(att && def) attackUnit(att, def); break;
+        case 'mergeUnits': const m_u = units.find(u=>u.id===payload.mergingUnitId); const t_u = units.find(u=>u.id===payload.targetUnitId); if(m_u && t_u) mergeUnits(m_u, t_u); break;
+        case 'splitUnit': const o_u = units.find(u=>u.id===payload.originalUnitId); gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; if(o_u) splitUnit(o_u, payload.targetR, payload.targetC); gameState.preparingAction = null; break;
+        case 'pillageHex': const p_u = units.find(u=>u.id===payload.unitId); if(p_u) { selectedUnit = p_u; handlePillageAction(); selectedUnit = null; } break;
+        case 'disbandUnit': const d_u = units.find(u=>u.id===payload.unitId); if(d_u) handleDisbandUnit(d_u); break;
+        case 'placeUnit': placeFinalizedDivision(payload.unitData, payload.r, payload.c); break;
+        case 'buildStructure': handleConfirmBuildStructure(payload); break;
+        case 'reinforceRegiment': const div_r = units.find(u=>u.id===payload.divisionId); const reg_r = div_r?.regiments.find(r=>r.id===payload.regimentId); if(div_r && reg_r) handleReinforceRegiment(div_r, reg_r); break;
+    }
+    
+    // Al final, SIEMPRE actualizamos toda la UI.
+    if (UIManager && action.type !== 'syncGameState') {
+        UIManager.updateAllUIDisplays();
+    }
+}
+
+function iniciarPartidaLAN(settings) {
+    console.log("Iniciando partida LAN con la configuración:", settings);
+    
+    if (typeof resetGameStateVariables === "function") resetGameStateVariables();
+
+    gameState.playerTypes = settings.playerTypes;
+    gameState.playerCivilizations = settings.playerCivilizations;
+    gameState.deploymentUnitLimit = settings.deploymentUnitLimit;
+    gameState.isCampaignBattle = false;
+    gameState.currentScenarioData = null;
+    gameState.currentMapData = null;
+
+    showScreen(domElements.gameContainer);
+    gameState.currentPhase = "deployment"; 
+    gameState.myPlayerNumber = NetworkManager.esAnfitrion ? 1 : 2;
+
+    console.log(`[iniciarPartidaLAN] Lógica de red iniciada. Soy Jugador: ${gameState.myPlayerNumber}`);
+
+    if (NetworkManager.esAnfitrion) {
+        console.log("[iniciarPartidaLAN - Anfitrión] Generando el mapa y estado inicial...");
+        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
+        
+        // --- ¡SOLUCIÓN DE IDENTIDAD! ---
+        // Creamos una copia del gameState para enviarla, y de esa copia eliminamos la identidad del anfitrión.
+        const gameStateCopyForBroadcast = JSON.parse(JSON.stringify(gameState));
+        delete gameStateCopyForBroadcast.myPlayerNumber; // ¡El cliente no debe saber quién es el anfitrión!
+        // --- FIN SOLUCIÓN ---
+        
+        const replacer = (key, value) => (key === 'element' ? undefined : value);
+        const initialGameSetupPacket = {
+            type: 'initialGameSetup',
+            payload: {
+                board: JSON.parse(JSON.stringify(board, replacer)),
+                gameState: JSON.parse(JSON.stringify(gameStateCopyForBroadcast, replacer)),
+                units: JSON.parse(JSON.stringify(units, replacer)),
+                unitIdCounter: unitIdCounter,
+                settings: settings
+            }
+        };
+
+        NetworkManager.enviarDatos(initialGameSetupPacket);
+        
+        UIManager.updateAllUIDisplays();
+        if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); 
+        logMessage(`¡Partida iniciada! Eres el Anfitrión (Jugador 1).`);
+
+    } else {
+        logMessage("Esperando datos del anfitrión para sincronizar la partida...");
+    }
+}
+
 function processActionRequest(action) {
     let payload = action.payload;
     let actionExecuted = false;
-    let suppressBroadcast = false; // Bandera para acciones que manejan su propio broadcast.
+    let suppressBroadcast = false;
 
     switch (action.type) {
+        // --- LÓGICA DE FIN DE TURNO COMPLETA Y CENTRALIZADA ---
         case 'endTurn':
-            // Validación: Solo el jugador del turno actual puede finalizarlo.
             if (payload.playerId !== gameState.currentPlayer) {
                 console.warn(`[Red - Anfitrión] RECHAZADO: Fin de turno de J${payload.playerId} pero el turno era de J${gameState.currentPlayer}.`);
-                return; // Detiene la acción.
+                return;
             }
 
             console.log(`[Red - Anfitrión] Procesando fin de turno para J${payload.playerId}...`);
             const playerEndingTurn = gameState.currentPlayer;
             
-            // --- INICIO: LÓGICA DE JUEGO COMPLETA PARA EL FIN DE TURNO (EJECUTADA POR EL ANFITRIÓN) ---
+            // --- INICIO DE LA LÓGICA DE JUEGO DEL FIN DE TURNO (DE TU FUNCIÓN handleEndTurn) ---
             if (gameState.currentPhase === "deployment") {
                 if (gameState.currentPlayer === 1) {
                     gameState.currentPlayer = 2;
@@ -791,12 +970,23 @@ function processActionRequest(action) {
                 const player = gameState.currentPlayer;
                 const playerRes = gameState.playerResources[player];
                 if(playerRes) {
-                    // Lógica de comida y atrición se mantiene intacta
                     let foodProducedThisTurn = 0, foodActuallyConsumed = 0, unitsSufferingAttrition = 0, unitsDestroyedByAttrition = [];
-                    // (Aquí estaba tu código completo, que se asume que existe en las funciones llamadas arriba)
+                     units.filter(u => u.player === player && u.currentHealth > 0).forEach(unit => {
+                        let unitConsumption = 0;
+                        (unit.regiments || []).forEach(reg => { unitConsumption += REGIMENT_TYPES[reg.type]?.foodConsumption || 0; });
+                        if (isHexSupplied(unit.r, unit.c, player) && playerRes.comida >= unitConsumption) {
+                            playerRes.comida -= unitConsumption;
+                            foodActuallyConsumed += unitConsumption;
+                        } else {
+                            unit.currentHealth -= (ATTRITION_DAMAGE_PER_TURN || 1);
+                            unitsSufferingAttrition++;
+                            if (unit.currentHealth <= 0) unitsDestroyedByAttrition.push(unit.id);
+                        }
+                    });
+                    unitsDestroyedByAttrition.forEach(unitId => { const unit = units.find(u => u.id === unitId); if (unit && handleUnitDestroyed) handleUnitDestroyed(unit, null); });
                 }
             }
-            // --- FIN: LÓGICA DE JUEGO ---
+            // --- FIN DE LA LÓGICA DE JUEGO ---
             
             console.log(`[Red - Anfitrión] Retransmitiendo nuevo estado: Turno de J${gameState.currentPlayer}`);
             const replacer = (key, value) => (key === 'element' ? undefined : value);
@@ -811,11 +1001,11 @@ function processActionRequest(action) {
             actionExecuted = true;
             break;
             
-        // --- El resto de tus acciones originales se mantienen intactas ---
+        // --- El resto de tu función original, ahora sí, completa e intacta ---
         case 'researchTech':
             const tech = TECHNOLOGY_TREE_DATA[payload.techId];
-            const playerResTech = gameState.playerResources[payload.playerId];
-            if (tech && playerResTech && (playerResTech.researchPoints || 0) >= (tech.cost.researchPoints || 0) && hasPrerequisites(playerResTech.researchedTechnologies, payload.techId)) {
+            const playerRes = gameState.playerResources[payload.playerId];
+            if (tech && playerRes && (playerRes.researchPoints || 0) >= (tech.cost.researchPoints || 0) && hasPrerequisites(playerRes.researchedTechnologies, payload.techId)) {
                 attemptToResearch(payload.techId);
                 actionExecuted = true;
             }
@@ -909,162 +1099,6 @@ function processActionRequest(action) {
         const actionToBroadcast = { type: action.type, payload: cleanPayload };
         NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
     }
-}
-
-function iniciarPartidaLAN(settings) {
-    console.log("Iniciando partida LAN con la configuración:", settings);
-    
-    if (typeof resetGameStateVariables === "function") resetGameStateVariables();
-
-    gameState.playerTypes = settings.playerTypes;
-    gameState.playerCivilizations = settings.playerCivilizations;
-    gameState.deploymentUnitLimit = settings.deploymentUnitLimit;
-    gameState.isCampaignBattle = false;
-    gameState.currentScenarioData = null;
-    gameState.currentMapData = null;
-
-    showScreen(domElements.gameContainer);
-    gameState.currentPhase = "deployment"; 
-    gameState.myPlayerNumber = NetworkManager.esAnfitrion ? 1 : 2;
-
-    console.log(`[iniciarPartidaLAN] Lógica de red iniciada. Soy Jugador: ${gameState.myPlayerNumber}`);
-
-    if (NetworkManager.esAnfitrion) {
-        console.log("[iniciarPartidaLAN - Anfitrión] Generando el mapa y estado inicial...");
-        initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
-        
-        const replacer = (key, value) => (key === 'element' ? undefined : value);
-        const initialGameSetupPacket = {
-            type: 'initialGameSetup',
-            payload: {
-                board: JSON.parse(JSON.stringify(board, replacer)),
-                gameState: JSON.parse(JSON.stringify(gameState, replacer)),
-                units: JSON.parse(JSON.stringify(units, replacer)),
-                unitIdCounter: unitIdCounter,
-                settings: settings
-            }
-        };
-
-        console.log("[iniciarPartidaLAN - Anfitrión] Paquete de configuración inicial listo para enviar.");
-        NetworkManager.enviarDatos(initialGameSetupPacket);
-        
-        UIManager.updateAllUIDisplays();
-        // --> AÑADIDO: El anfitrión actualiza su UI de turno al iniciar
-        if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); 
-        logMessage(`¡Partida iniciada! Eres el Anfitrión (Jugador 1). Esperando despliegue...`);
-    } else {
-        console.log("[iniciarPartidaLAN - Cliente] Esperando a que el anfitrión envíe el estado del juego...");
-        logMessage("Esperando datos del anfitrión para sincronizar la partida...");
-    }
-}
-
-function reconstruirJuegoDesdeDatos(datos) {
-    console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
-
-    try {
-        // --- ¡SOLUCIÓN DE IDENTIDAD! (Paso A) ---
-        // 1. ANTES de sobrescribir nada, guardamos nuestra identidad local.
-        const miIdentidadLocal = gameState.myPlayerNumber;
-        
-        // Limpiar el estado local antes de cargar el nuevo
-        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
-        board = [];
-        units = [];
-
-        // 2. Sincronizamos estado, tablero, unidades y contador
-        Object.assign(gameState, datos.gameState);
-        const boardData = datos.board;
-        const unitsData = datos.units;
-        unitIdCounter = datos.unitIdCounter;
-        
-        // 3. DESPUÉS de sobrescribir, restauramos nuestra identidad correcta.
-        gameState.myPlayerNumber = miIdentidadLocal;
-        // --- FIN DE LA SOLUCIÓN (Paso A) ---
-
-        // Reconstrucción del tablero (tu código original intacto)
-        const boardSize = { rows: boardData.length, cols: boardData[0].length };
-        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
-        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
-        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
-        for (let r = 0; r < boardSize.rows; r++) {
-            for (let c = 0; c < boardSize.cols; c++) {
-                const hexElement = createHexDOMElementWithListener(r, c);
-                domElements.gameBoard.appendChild(hexElement);
-                board[r][c] = { ...boardData[r][c], element: hexElement, unit: null };
-            }
-        }
-        unitsData.forEach(unitData => {
-            const unitElement = document.createElement('div');
-            unitElement.classList.add('unit', `player${unitData.player}`);
-            unitElement.textContent = unitData.sprite;
-            unitElement.dataset.id = unitData.id;
-            const strengthDisplay = document.createElement('div');
-            strengthDisplay.classList.add('unit-strength');
-            unitElement.appendChild(strengthDisplay);
-            domElements.gameBoard.appendChild(unitElement);
-            unitData.element = unitElement;
-            units.push(unitData);
-            if (unitData.r !== -1 && board[unitData.r]?.[unitData.c]) {
-                board[unitData.r][unitData.c].unit = unitData;
-            }
-        });
-
-        // Renderizar y llamar a la función de bloqueo
-        renderFullBoardVisualState();
-        UIManager.updateAllUIDisplays();
-        UIManager.updateTurnIndicatorAndBlocker(); // <-- Paso B: Activa el bloqueo inicial
-
-        logMessage("¡Sincronización completada! La partida está lista.");
-
-    } catch (error) {
-        console.error("Error crítico al reconstruir el juego en el cliente:", error);
-        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
-    }
-}
-
-function executeConfirmedAction(action) {
-    // El anfitrión no necesita volver a ejecutar sus propias acciones (excepto sync)
-    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
-         if (UIManager) UIManager.updateAllUIDisplays();
-         return;
-    }
-    
-    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por anfitrión: ${action.type}`);
-    const payload = action.payload;
-    
-    switch (action.type) {
-        case 'syncGameState':
-            // Aplicamos la misma solución de identidad aquí para los cambios de turno
-            const miNumero = gameState.myPlayerNumber; 
-            Object.assign(gameState, payload.newGameState);
-            gameState.myPlayerNumber = miNumero; 
-            
-            resetUnitsForNewTurn(gameState.currentPlayer);
-            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-            if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); // <-- Paso B: Activa el bloqueo en cada cambio de turno
-            break;
-            
-        // El resto de tu función original se mantiene intacta
-        case 'researchTech': attemptToResearch(payload.techId); break;
-        case 'moveUnit': const u_m = units.find(u => u.id === payload.unitId); if(u_m) moveUnit(u_m, payload.toR, payload.toC); break;
-        case 'attackUnit': const att = units.find(u=>u.id===payload.attackerId); const def = units.find(u=>u.id===payload.defenderId); if(att && def) attackUnit(att, def); break;
-        case 'mergeUnits': const m_u = units.find(u=>u.id===payload.mergingUnitId); const t_u = units.find(u=>u.id===payload.targetUnitId); if(m_u && t_u) mergeUnits(m_u, t_u); break;
-        case 'splitUnit': const o_u = units.find(u=>u.id===payload.originalUnitId); gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; if(o_u) splitUnit(o_u, payload.targetR, payload.targetC); gameState.preparingAction = null; break;
-        case 'pillageHex': const p_u = units.find(u=>u.id===payload.unitId); if(p_u) { selectedUnit = p_u; handlePillageAction(); selectedUnit = null; } break;
-        case 'disbandUnit': const d_u = units.find(u=>u.id===payload.unitId); if(d_u) handleDisbandUnit(d_u); break;
-        case 'placeUnit': placeFinalizedDivision(payload.unitData, payload.r, payload.c); break;
-        case 'buildStructure': handleConfirmBuildStructure(payload); break;
-        case 'reinforceRegiment': const div_r = units.find(u=>u.id===payload.divisionId); const reg_r = div_r?.regiments.find(r=>r.id===payload.regimentId); if(div_r && reg_r) handleReinforceRegiment(div_r, reg_r); break;
-    }
-    
-    // Al final de CUALQUIER acción, actualizamos toda la UI.
-    if (UIManager && action.type !== 'syncGameState') {
-        UIManager.updateAllUIDisplays();
-    }
-}
-
-function isNetworkGame() {
-    return NetworkManager.conn && NetworkManager.conn.open;
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
