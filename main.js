@@ -2,6 +2,13 @@
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
+
+    if (isNetworkGame() && gameState.currentPlayer !== gameState.myPlayerNumber) {
+        console.log(`[Acción Bloqueada] Clic ignorado. Turno actual: ${gameState.currentPlayer}, Yo soy: ${gameState.myPlayerNumber}`);
+        UIManager.showMessageTemporarily(`Es el turno del Jugador ${gameState.currentPlayer}`, 1500, true);
+        return;
+    }
+    
     // --- ESTA ES LA CORRECCIÓN MÁS IMPORTANTE ---
     // El "Guardia de Seguridad" que comprueba el modo de colocación ANTES que nada.
     if (placementMode.active) {
@@ -904,245 +911,6 @@ function processActionRequest(action) {
     }
 }
 
-function executeConfirmedAction(action) {
-    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
-         if (UIManager) UIManager.updateAllUIDisplays();
-         return;
-    }
-    
-    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por el anfitrión: ${action.type}`);
-    const payload = action.payload;
-    
-    switch (action.type) {
-        case 'syncGameState':
-            const miNumero = gameState.myPlayerNumber; 
-            Object.assign(gameState, payload.newGameState);
-            gameState.myPlayerNumber = miNumero; 
-            
-            resetUnitsForNewTurn(gameState.currentPlayer);
-            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-            if (UIManager) UIManager.updateTurnIndicatorAndBlocker();
-            break;
-
-        case 'researchTech':
-            attemptToResearch(payload.techId);
-            break;
-
-        // --- ACCIONES DE UNIDAD EN EL MAPA ---
-        case 'moveUnit':
-            const unitToMove = units.find(u => u.id === payload.unitId);
-            if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC);
-            break;
-
-        case 'attackUnit':
-            const attacker = units.find(u => u.id === payload.attackerId);
-            const defender = units.find(u => u.id === payload.defenderId);
-            if (attacker && defender) attackUnit(attacker, defender);
-            break;
-            
-        case 'mergeUnits':
-             const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
-             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
-             if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge);
-             break;
-            
-        case 'splitUnit':
-            const originalUnit = units.find(u => u.id === payload.originalUnitId);
-            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
-            if (originalUnit) splitUnit(originalUnit, payload.targetR, payload.targetC);
-            gameState.preparingAction = null;
-            break;
-        
-        case 'pillageHex':
-            // 'selectedUnit' necesita ser establecido temporalmente para que handlePillageAction funcione.
-            const pillager = units.find(u => u.id === payload.unitId);
-            if (pillager) {
-                selectedUnit = pillager;
-                handlePillageAction();
-                selectedUnit = null; // Limpiar después de la acción.
-            }
-            break;
-
-        case 'disbandUnit':
-             const unitToDisband = units.find(u => u.id === payload.unitId);
-             if (unitToDisband) handleDisbandUnit(unitToDisband);
-             break;
-
-        // --- ACCIONES DESDE MODALES ---
-        case 'placeUnit':
-            placeFinalizedDivision(payload.unitData, payload.r, payload.c);
-            break;
-            
-        case 'buildStructure':
-             handleConfirmBuildStructure(payload);
-             break;
-
-        case 'reinforceRegiment':
-             const divisionToReinforce = units.find(u => u.id === payload.divisionId);
-             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
-             if (divisionToReinforce && regimentToReinforce) handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
-             break;
-    }
-}
-
-function executeConfirmedAction(action) {
-    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
-         if (UIManager) UIManager.updateAllUIDisplays();
-         return;
-    }
-    
-    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por el anfitrión: ${action.type}`);
-    const payload = action.payload;
-    
-    switch (action.type) {
-        case 'syncGameState':
-            // --- ¡SOLUCIÓN CLAVE PARA EL BLOQUEO DE UI! ---
-            // 1. Guardamos nuestro número de jugador, que es local y único.
-            const miNumero = gameState.myPlayerNumber; 
-            
-            // 2. Sincronizamos el estado con los datos autoritarios del anfitrión.
-            Object.assign(gameState, payload.newGameState);
-            
-            // 3. Restauramos nuestro número de jugador, que se había borrado.
-            gameState.myPlayerNumber = miNumero; 
-            // --- FIN DE LA SOLUCIÓN ---
-            
-            resetUnitsForNewTurn(gameState.currentPlayer);
-            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-            if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); // ¡Ahora esta función tiene la info que necesita!
-            break;
-
-        // El resto de tu código original se mantiene intacto
-        case 'researchTech':
-            attemptToResearch(payload.techId);
-            break;
-        case 'moveUnit':
-            const unitToMove = units.find(u => u.id === payload.unitId);
-            if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC);
-            break;
-        case 'attackUnit':
-            const attacker = units.find(u => u.id === payload.attackerId);
-            const defender = units.find(u => u.id === payload.defenderId);
-            if (attacker && defender) attackUnit(attacker, defender);
-            break;
-        case 'mergeUnits':
-             const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
-             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
-             if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge);
-             break;
-        case 'splitUnit':
-            const originalUnit = units.find(u => u.id === payload.originalUnitId);
-            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
-            if (originalUnit) splitUnit(originalUnit, payload.targetR, payload.targetC);
-            gameState.preparingAction = null;
-            break;
-        case 'pillageHex':
-            const pillager = units.find(u => u.id === payload.unitId);
-            if (pillager) {
-                selectedUnit = pillager;
-                handlePillageAction();
-                selectedUnit = null;
-            }
-            break;
-        case 'disbandUnit':
-             const unitToDisband = units.find(u => u.id === payload.unitId);
-             if (unitToDisband) handleDisbandUnit(unitToDisband);
-             break;
-        case 'placeUnit':
-            placeFinalizedDivision(payload.unitData, payload.r, payload.c);
-            break;
-        case 'buildStructure':
-             handleConfirmBuildStructure(payload);
-             break;
-        case 'reinforceRegiment':
-             const divisionToReinforce = units.find(u => u.id === payload.divisionId);
-             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
-             if (divisionToReinforce && regimentToReinforce) handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
-             break;
-    }
-    
-    // Al final de CUALQUIER acción, actualizamos la UI para asegurar consistencia visual
-    if (UIManager) {
-        UIManager.updateAllUIDisplays();
-    }
-}
-
-function reconstruirJuegoDesdeDatos(datos) {
-    console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
-
-    try {
-        // --- ¡SOLUCIÓN DE IDENTIDAD! ---
-        // 1. ANTES de sobrescribir nada, guardamos nuestra identidad local.
-        const miIdentidadLocal = gameState.myPlayerNumber;
-        // --- FIN DE LA SOLUCIÓN (PARTE 1) ---
-
-        // Limpiar el estado local antes de cargar el nuevo
-        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
-        board = [];
-        units = [];
-
-        // Cargar estado del juego, tablero, unidades y contador
-        Object.assign(gameState, datos.gameState); // <-- Aquí ocurre la sobrescritura
-        const boardData = datos.board;
-        const unitsData = datos.units;
-        unitIdCounter = datos.unitIdCounter;
-        
-        // --- ¡SOLUCIÓN DE IDENTIDAD! ---
-        // 2. DESPUÉS de sobrescribir, restauramos nuestra identidad correcta.
-        gameState.myPlayerNumber = miIdentidadLocal;
-        // --- FIN DE LA SOLUCIÓN (PARTE 2) ---
-
-
-        // Reconstruir el tablero (board y elementos DOM)
-        const boardSize = { rows: boardData.length, cols: boardData[0].length };
-        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
-        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
-        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
-
-        for (let r = 0; r < boardSize.rows; r++) {
-            for (let c = 0; c < boardSize.cols; c++) {
-                const hexElement = createHexDOMElementWithListener(r, c);
-                domElements.gameBoard.appendChild(hexElement);
-                board[r][c] = {
-                    ...boardData[r][c],
-                    element: hexElement,
-                    unit: null
-                };
-            }
-        }
-
-        // Reconstruir las unidades (units y elementos DOM)
-        unitsData.forEach(unitData => {
-            const unitElement = document.createElement('div');
-            unitElement.classList.add('unit', `player${unitData.player}`);
-            unitElement.textContent = unitData.sprite;
-            unitElement.dataset.id = unitData.id;
-            const strengthDisplay = document.createElement('div');
-            strengthDisplay.classList.add('unit-strength');
-            unitElement.appendChild(strengthDisplay);
-            domElements.gameBoard.appendChild(unitElement);
-
-            unitData.element = unitElement;
-            units.push(unitData);
-
-            if (unitData.r !== -1 && board[unitData.r]?.[unitData.c]) {
-                board[unitData.r][unitData.c].unit = unitData;
-            }
-        });
-
-        // Renderizar todo y actualizar la UI, incluyendo el indicador de turno
-        renderFullBoardVisualState();
-        UIManager.updateAllUIDisplays();
-        UIManager.updateTurnIndicatorAndBlocker(); // Asegura el estado inicial correcto
-
-        logMessage("¡Sincronización completada! La partida está lista.");
-
-    } catch (error) {
-        console.error("Error crítico al reconstruir el juego en el cliente:", error);
-        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
-    }
-}
-
 function iniciarPartidaLAN(settings) {
     console.log("Iniciando partida LAN con la configuración:", settings);
     
@@ -1188,6 +956,115 @@ function iniciarPartidaLAN(settings) {
         console.log("[iniciarPartidaLAN - Cliente] Esperando a que el anfitrión envíe el estado del juego...");
         logMessage("Esperando datos del anfitrión para sincronizar la partida...");
     }
+}
+
+function reconstruirJuegoDesdeDatos(datos) {
+    console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
+
+    try {
+        // --- ¡SOLUCIÓN DE IDENTIDAD! (Paso A) ---
+        // 1. ANTES de sobrescribir nada, guardamos nuestra identidad local.
+        const miIdentidadLocal = gameState.myPlayerNumber;
+        
+        // Limpiar el estado local antes de cargar el nuevo
+        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
+        board = [];
+        units = [];
+
+        // 2. Sincronizamos estado, tablero, unidades y contador
+        Object.assign(gameState, datos.gameState);
+        const boardData = datos.board;
+        const unitsData = datos.units;
+        unitIdCounter = datos.unitIdCounter;
+        
+        // 3. DESPUÉS de sobrescribir, restauramos nuestra identidad correcta.
+        gameState.myPlayerNumber = miIdentidadLocal;
+        // --- FIN DE LA SOLUCIÓN (Paso A) ---
+
+        // Reconstrucción del tablero (tu código original intacto)
+        const boardSize = { rows: boardData.length, cols: boardData[0].length };
+        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
+        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
+        for (let r = 0; r < boardSize.rows; r++) {
+            for (let c = 0; c < boardSize.cols; c++) {
+                const hexElement = createHexDOMElementWithListener(r, c);
+                domElements.gameBoard.appendChild(hexElement);
+                board[r][c] = { ...boardData[r][c], element: hexElement, unit: null };
+            }
+        }
+        unitsData.forEach(unitData => {
+            const unitElement = document.createElement('div');
+            unitElement.classList.add('unit', `player${unitData.player}`);
+            unitElement.textContent = unitData.sprite;
+            unitElement.dataset.id = unitData.id;
+            const strengthDisplay = document.createElement('div');
+            strengthDisplay.classList.add('unit-strength');
+            unitElement.appendChild(strengthDisplay);
+            domElements.gameBoard.appendChild(unitElement);
+            unitData.element = unitElement;
+            units.push(unitData);
+            if (unitData.r !== -1 && board[unitData.r]?.[unitData.c]) {
+                board[unitData.r][unitData.c].unit = unitData;
+            }
+        });
+
+        // Renderizar y llamar a la función de bloqueo
+        renderFullBoardVisualState();
+        UIManager.updateAllUIDisplays();
+        UIManager.updateTurnIndicatorAndBlocker(); // <-- Paso B: Activa el bloqueo inicial
+
+        logMessage("¡Sincronización completada! La partida está lista.");
+
+    } catch (error) {
+        console.error("Error crítico al reconstruir el juego en el cliente:", error);
+        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
+    }
+}
+
+function executeConfirmedAction(action) {
+    // El anfitrión no necesita volver a ejecutar sus propias acciones (excepto sync)
+    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
+         if (UIManager) UIManager.updateAllUIDisplays();
+         return;
+    }
+    
+    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por anfitrión: ${action.type}`);
+    const payload = action.payload;
+    
+    switch (action.type) {
+        case 'syncGameState':
+            // Aplicamos la misma solución de identidad aquí para los cambios de turno
+            const miNumero = gameState.myPlayerNumber; 
+            Object.assign(gameState, payload.newGameState);
+            gameState.myPlayerNumber = miNumero; 
+            
+            resetUnitsForNewTurn(gameState.currentPlayer);
+            logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
+            if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); // <-- Paso B: Activa el bloqueo en cada cambio de turno
+            break;
+            
+        // El resto de tu función original se mantiene intacta
+        case 'researchTech': attemptToResearch(payload.techId); break;
+        case 'moveUnit': const u_m = units.find(u => u.id === payload.unitId); if(u_m) moveUnit(u_m, payload.toR, payload.toC); break;
+        case 'attackUnit': const att = units.find(u=>u.id===payload.attackerId); const def = units.find(u=>u.id===payload.defenderId); if(att && def) attackUnit(att, def); break;
+        case 'mergeUnits': const m_u = units.find(u=>u.id===payload.mergingUnitId); const t_u = units.find(u=>u.id===payload.targetUnitId); if(m_u && t_u) mergeUnits(m_u, t_u); break;
+        case 'splitUnit': const o_u = units.find(u=>u.id===payload.originalUnitId); gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; if(o_u) splitUnit(o_u, payload.targetR, payload.targetC); gameState.preparingAction = null; break;
+        case 'pillageHex': const p_u = units.find(u=>u.id===payload.unitId); if(p_u) { selectedUnit = p_u; handlePillageAction(); selectedUnit = null; } break;
+        case 'disbandUnit': const d_u = units.find(u=>u.id===payload.unitId); if(d_u) handleDisbandUnit(d_u); break;
+        case 'placeUnit': placeFinalizedDivision(payload.unitData, payload.r, payload.c); break;
+        case 'buildStructure': handleConfirmBuildStructure(payload); break;
+        case 'reinforceRegiment': const div_r = units.find(u=>u.id===payload.divisionId); const reg_r = div_r?.regiments.find(r=>r.id===payload.regimentId); if(div_r && reg_r) handleReinforceRegiment(div_r, reg_r); break;
+    }
+    
+    // Al final de CUALQUIER acción, actualizamos toda la UI.
+    if (UIManager && action.type !== 'syncGameState') {
+        UIManager.updateAllUIDisplays();
+    }
+}
+
+function isNetworkGame() {
+    return NetworkManager.conn && NetworkManager.conn.open;
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
