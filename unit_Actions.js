@@ -1927,7 +1927,7 @@ function handlePlacementModeClick(r, c) {
         }
     }
 
-    // --- A partir de aquí, integramos la lógica de red corregida ---
+    // --- A partir de aquí, integramos la lógica de red---
 
     if (canPlace) {
         const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
@@ -1945,7 +1945,8 @@ function handlePlacementModeClick(r, c) {
                     c: c
                 }
             };
-
+            console.log(`%c[VIAJE-2] Cliente ENVIANDO acción 'placeUnit'. El ID en unitData debería ser null.`, 'color: #FFA500; font-weight: bold;', action);
+            
             // Bifurcación clave: el Anfitrión se procesa a sí mismo, el Cliente envía una petición.
             if (NetworkManager.esAnfitrion) {
                 console.log("[Red - Anfitrión] Procesando acción local de colocación de unidad...");

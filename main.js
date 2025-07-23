@@ -1105,10 +1105,11 @@ function processActionRequest(action) {
                 actionExecuted = true;
              }
              break;
+
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
-                
+                console.log(`%c[VIAJE-4] Anfitrión PROCESANDO 'placeUnit'. Chequeando si id es null... ID Recibido:`, 'color: #DAA520; font-weight: bold;', payload.unitData.id);
                 if (payload.unitData.id === null) { // Solo si el ID no ha sido asignado
                     payload.unitData.id = `u${unitIdCounter++}`;
                     console.log(`[Red - Anfitrión] ID Asignado: ${payload.unitData.id} a la nueva unidad de J${payload.playerId}`);
