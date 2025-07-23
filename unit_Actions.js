@@ -2000,17 +2000,34 @@ function handlePlacementModeClick(r, c) {
 //== NUEVAS FUNCIONES DE RED (PARA AGREGAR EN unit_Actions.js) ==
 //==============================================================
 
+// Pequeña función de utilidad para no repetir código
+function isNetworkGame() {
+    return NetworkManager.conn && NetworkManager.conn.open;
+}
+
+// --- FUNCIONES DE ACCIÓN CON LÓGICA DE RED CORREGIDA ---
+
 async function RequestMoveUnit(unit, toR, toC) {
     if (isNetworkGame()) {
-        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: toR, toC: toC }}});
+        const action = { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: toR, toC: toC }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action); // Anfitrión se procesa a sí mismo
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action }); // Cliente envía petición
+        }
         return;
     }
-    await moveUnit(unit, toR, toC);
+    await moveUnit(unit, toR, toC); // Juego local
 }
 
 async function RequestAttackUnit(attacker, defender) {
     if (isNetworkGame()) {
-        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }}});
+        const action = { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
         return;
     }
     await attackUnit(attacker, defender);
@@ -2018,7 +2035,12 @@ async function RequestAttackUnit(attacker, defender) {
 
 function RequestMergeUnits(mergingUnit, targetUnit) {
     if (isNetworkGame()) {
-        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }}});
+        const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
         return;
     }
     mergeUnits(mergingUnit, targetUnit);
@@ -2027,7 +2049,12 @@ function RequestMergeUnits(mergingUnit, targetUnit) {
 function RequestSplitUnit(originalUnit, targetR, targetC) {
     const actionData = gameState.preparingAction;
     if (isNetworkGame()) {
-        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'splitUnit', payload: { playerId: originalUnit.player, originalUnitId: originalUnit.id, newUnitRegiments: actionData.newUnitRegiments, remainingOriginalRegiments: actionData.remainingOriginalRegiments, targetR: targetR, targetC: targetC }}});
+        const action = { type: 'splitUnit', payload: { playerId: originalUnit.player, originalUnitId: originalUnit.id, newUnitRegiments: actionData.newUnitRegiments, remainingOriginalRegiments: actionData.remainingOriginalRegiments, targetR: targetR, targetC: targetC }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
         cancelPreparingAction();
         return;
     }
@@ -2037,30 +2064,35 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
 function RequestPillageAction() {
     if (!selectedUnit) return;
     if (isNetworkGame()) {
-        NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }}});
+        const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
         return;
     }
-    handlePillageAction();
+    // Asumo que tienes una función handlePillageAction que se encarga de la lógica local
+    if (typeof handlePillageAction === "function") handlePillageAction();
 }
 
 function RequestDisbandUnit(unitToDisband) {
     if (!unitToDisband) return;
-    // La confirmación debe ocurrir ANTES de enviar la petición de red
-    const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"? ...`; // Mensaje completo
+    const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"?`;
     if (window.confirm(confirmationMessage)) {
         if (isNetworkGame()) {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }}});
-            // Cerramos el modal localmente para dar feedback inmediato
+            const action = { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
+             if (NetworkManager.esAnfitrion) {
+                processActionRequest(action);
+            } else {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            }
             if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
             UIManager.hideContextualPanel();
             return;
         }
-        handleDisbandUnit(unitToDisband);
+        // Asumo que tienes una función handleDisbandUnit para la lógica local
+        if (typeof handleDisbandUnit === "function") handleDisbandUnit(unitToDisband);
     }
-}
-
-// Pequeña función de utilidad para no repetir código
-function isNetworkGame() {
-    return NetworkManager.conn && NetworkManager.conn.open;
 }
 ;
