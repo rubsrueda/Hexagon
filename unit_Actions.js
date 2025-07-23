@@ -1982,11 +1982,6 @@ function handlePlacementModeClick(r, c) {
 //== NUEVAS FUNCIONES DE RED (PARA AGREGAR EN unit_Actions.js) ==
 //==============================================================
 
-// Pequeña función de utilidad para no repetir código
-function isNetworkGame() {
-    return NetworkManager.conn && NetworkManager.conn.open;
-}
-
 // --- FUNCIONES DE ACCIÓN CON LÓGICA DE RED CORREGIDA ---
 
 async function RequestMoveUnit(unit, toR, toC) {

@@ -228,3 +228,8 @@ function getAbbreviatedName(unitTypeName) {
     // Devuelve la abreviatura si existe, o el nombre original si no.
     return abbreviations[unitTypeName] || unitTypeName;
 }
+
+// Pequeña función de utilidad para no repetir código
+function isNetworkGame() {
+    return NetworkManager.conn && NetworkManager.conn.open;
+}

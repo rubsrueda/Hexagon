@@ -873,6 +873,7 @@ function executeConfirmedAction(action) {
         case 'researchTech': 
             attemptToResearch(payload.techId); 
             break;
+
         case 'moveUnit': 
             const unitToMove = units.find(u => u.id === payload.unitId); 
             if (unitToMove) _executeMoveUnit(unitToMove, payload.toR, payload.toC);
@@ -883,6 +884,7 @@ function executeConfirmedAction(action) {
             const defender = units.find(u => u.id === payload.defenderId); 
             if (attacker && defender) attackUnit(attacker, defender); 
             break;
+            
         case 'mergeUnits': 
             const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
@@ -1056,13 +1058,16 @@ function processActionRequest(action) {
                 actionExecuted = true;
             }
             break;
+
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
-                moveUnit(unitToMove, payload.toR, payload.toC);
+                // <<== CAMBIO CLAVE AQUÍ: Llamamos a la función de ejecución pura ==>>
+                _executeMoveUnit(unitToMove, payload.toR, payload.toC);
                 actionExecuted = true;
             }
             break;
+
         case 'attackUnit':
             const attacker = units.find(u => u.id === payload.attackerId);
             const defender = units.find(u => u.id === payload.defenderId);
