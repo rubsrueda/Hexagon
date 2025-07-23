@@ -2083,6 +2083,7 @@ function RequestDisbandUnit(unitToDisband) {
  * @private
  */
 async function _executeMoveUnit(unit, toR, toC) {
+    console.log(`%c[VIAJE-9] Cliente ejecutando _executeMoveUnit para ${unit.name} a (${toR},${toC}). El mapa debería actualizarse ahora.`, 'color: #32CD32; font-weight: bold;');
     const fromR = unit.r;
     const fromC = unit.c;
     const targetHexData = board[toR]?.[toC];

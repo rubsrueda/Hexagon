@@ -836,6 +836,8 @@ function reconstruirJuegoDesdeDatos(datos) {
 
 function executeConfirmedAction(action) {
     
+    console.log(`%c[VIAJE-7] Cliente ${gameState.myPlayerNumber} ha recibido un 'actionBroadcast' y está dentro de executeConfirmedAction. Acción: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
+
     if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber && action.type !== 'syncGameState') {
          if (UIManager) UIManager.updateAllUIDisplays();
          return;
@@ -875,8 +877,10 @@ function executeConfirmedAction(action) {
             break;
 
         case 'moveUnit': 
+
+            console.log(`%c[VIAJE-8] Cliente dentro del 'case moveUnit'. Intentando encontrar la unidad con ID: ${payload.unitId}`, 'color: #DAA520; font-weight: bold;');
             const unitToMove = units.find(u => u.id === payload.unitId); 
-            if (unitToMove) MoveUnit(unitToMove, payload.toR, payload.toC);
+            if (unitToMove) _executeMoveUnit(unitToMove, payload.toR, payload.toC);
             break;
 
         case 'attackUnit': 
