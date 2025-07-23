@@ -577,52 +577,60 @@ function prepareSplitOrDisembark(unit) {
 let _currentPreparingAction = null; 
 
 function cancelPreparingAction() {
-    _currentPreparingAction = null;
+    console.log("[Acción Cancelada] Limpiando estado 'preparingAction'.");
     gameState.preparingAction = null;
     if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) {
         UIManager.clearHighlights();
     }
-    if (typeof logMessage === "function") logMessage("Acción cancelada.");
+    // logMessage("Acción cancelada."); No es necesario un mensaje al jugador aquí.
 }
 
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
     if (!selectedUnit) return false;
 
-    // --- Manejo de Clic en una Unidad ---
+    // Si ya hay una acción de dos pasos preparada (como dividir), la manejamos aquí.
+    if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
+        if (gameState.preparingAction.type === 'split_unit') {
+            if (splitUnit(selectedUnit, r_target, c_target)) {
+                cancelPreparingAction();
+                return true; // Se completó la acción de dividir.
+            }
+        }
+        // Si no se pudo completar la acción preparada, la cancelamos.
+        cancelPreparingAction();
+        return false;
+    }
+
+    // Si NO hay una acción preparada, procesamos el clic directo.
+
+    // CASO 1: Clic sobre una unidad
     if (clickedUnitOnTargetHex) {
-        // Es una unidad enemiga, intenta ATACAR
+        // Clic sobre una unidad enemiga -> ATAQUE
         if (clickedUnitOnTargetHex.player !== selectedUnit.player) {
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
                 RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-                return true; // <-- Informa a onHexClick que se inició la acción de ataque.
-            } else {
-                logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
-                return false; // El ataque no es válido, permite que onHexClick intente otra cosa (nada).
+                return true; // Informa a onHexClick que se inició una acción válida.
             }
         }
-        // Es una unidad amiga, intenta FUSIONAR
+        // Clic sobre una unidad amiga -> FUSIÓN
         else {
-            if (clickedUnitOnTargetHex.id === selectedUnit.id) return false; // Clic en sí mismo
-            if (isValidMove(selectedUnit, r_target, c_target, true)) {
+            if (clickedUnitOnTargetHex.id !== selectedUnit.id && isValidMove(selectedUnit, r_target, c_target, true)) {
                 RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                return true; // <-- Informa a onHexClick que se inició la acción de fusión.
-            } else {
-                 logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`);
-                 return false;
+                return true; // Informa a onHexClick que se inició una acción válida.
             }
         }
     }
-    // --- Manejo de Clic en una Casilla Vacía ---
+    // CASO 2: Clic sobre una casilla vacía -> MOVIMIENTO
     else {
-        // Intenta MOVER
         if (isValidMove(selectedUnit, r_target, c_target, false)) {
             RequestMoveUnit(selectedUnit, r_target, c_target);
-            return true; // <-- Informa a onHexClick que se inició la acción de movimiento.
+            return true; // Informa a onHexClick que se inició una acción válida.
         }
     }
 
-    // Si ninguna acción fue posible, devuelve false.
-    return false;
+    // Si se llega hasta aquí, no se pudo iniciar ninguna acción válida.
+    deselectUnit(); // Como no se hizo nada, deseleccionamos la unidad.
+    return false; // onHexClick intentará seleccionar lo que haya en la nueva casilla.
 }
 
 function selectUnit(unit) {
@@ -707,10 +715,11 @@ function deselectUnit() {
     }
     selectedUnit = null;
     
-    // La única llamada válida es a través del UIManager
-    if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) {
-        UIManager.clearHighlights();
-    }
+    // --- ¡CORRECCIÓN CLAVE! ---
+    // Si deseleccionas una unidad, cualquier acción que estuvieras preparando
+    // con ella debe ser cancelada.
+    cancelPreparingAction(); 
+    // --- FIN DE LA CORRECCIÓN ---
 }
 
 function isValidMove(unit, toR, toC, isPotentialMerge = false) {
