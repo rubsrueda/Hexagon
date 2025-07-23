@@ -839,36 +839,78 @@ function executeConfirmedAction(action) {
          return;
     }
     
-    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida: ${action.type}`);
+    console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por anfitrión: ${action.type}`);
     const payload = action.payload;
     
     switch (action.type) {
         case 'syncGameState':
-            // Aplicamos la misma "vacuna" de identidad aquí
             const miNumero = gameState.myPlayerNumber; 
             Object.assign(gameState, payload.newGameState);
             gameState.myPlayerNumber = miNumero; 
-            
             resetUnitsForNewTurn(gameState.currentPlayer);
             logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-            if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); // <-- Ahora sí funcionará
+            if (UIManager) UIManager.updateTurnIndicatorAndBlocker();
             break;
-        
-        // El resto de tu función original se mantiene intacta, con todos los 'case'
-        case 'researchTech': attemptToResearch(payload.techId); break;
-        case 'moveUnit': const u_m = units.find(u => u.id === payload.unitId); if(u_m) moveUnit(u_m, payload.toR, payload.toC); break;
-        case 'attackUnit': const att = units.find(u=>u.id===payload.attackerId); const def = units.find(u=>u.id===payload.defenderId); if(att && def) attackUnit(att, def); break;
-        case 'mergeUnits': const m_u = units.find(u=>u.id===payload.mergingUnitId); const t_u = units.find(u=>u.id===payload.targetUnitId); if(m_u && t_u) mergeUnits(m_u, t_u); break;
-        case 'splitUnit': const o_u = units.find(u=>u.id===payload.originalUnitId); gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; if(o_u) splitUnit(o_u, payload.targetR, payload.targetC); gameState.preparingAction = null; break;
-        case 'pillageHex': const p_u = units.find(u=>u.id===payload.unitId); if(p_u) { selectedUnit = p_u; handlePillageAction(); selectedUnit = null; } break;
-        case 'disbandUnit': const d_u = units.find(u=>u.id===payload.unitId); if(d_u) handleDisbandUnit(d_u); break;
-        case 'placeUnit': placeFinalizedDivision(payload.unitData, payload.r, payload.c); break;
-        case 'buildStructure': handleConfirmBuildStructure(payload); break;
-        case 'reinforceRegiment': const div_r = units.find(u=>u.id===payload.divisionId); const reg_r = div_r?.regiments.find(r=>r.id===payload.regimentId); if(div_r && reg_r) handleReinforceRegiment(div_r, reg_r); break;
+
+        case 'placeUnit':
+            // 1. Se ejecuta la acción lógica: la unidad se añade al estado del juego.
+            placeFinalizedDivision(payload.unitData, payload.r, payload.c);
+
+            // --- ¡SOLUCIÓN CLAVE Y DEFINITIVA! ---
+            // 2. Apagamos el "interruptor" de colocación. Esto asegura que el juego
+            //    vuelva a su estado normal de "seleccionar y actuar" en todas las máquinas,
+            //    no solo en la que inició la acción.
+            placementMode.active = false;
+            placementMode.unitData = null;
+            placementMode.recruitHex = null;
+            if (UIManager) UIManager.clearHighlights();
+            // --- FIN DE LA SOLUCIÓN ---
+            break;
+
+        // El resto de tus cases, completos y sin cambios
+        case 'researchTech': 
+            attemptToResearch(payload.techId); 
+            break;
+        case 'moveUnit': 
+            const unitToMove = units.find(u => u.id === payload.unitId); 
+            if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC); 
+            break;
+        case 'attackUnit': 
+            const attacker = units.find(u => u.id === payload.attackerId); 
+            const defender = units.find(u => u.id === payload.defenderId); 
+            if (attacker && defender) attackUnit(attacker, defender); 
+            break;
+        case 'mergeUnits': 
+            const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
+            const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
+            if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge); 
+            break;
+        case 'splitUnit': 
+            const originalUnit = units.find(u => u.id === payload.originalUnitId); 
+            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; 
+            if (originalUnit) splitUnit(originalUnit, payload.targetR, payload.targetC); 
+            gameState.preparingAction = null; 
+            break;
+        case 'pillageHex': 
+            const pillager = units.find(u => u.id === payload.unitId); 
+            if (pillager) { selectedUnit = pillager; handlePillageAction(); selectedUnit = null; } 
+            break;
+        case 'disbandUnit': 
+            const unitToDisband = units.find(u => u.id === payload.unitId); 
+            if (unitToDisband) handleDisbandUnit(unitToDisband); 
+            break;
+        case 'buildStructure': 
+            handleConfirmBuildStructure(payload); 
+            break;
+        case 'reinforceRegiment': 
+            const divisionToReinforce = units.find(u => u.id === payload.divisionId); 
+            const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId); 
+            if (divisionToReinforce && regimentToReinforce) handleReinforceRegiment(divisionToReinforce, regimentToReinforce); 
+            break;
     }
     
-    // Al final, SIEMPRE actualizamos toda la UI.
-    if (UIManager && action.type !== 'syncGameState') {
+    // Al final, SIEMPRE actualizamos la UI para asegurar la consistencia visual
+    if (UIManager) {
         UIManager.updateAllUIDisplays();
     }
 }
