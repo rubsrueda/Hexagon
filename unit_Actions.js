@@ -586,58 +586,73 @@ function cancelPreparingAction() {
 }
 
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
-    if (!selectedUnit) return false; 
-
-    // Si se hace clic en la misma unidad, no hacer nada (o manejar lógica de "espera")
-    if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.id === selectedUnit.id) {
-        if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
-            cancelPreparingAction();
-            return true; // Se considera una acción (cancelar)
-        }
-        return false; 
+    if (!selectedUnit) {
+        return false; // Guarda de seguridad, no debería ocurrir si se llama correctamente.
     }
 
-    // Lógica para una acción ya preparada (como mover o atacar después de un clic previo)
+    // --- MANEJO DE ACCIONES PREPARADAS (COMO DIVIDIR) ---
+    // Si ya estábamos en medio de una acción como "dividir", esto la gestiona.
     if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
         const actionType = gameState.preparingAction.type;
-        // La lógica interna de las acciones preparadas se mantiene
-        // ... (Tu código para `if (actionType === "move")` etc. va aquí)
-        // Por simplicidad en el ejemplo, asumimos que no hay acción preparada.
+        let actionSuccessful = false;
+
+        if (actionType === "split_unit") {
+            if (splitUnit(selectedUnit, r_target, c_target)) {
+                actionSuccessful = true;
+            }
+        }
+        
+        if (actionSuccessful) {
+            cancelPreparingAction(); // Limpia la acción preparada
+        }
+        return actionSuccessful; // Informa a onHexClick que se hizo (o no) algo
     }
 
-    // --- LÓGICA PRINCIPAL PARA UN CLIC DIRECTO ---
-    const isNetwork = isNetworkGame();
 
-    // CASO 1: Se hizo clic en un hexágono que contiene una unidad
+    // --- LÓGICA PRINCIPAL PARA UN CLIC DIRECTO ---
+
+    // CASO 1: Se hizo clic en un hexágono que contiene una unidad.
     if (clickedUnitOnTargetHex) {
+        
+        // Subcaso 1.1: Es una unidad AMIGA.
         if (clickedUnitOnTargetHex.player === selectedUnit.player) {
-            // FUSIÓN de unidades amigas
+            if (clickedUnitOnTargetHex.id === selectedUnit.id) {
+                // Se hizo clic en la misma unidad seleccionada, no es una acción.
+                return false; 
+            }
+            // Intenta FUSIONAR.
             if (isValidMove(selectedUnit, r_target, c_target, true)) {
                 RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                return true; // ¡ACCIÓN INICIADA! Devolvemos true.
+                // ¡ACCIÓN INICIADA! Devolvemos 'true' para que onHexClick se detenga.
+                return true; 
             } else {
                 logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`);
             }
-        } else {
-            // ATAQUE de una unidad enemiga
+        } 
+        // Subcaso 1.2: Es una unidad ENEMIGA.
+        else {
+            // Intenta ATACAR.
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
                 RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-                return true; // ¡ACCIÓN INICIADA! Devolvemos true.
+                // ¡ACCIÓN INICIADA! Devolvemos 'true' para que onHexClick se detenga.
+                return true;
             } else {
                 logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
             }
         }
     } 
-    // CASO 2: Se hizo clic en un hexágono vacío
+    // CASO 2: Se hizo clic en un hexágono VACÍO.
     else {
-        // MOVIMIENTO a una casilla vacía
+        // Intenta MOVER.
         if (isValidMove(selectedUnit, r_target, c_target, false)) {
             RequestMoveUnit(selectedUnit, r_target, c_target);
-            return true; // ¡ACCIÓN INICIADA! Devolvemos true.
+            // ¡ACCIÓN INICIADA! Devolvemos 'true' para que onHexClick se detenga.
+            return true;
         }
     }
 
-    // Si se llega hasta aquí, ninguna acción fue válida o iniciada.
+    // Si ninguna de las condiciones anteriores se cumplió, no se hizo ninguna acción válida.
+    // Devolvemos 'false' para que onHexClick sepa que puede proceder a deseleccionar/seleccionar.
     return false;
 }
 
