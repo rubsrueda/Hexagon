@@ -772,7 +772,7 @@ function isNetworkGame() {
 }
 
 function reconstruirJuegoDesdeDatos(datos) {
-    console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
+   // console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
     try {
         // --- ¡SOLUCIÓN DE IDENTIDAD! (Paso A) ---
         // 1. ANTES de sobrescribir, guardamos nuestra identidad local, que es la correcta.
@@ -840,7 +840,7 @@ function executeConfirmedAction(action) {
          if (UIManager) UIManager.updateAllUIDisplays();
          return;
     }
-    console.log(`%c[VIAJE-7] Jugador ${gameState.myPlayerNumber} sincronizando acción retransmitida: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
+    //console.log(`%c[VIAJE-7] Jugador ${gameState.myPlayerNumber} sincronizando acción retransmitida: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
     console.log(`[Red - Sincronizando] Ejecutando acción retransmitida por anfitrión: ${action.type}`);
     const payload = action.payload;
     
@@ -875,7 +875,7 @@ function executeConfirmedAction(action) {
             break;
         case 'moveUnit': 
             const unitToMove = units.find(u => u.id === payload.unitId); 
-            if (unitToMove) moveUnit(unitToMove, payload.toR, payload.toC); 
+            if (unitToMove) _executeMoveUnit(unitToMove, payload.toR, payload.toC);
             break;
 
         case 'attackUnit': 
@@ -919,7 +919,7 @@ function executeConfirmedAction(action) {
 }
 
 function iniciarPartidaLAN(settings) {
-    console.log("Iniciando partida LAN con la configuración:", settings);
+    //console.log("Iniciando partida LAN con la configuración:", settings);
     
     if (typeof resetGameStateVariables === "function") resetGameStateVariables();
 
@@ -970,7 +970,7 @@ function iniciarPartidaLAN(settings) {
 }
 
 function processActionRequest(action) {
-    console.log(`%c[VIAJE-4] Anfitrión procesando acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
+    //console.log(`%c[VIAJE-4] Anfitrión procesando acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     let payload = action.payload;
     let actionExecuted = false;
     let suppressBroadcast = false;
@@ -1109,7 +1109,7 @@ function processActionRequest(action) {
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
-                console.log(`%c[VIAJE-4] Anfitrión PROCESANDO 'placeUnit'. Chequeando si id es null... ID Recibido:`, 'color: #DAA520; font-weight: bold;', payload.unitData.id);
+                //console.log(`%c[VIAJE-4] Anfitrión PROCESANDO 'placeUnit'. Chequeando si id es null... ID Recibido:`, 'color: #DAA520; font-weight: bold;', payload.unitData.id);
                 if (payload.unitData.id === null) { // Solo si el ID no ha sido asignado
                     payload.unitData.id = `u${unitIdCounter++}`;
                     console.log(`[Red - Anfitrión] ID Asignado: ${payload.unitData.id} a la nueva unidad de J${payload.playerId}`);

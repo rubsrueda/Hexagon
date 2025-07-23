@@ -877,30 +877,10 @@ async function moveUnit(unit, toR, toC) {
     const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
     const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
 
-    if (isNetworkGame) {
-        // En una partida en red, no ejecutamos la lógica de movimiento directamente.
-        // En su lugar, enviamos la petición de acción al anfitrión.
-        console.log(`[Red - Petición] Solicitando mover ${unit.name} a (${toR},${toC}).`);
-        NetworkManager.enviarDatos({
-            type: 'actionRequest',
-            action: {
-                type: 'moveUnit',
-                payload: {
-                    playerId: unit.player,
-                    unitId: unit.id,
-                    fromR: unit.r, // Útil para validación del anfitrión
-                    fromC: unit.c,
-                    toR: toR,
-                    toC: toC
-                }
-            }
-        });
-
-        // MUY IMPORTANTE: Detenemos la ejecución aquí. La unidad NO se moverá visualmente
-        // hasta que el anfitrión confirme la acción y la retransmita a todos.
-        return; 
+    if (isNetworkGame()) {
+        console.error("Llamada inválida a moveUnit() en juego de red. Usa RequestMoveUnit() en su lugar.");
+        return;
     }
-    // <<== FIN DE LA MODIFICACIÓN DE RED ==>>
 
     // --- EL CÓDIGO ORIGINAL SE EJECUTA SOLO PARA PARTIDAS LOCALES ---
     const fromR = unit.r;
@@ -1880,7 +1860,7 @@ function handleDisbandUnit(unitToDisband) {
 
 function handlePlacementModeClick(r, c) {
     // --- Toda tu lógica de validación inicial se mantiene intacta ---
-    console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
+    //console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
     
     if (!placementMode.active || !placementMode.unitData) {
         console.error("[Placement] Error: Modo de colocación inactivo o sin datos de unidad. Se cancelará.");
@@ -1945,7 +1925,7 @@ function handlePlacementModeClick(r, c) {
                     c: c
                 }
             };
-            console.log(`%c[VIAJE-2] Cliente ENVIANDO acción 'placeUnit'. El ID en unitData debería ser null.`, 'color: #FFA500; font-weight: bold;', action);
+            //console.log(`%c[VIAJE-2] Cliente ENVIANDO acción 'placeUnit'. El ID en unitData debería ser null.`, 'color: #FFA500; font-weight: bold;', action);
             
             // Bifurcación clave: el Anfitrión se procesa a sí mismo, el Cliente envía una petición.
             if (NetworkManager.esAnfitrion) {
@@ -2102,4 +2082,87 @@ function RequestDisbandUnit(unitToDisband) {
         if (typeof handleDisbandUnit === "function") handleDisbandUnit(unitToDisband);
     }
 }
+/**
+ * [Función Pura de Ejecución] Mueve la unidad en el estado del juego y la UI.
+ * No contiene lógica de red. Asume que la acción ya ha sido validada y confirmada.
+ * @private
+ */
+async function _executeMoveUnit(unit, toR, toC) {
+    const fromR = unit.r;
+    const fromC = unit.c;
+    const targetHexData = board[toR]?.[toC];
+
+    // Guardar estado para la función "deshacer"
+    if (unit.player === gameState.currentPlayer) {
+        unit.lastMove = {
+            fromR: fromR,
+            fromC: fromC,
+            initialCurrentMovement: unit.currentMovement,
+            initialHasMoved: unit.hasMoved,
+            initialHasAttacked: unit.hasAttacked,
+            movedToHexOriginalOwner: targetHexData ? targetHexData.owner : null
+        };
+    }
+
+    let costOfThisMove = getMovementCost(unit, fromR, fromC, toR, toC);
+    if (costOfThisMove === Infinity) return;
+
+    // Quitar la unidad del hexágono original
+    if (board[fromR]?.[fromC]) {
+        board[fromR][fromC].unit = null;
+        renderSingleHexVisuals(fromR, fromC);
+    }
+
+    // Mover la unidad al nuevo hexágono
+    unit.r = toR;
+    unit.c = toC;
+    unit.currentMovement -= costOfThisMove;
+    unit.hasMoved = true;
+
+    if (targetHexData) {
+        targetHexData.unit = unit;
+
+        const originalOwner = targetHexData.owner;
+        const movingPlayer = unit.player;
+
+        if (originalOwner === null) {
+            targetHexData.owner = movingPlayer;
+            targetHexData.estabilidad = 1;
+            targetHexData.nacionalidad = { 1: 0, 2: 0 };
+            targetHexData.nacionalidad[movingPlayer] = 1;
+
+            logMessage(`¡Has ocupado un territorio neutral en (${toR}, ${toC})!`);
+
+            const city = gameState.cities.find(ci => ci.r === toR && ci.c === toC);
+            if (city && city.owner === null) {
+                city.owner = movingPlayer;
+                logMessage(`¡La ciudad neutral '${city.name}' se une a tu imperio!`);
+            }
+            renderSingleHexVisuals(toR, toC);
+        }
+
+    } else {
+        console.error(`[_executeMoveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado.`);
+        unit.r = fromR; unit.c = fromC; unit.currentMovement += costOfThisMove; unit.hasMoved = false;
+        if (board[fromR]?.[fromC]) board[fromR][fromC].unit = unit;
+        renderSingleHexVisuals(fromR, fromC);
+        return;
+    }
+
+    logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
+    if (typeof positionUnitElement === "function") positionUnitElement(unit);
+    if (UIManager) {
+        UIManager.updateSelectedUnitInfoPanel();
+        UIManager.updatePlayerAndPhaseInfo();
+    }
+
+    if (gameState.currentPhase === 'play' && typeof checkVictory === "function") {
+        if (checkVictory()) return;
+    }
+
+    if (selectedUnit && selectedUnit.id === unit.id) {
+        UIManager.highlightPossibleActions(unit);
+    }
+}
+
 ;
