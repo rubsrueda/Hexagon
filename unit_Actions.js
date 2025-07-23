@@ -586,73 +586,66 @@ function cancelPreparingAction() {
 }
 
 function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex) {
-    if (!selectedUnit) {
-        return false; // Guarda de seguridad, no debería ocurrir si se llama correctamente.
-    }
+    if (!selectedUnit) return false;
 
     // --- MANEJO DE ACCIONES PREPARADAS (COMO DIVIDIR) ---
-    // Si ya estábamos en medio de una acción como "dividir", esto la gestiona.
+    // Tu lógica original, completa
     if (gameState.preparingAction && gameState.preparingAction.unitId === selectedUnit.id) {
         const actionType = gameState.preparingAction.type;
         let actionSuccessful = false;
 
-        if (actionType === "split_unit") {
+        if (actionType === "move") {
+            if (!clickedUnitOnTargetHex && isValidMove(selectedUnit, r_target, c_target, false)) {
+                RequestMoveUnit(selectedUnit, r_target, c_target);
+                actionSuccessful = true;
+            } else if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.player === selectedUnit.player) {
+                if (isValidMove(selectedUnit, r_target, c_target, true)) {
+                    RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
+                    actionSuccessful = true;
+                } else { logMessage("No se puede mover allí para fusionar."); }
+            } else { logMessage("Movimiento preparado inválido."); }
+        } else if (actionType === "attack") {
+            if (clickedUnitOnTargetHex && clickedUnitOnTargetHex.player !== selectedUnit.player && isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
+                RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
+
+                actionSuccessful = true;
+            } else { logMessage("Objetivo de ataque preparado inválido."); }
+        } else if (actionType === "split_unit") {
             if (splitUnit(selectedUnit, r_target, c_target)) {
                 actionSuccessful = true;
             }
         }
-        
-        if (actionSuccessful) {
-            cancelPreparingAction(); // Limpia la acción preparada
-        }
-        return actionSuccessful; // Informa a onHexClick que se hizo (o no) algo
+        if (actionSuccessful) { cancelPreparingAction(); }
+        return actionSuccessful;
     }
 
-
-    // --- LÓGICA PRINCIPAL PARA UN CLIC DIRECTO ---
-
-    // CASO 1: Se hizo clic en un hexágono que contiene una unidad.
+    // --- LÓGICA DE CLIC DIRECTO (CON LA CORRECCIÓN) ---
     if (clickedUnitOnTargetHex) {
-        
-        // Subcaso 1.1: Es una unidad AMIGA.
+        // Clic en unidad AMIGA
         if (clickedUnitOnTargetHex.player === selectedUnit.player) {
-            if (clickedUnitOnTargetHex.id === selectedUnit.id) {
-                // Se hizo clic en la misma unidad seleccionada, no es una acción.
-                return false; 
-            }
-            // Intenta FUSIONAR.
-            if (isValidMove(selectedUnit, r_target, c_target, true)) {
-                RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex);
-                // ¡ACCIÓN INICIADA! Devolvemos 'true' para que onHexClick se detenga.
-                return true; 
-            } else {
-                logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`);
-            }
+            if (clickedUnitOnTargetHex.id === selectedUnit.id) return false;
+            if (isValidMove(selectedUnit, r_target, c_target, true)) { 
+                RequestMergeUnits(selectedUnit, clickedUnitOnTargetHex); 
+                return true; // <-- CORRECCIÓN AÑADIDA
+            } else { logMessage(`No se puede alcanzar a ${clickedUnitOnTargetHex.name} para fusionar.`); }
         } 
-        // Subcaso 1.2: Es una unidad ENEMIGA.
+        // Clic en unidad ENEMIGA
         else {
-            // Intenta ATACAR.
             if (isValidAttack(selectedUnit, clickedUnitOnTargetHex)) {
-                RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex);
-                // ¡ACCIÓN INICIADA! Devolvemos 'true' para que onHexClick se detenga.
-                return true;
-            } else {
-                logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`);
-            }
+                RequestAttackUnit(selectedUnit, clickedUnitOnTargetHex); 
+                return true; // <-- CORRECCIÓN AÑADIDA
+            } else { logMessage(`${selectedUnit.name} no puede atacar a ${clickedUnitOnTargetHex.name}.`); }
         }
     } 
-    // CASO 2: Se hizo clic en un hexágono VACÍO.
+    // Clic en casilla VACÍA
     else {
-        // Intenta MOVER.
-        if (isValidMove(selectedUnit, r_target, c_target, false)) {
-            RequestMoveUnit(selectedUnit, r_target, c_target);
-            // ¡ACCIÓN INICIADA! Devolvemos 'true' para que onHexClick se detenga.
-            return true;
+        if (isValidMove(selectedUnit, r_target, c_target, false)) { 
+            RequestMoveUnit(selectedUnit, r_target, c_target); 
+            return true; // <-- CORRECCIÓN AÑADIDA
         }
     }
-
-    // Si ninguna de las condiciones anteriores se cumplió, no se hizo ninguna acción válida.
-    // Devolvemos 'false' para que onHexClick sepa que puede proceder a deseleccionar/seleccionar.
+    
+    // Si nada de lo anterior funcionó, se devuelve false.
     return false;
 }
 
