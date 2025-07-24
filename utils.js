@@ -233,3 +233,5 @@ function getAbbreviatedName(unitTypeName) {
 function isNetworkGame() {
     return NetworkManager.conn && NetworkManager.conn.open;
 }
+
+console.log("utils.js se ha cargado.");

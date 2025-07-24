@@ -640,15 +640,21 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
     else {
         console.log(`[handleAction] Clic en casilla VACÍA. Verificando movimiento...`);
         if (isValidMove(selectedUnit, r_target, c_target, false)) {
-            console.log(`[handleAction] ¡MOVIMIENTO VÁLIDO! Iniciando RequestMoveUnit...`);
-            RequestMoveUnit(selectedUnit, r_target, c_target);
-            return true; // <<< DEVUELVE TRUE
+            
+            // --- ¡LA SOLUCIÓN! ---
+            // Ahora decidimos qué función llamar basándonos en si es una partida en red o no.
+            if (isNetworkGame()) {
+                console.log(`[handleAction] ¡MOVIMIENTO VÁLIDO (RED)! Iniciando RequestMoveUnit...`);
+                RequestMoveUnit(selectedUnit, r_target, c_target);
+            } else {
+                console.log(`[handleAction] ¡MOVIMIENTO VÁLIDO (LOCAL)! Iniciando moveUnit...`);
+                moveUnit(selectedUnit, r_target, c_target);
+            }
+            // --- FIN DE LA SOLUCIÓN ---
+            console.log(`[handleAction] Ninguna acción válida se pudo iniciar. Devolviendo 'false'.`);
+            return true;
         }
     }
-
-    // Si ninguna acción fue posible, devuelve false.
-    console.log(`[handleAction] Ninguna acción válida se pudo iniciar. Devolviendo 'false'.`);
-    return false;
 }
 
 function selectUnit(unit) {
@@ -873,8 +879,6 @@ function getMovementCost(unit, r_start, c_start, r_target, c_target, isPotential
 }
 
 async function moveUnit(unit, toR, toC) {
-    // <<== INICIO DE LA MODIFICACIÓN DE RED ==>>
-    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
     const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
 
     if (isNetworkGame()) {
@@ -938,7 +942,6 @@ async function moveUnit(unit, toR, toC) {
             }
             renderSingleHexVisuals(toR, toC);
         }
-        // <<== FIN DE LA SOLUCIÓN (Parte A) ==>>
 
     } else { 
         console.error(`[moveUnit] Error crítico: Hex destino (${toR},${toC}) no encontrado.`);
@@ -2164,4 +2167,5 @@ async function _executeMoveUnit(unit, toR, toC) {
     }
 }
 
+console.log("unit_Actions.js se ha cargado.");
 ;
