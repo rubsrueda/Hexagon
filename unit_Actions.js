@@ -1988,13 +1988,16 @@ async function RequestMoveUnit(unit, toR, toC) {
     if (isNetworkGame()) {
         const action = { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: toR, toC: toC }};
         if (NetworkManager.esAnfitrion) {
-            processActionRequest(action); // Anfitrión se procesa a sí mismo
+            // El Anfitrión se procesa a sí mismo, sin enviar por la red
+            processActionRequest(action);
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action }); // Cliente envía petición
+            // El Cliente envía la petición al Anfitrión
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
-        return;
+    } else {
+        // En un juego local, la "petición" es simplemente ejecutar el movimiento directamente.
+        await moveUnit(unit, toR, toC);
     }
-    await moveUnit(unit, toR, toC); // Juego local
 }
 
 async function RequestAttackUnit(attacker, defender) {
