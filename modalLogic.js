@@ -157,106 +157,169 @@ function openBuildStructureModal() {
     const playerTechs = playerResources.researchedTechnologies || [];
     let buildableOptions = [];
 
-    console.log("  [Paso 2] Empezando a iterar sobre todas las estructuras en STRUCTURE_TYPES...");
+    // --- INICIO DE LA LÓGICA DE DECISIÓN CORREGIDA ---
+    if (hex.structure) {
 
-    for (const structureId in STRUCTURE_TYPES) {
-        const structureInfo = STRUCTURE_TYPES[structureId];
-        console.log(`\n  --- Validando: ${structureId.toUpperCase()} ---`);
-        let isOptionForHex = false;
-        
-        // **VALIDACIÓN DE PROGRESIÓN (MEJORA o NUEVA)**
-        if (hex.structure) {
-            console.log(`    - Hex tiene estructura: "${hex.structure}". ¿Es "${structureId}" la siguiente mejora?`);
-            if (STRUCTURE_TYPES[hex.structure]?.nextUpgrade === structureId) {
-                isOptionForHex = true;
-                console.log(`      -> SÍ. Es una mejora válida.`);
+        // MODO MEJORA: Solo validamos la posible siguiente estructura.
+        console.log("  [Paso 2] MODO MEJORA detectado.");
+        const upgradeId = STRUCTURE_TYPES[hex.structure]?.nextUpgrade;
+
+        if (upgradeId) {
+            // Se encontró una posible mejora, ahora aplicamos tu bloque de validación completo a ESE ÚNICO ID.
+            const structureId = upgradeId; 
+            const structureInfo = STRUCTURE_TYPES[structureId];
+            
+            console.log(`\n  --- Validando Mejora: ${structureId.toUpperCase()} ---`);
+            let isOptionForHex = true; // Sabemos que es una opción porque es 'nextUpgrade'
+            
+            console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
+            let canBuild = true;
+
+            // **VALIDACIÓN DE TECNOLOGÍA** (Tu código original)
+            if (structureInfo.requiredTech) {
+                console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
+                if (playerTechs.includes(structureInfo.requiredTech)) {
+                    console.log(`        -> SÍ. Tecnología encontrada.`);
+                } else {
+                    console.log(`        -> NO. Tecnología NO encontrada.`);
+                    canBuild = false;
+                }
             } else {
-                console.log(`      -> NO. Se esperaba "${STRUCTURE_TYPES[hex.structure]?.nextUpgrade}", se está evaluando "${structureId}".`);
+                console.log(`      - No requiere tecnología.`);
             }
-        } else {
-            console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
-            if (structureInfo.buildableOn?.includes(hex.terrain)) {
-                isOptionForHex = true;
-                console.log(`      -> SÍ. El terreno es compatible.`);
-            } else {
-                 console.log(`      -> NO. Terreno no compatible. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
-            }
-        }
 
-        if (!isOptionForHex) {
-            console.log(`    - RESULTADO: ${structureId} NO es una opción para este hex. Saltando a la siguiente.`);
-            continue;
-        }
-
-        // Si es una opción, seguir validando los requisitos...
-        console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
-        let canBuild = true;
-
-        // **VALIDACIÓN DE TECNOLOGÍA**
-        if (structureInfo.requiredTech) {
-             console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
-             if (playerTechs.includes(structureInfo.requiredTech)) {
-                 console.log(`        -> SÍ. Tecnología encontrada.`);
-             } else {
-                 console.log(`        -> NO. Tecnología NO encontrada.`);
-                 canBuild = false;
-             }
-        } else {
-             console.log(`      - No requiere tecnología.`);
-        }
-
-        // **VALIDACIÓN DE COSTE**
-        if (structureInfo.cost && canBuild) {
-            console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
-            for (const resKey in structureInfo.cost) {
-                const amountNeeded = structureInfo.cost[resKey];
-                
-                if (resKey === 'Colono') {
-                    console.log(`        - Comprobando requisito: Colono`);
-                    if (selectedUnit) {
-                        console.log(`          - Unidad seleccionada: SÍ (${selectedUnit.name})`);
-                        if (selectedUnit.isSettler) {
-                             console.log(`          - ¿Es Colono?: SÍ`);
-                             if (selectedUnit.r === r && selectedUnit.c === c) {
-                                 console.log(`          - ¿Está en la casilla correcta?: SÍ`);
-                             } else {
-                                  console.log(`          - ¿Está en la casilla correcta?: NO. Unidad en (${selectedUnit.r},${selectedUnit.c})`);
-                                  canBuild = false;
-                             }
+            // **VALIDACIÓN DE COSTE** (Tu código original)
+            if (structureInfo.cost && canBuild) {
+                console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
+                for (const resKey in structureInfo.cost) {
+                    const amountNeeded = structureInfo.cost[resKey];
+                    if (resKey === 'Colono') {
+                        console.log(`        - Comprobando requisito: Colono`);
+                        // La validación correcta: mira si la unidad seleccionada es un colono en ESA casilla.
+                        const unitOnHex = getUnitOnHex(r, c);
+                        if (unitOnHex && unitOnHex.player === gameState.currentPlayer && unitOnHex.isSettler) {
+                            console.log(`          -> SÍ. Colono válido presente en (${r},${c}).`);
                         } else {
-                             console.log(`          - ¿Es Colono?: NO`);
+                            console.log(`          -> NO. No hay un Colono propio en (${r},${c}) para realizar la mejora.`);
+                            canBuild = false;
+                        }
+                        
+                    } else { // Recursos normales
+                        const playerAmount = playerResources[resKey] || 0;
+                        console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
+                        if (playerAmount < amountNeeded) {
+                            console.log(`          -> NO. Fondos insuficientes.`);
+                            canBuild = false;
+                        } else {
+                            console.log(`          -> SÍ. Fondos suficientes.`);
+                        }
+                    }
+                    if (!canBuild) break;
+                }
+            }
+            
+            console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
+            if (canBuild) {
+                buildableOptions.push({
+                    type: structureId, name: structureInfo.name, sprite: structureInfo.sprite,
+                    costStr: Object.entries(structureInfo.cost || {}).map(([k,v]) => `${v} ${k}`).join(', ') || "Gratis"
+                });
+            }
+        }
+    } else {
+        // MODO CONSTRUCCIÓN NUEVA: Ejecutamos tu bucle original completo, sin tocarlo.
+        console.log("  [Paso 2] MODO CONSTRUCCIÓN NUEVA detectado.");
+        console.log("  Empezando a iterar sobre todas las estructuras en STRUCTURE_TYPES...");
+
+        for (const structureId in STRUCTURE_TYPES) {
+            const structureInfo = STRUCTURE_TYPES[structureId];
+            console.log(`\n  --- Validando: ${structureId.toUpperCase()} ---`);
+            let isOptionForHex = false;
+            
+            if (hex.structure) { 
+                console.log(`    - Hex tiene estructura: "${hex.structure}". ¿Es "${structureId}" la siguiente mejora?`);
+                if (STRUCTURE_TYPES[hex.structure]?.nextUpgrade === structureId) {
+                    isOptionForHex = true;
+                } } 
+            else {
+                console.log(`    - Hex está vacío. ¿Se puede construir "${structureId}" desde cero aquí (terreno "${hex.terrain}")?`);
+                if (structureInfo.buildableOn?.includes(hex.terrain)) {
+                    isOptionForHex = true;
+                    console.log(`      -> SÍ. El terreno es compatible.`);
+                } else {
+                     console.log(`      -> NO. Terreno no compatible. Requiere: ${structureInfo.buildableOn?.join(', ')}.`);
+                }
+            }
+
+            if (!isOptionForHex) {
+                console.log(`    - RESULTADO: ${structureId} NO es una opción para este hex. Saltando a la siguiente.`);
+                continue;
+            }
+
+            console.log(`    - ${structureId} es una opción válida. Comprobando requisitos...`);
+            let canBuild = true;
+
+            if (structureInfo.requiredTech) {
+                 console.log(`      - Requiere tecnología: "${structureInfo.requiredTech}". ¿La tiene el jugador?`);
+                 if (playerTechs.includes(structureInfo.requiredTech)) {
+                     console.log(`        -> SÍ. Tecnología encontrada.`);
+                 } else {
+                     console.log(`        -> NO. Tecnología NO encontrada.`);
+                     canBuild = false;
+                 }
+            } else {
+                 console.log(`      - No requiere tecnología.`);
+            }
+
+            if (structureInfo.cost && canBuild) {
+                console.log(`      - Comprobando coste: ${JSON.stringify(structureInfo.cost)}`);
+                for (const resKey in structureInfo.cost) {
+                    const amountNeeded = structureInfo.cost[resKey];
+                    if (resKey === 'Colono') {
+                        console.log(`        - Comprobando requisito: Colono`);
+                        if (selectedUnit) {
+                            console.log(`          - Unidad seleccionada: SÍ (${selectedUnit.name})`);
+                            if (selectedUnit.isSettler) {
+                                 console.log(`          - ¿Es Colono?: SÍ`);
+                                 if (selectedUnit.r === r && selectedUnit.c === c) {
+                                     console.log(`          - ¿Está en la casilla correcta?: SÍ`);
+                                 } else {
+                                      console.log(`          - ¿Está en la casilla correcta?: NO. Unidad en (${selectedUnit.r},${selectedUnit.c})`);
+                                      canBuild = false;
+                                 }
+                            } else {
+                                 console.log(`          - ¿Es Colono?: NO`);
+                                 canBuild = false;
+                            }
+                        } else {
+                             console.log(`          - Unidad seleccionada: NO`);
                              canBuild = false;
                         }
-                    } else {
-                         console.log(`          - Unidad seleccionada: NO`);
-                         canBuild = false;
+                    } else { // Recursos normales
+                        const playerAmount = playerResources[resKey] || 0;
+                         console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
+                        if (playerAmount < amountNeeded) {
+                            console.log(`          -> NO. Fondos insuficientes.`);
+                            canBuild = false;
+                        } else {
+                             console.log(`          -> SÍ. Fondos suficientes.`);
+                        }
                     }
-
-                } else { // Recursos normales
-                    const playerAmount = playerResources[resKey] || 0;
-                     console.log(`        - Comprobando requisito: ${amountNeeded} de ${resKey}. Tiene: ${playerAmount}`);
-                    if (playerAmount < amountNeeded) {
-                        console.log(`          -> NO. Fondos insuficientes.`);
-                        canBuild = false;
-                    } else {
-                         console.log(`          -> SÍ. Fondos suficientes.`);
-                    }
+                    if (!canBuild) break;
                 }
-                if (!canBuild) break; // Si ya falló un requisito del coste, no seguir.
             }
-        }
-        
-        console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
-
-        if (canBuild) {
-            buildableOptions.push({
-                type: structureId, name: structureInfo.name, sprite: structureInfo.sprite,
-                costStr: Object.entries(structureInfo.cost || {}).map(([k,v]) => `${v} ${k}`).join(', ') || "Gratis"
-            });
-        }
+            
+            console.log(`    - RESULTADO FINAL PARA ${structureId}: ${canBuild ? "Se puede construir." : "NO se puede construir."}`);
+            if (canBuild) {
+                buildableOptions.push({
+                    type: structureId, name: structureInfo.name, sprite: structureInfo.sprite,
+                    costStr: Object.entries(structureInfo.cost || {}).map(([k,v]) => `${v} ${k}`).join(', ') || "Gratis"
+                });
+            }
+        } // fin del 'for' original
     }
     
-    // --- Lógica final para poblar y mostrar el modal (sin cambios) ---
+    // --- Lógica final para poblar y mostrar el modal (tu código original, sin cambios) ---
     console.log(`\n  [Paso 3] Fin de la iteración. Opciones construibles encontradas: ${buildableOptions.length}`);
     
     if (buildableOptions.length === 0) {
@@ -731,8 +794,10 @@ function handleFinalizeDivision() {
         r: -1, 
         c: -1,
         element: null,
-        hasMoved: gameState.currentPhase === 'play',    // Si se crea en juego, no puede actuar
-        hasAttacked: gameState.currentPhase === 'play', // Si se crea en juego, no puede actuar
+        //hasMoved: gameState.currentPhase !== 'deployment', //no puede actuar en la fase de despliegue, pero si lo permitimos en juego.
+        //hasAttacked: gameState.currentPhase !== 'deployment',
+        hasMoved:false,
+        hasAttacked: false,
         hasRetaliatedThisTurn: false,
         
         // Otras propiedades
@@ -877,7 +942,7 @@ function populateUnitDetailList(unit) {
         if (reinforceBtn) {
             reinforceBtn.onclick = (e) => {
                 e.stopPropagation();
-                handleReinforceRegiment(unit, reg);
+                RequestReinforceRegiment(unit, reg);
             };
         }
         

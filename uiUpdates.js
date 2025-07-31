@@ -1,6 +1,4 @@
 // uiUpdates.js
-// Reemplaza el objeto UIManager completo con esto.
-
 const UIManager = {
     _tutorialMessagePanel: null, 
     _originalEndTurnButtonListener: null, 
@@ -279,24 +277,69 @@ const UIManager = {
         hexToBuildOn = null;
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
-        // ... (todo tu código para rellenar el panel de info, que está perfecto)
         const isPlayerUnit = unit.player === gameState.currentPlayer;
         this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (ID: ${unit.id})`;
-        // ...
         
-        // --- LÓGICA DE BOTONES ---
-        if (isOwnUnit && gameState.currentPhase === 'play') {
-            
-            // <<< ¡SOLUCIÓN TEMPORAL PERO CRUCIAL! >>>
-            // Comentamos la siguiente línea. Esto desactiva la predicción de combate
-            // que está causando el bucle de logs y bloqueando la acción del clic.
-            
-            // this.attachAttackPredictionListener(unit);
-            
-            // ... (el resto de tu lógica de botones, que está bien) ...
-        } else { 
-             this.removeAttackPredictionListener();
+        let contentHTML = ``;
+        contentHTML += `<p>Salud: ${unit.currentHealth}/${unit.maxHealth}</p>`;
+        contentHTML += `<p>A/D/M: ${unit.attack}/${unit.defense}/${unit.currentMovement || unit.movement}</p>`;
+        let moralStatus = "Normal", moralColor = "#f0f0f0";
+        if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
+        else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
+        else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
+        contentHTML += `<p>Moral: <strong style="color:${moralColor};">${unit.morale}/${unit.maxMorale || 125} (${moralStatus})</strong></p>`;
+        const unitLevel = unit.level ?? 0, unitExperience = unit.experience || 0;
+        const levelData = XP_LEVELS[unitLevel];
+        if (levelData) {
+            const nextLevelXP = levelData.nextLevelXp;
+            let xpText = `Nivel: ${levelData.currentLevelName}`;
+            if (nextLevelXP !== 'Max') { xpText += ` (XP: ${unitExperience} / ${nextLevelXP})`; }
+            contentHTML += `<p>${xpText}</p>`;
         }
+        this._domElements.contextualContent.innerHTML = contentHTML;
+
+        // --- LÓGICA DE BOTONES SIMPLIFICADA ---
+
+        // El botón de Gestionar/Reforzar (💪) se mostrará siempre que haya una unidad seleccionada (sea propia o enemiga)
+        if (this._domElements.floatingReinforceBtn) {
+            this._domElements.floatingReinforceBtn.style.display = 'flex';
+            this._domElements.floatingReinforceBtn.title = 'Gestionar / Ver Detalles de Unidad';
+        }
+
+        // El resto de botones solo aparecen para unidades propias y bajo ciertas condiciones
+        if (isPlayerUnit && gameState.currentPhase === 'play') {
+            const canAct = !unit.hasMoved && !unit.hasAttacked;
+
+            if (unit.lastMove && !unit.hasAttacked) {
+                this._domElements.floatingUndoMoveBtn.style.display = 'flex';
+            }
+            if (canAct) {
+                if ((unit.regiments?.length || 0) > 1) {
+                    this._domElements.floatingSplitBtn.style.display = 'flex';
+                }
+                const unitHex = board[unit.r]?.[unit.c];
+                if (unitHex && unitHex.owner !== null && unitHex.owner !== unit.player) {
+                    if (this._domElements.floatingPillageBtn) this._domElements.floatingPillageBtn.style.display = 'flex';
+                }
+                const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
+                if (isBuilderUnit) {
+                    if (this._domElements.floatingBuildBtn) {
+                        hexToBuildOn = { r: unit.r, c: unit.c };
+                        this._domElements.floatingBuildBtn.style.display = 'flex';
+                    }
+                }
+            }
+        }
+        
+        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) { this.attachAttackPredictionListener(unit); 
+            // BOTÓN: Saquear Hexágono
+        const hexUnderUnit = board[unit.r]?.[unit.c];
+        const canPillage = !unit.hasMoved && !unit.hasAttacked && hexUnderUnit && hexUnderUnit.owner !== null && hexUnderUnit.owner !== unit.player;
+        if (canPillage && this._domElements.floatingPillageBtn) {
+            this._domElements.floatingPillageBtn.style.display = 'flex';
+        }
+        }
+        else { this.removeAttackPredictionListener(); }
         
         this._domElements.contextualInfoPanel.classList.add('visible');
     },
@@ -357,29 +400,57 @@ const UIManager = {
                     console.log("    - NO tiene tecnología 'ENGINEERING'.");
             }
             
+            
+            // La lógica se asegura de que CUALQUIER estructura con 'allowsRecruitment' active el botón.
             const currentStructureInfo = hexData.structure ? STRUCTURE_TYPES[hexData.structure] : null;
+            
                 console.log(`    - ¿Tiene estructura?: ${hexData.structure || 'No'}`);
                 if(currentStructureInfo) {
                     console.log(`    - ¿La estructura permite reclutar?: ${currentStructureInfo.allowsRecruitment === true}`);
                 }
-
-            const isRecruitmentPoint = hexData.isCity || hexData.isCapital || (currentStructureInfo && currentStructureInfo.allowsRecruitment === true);
+            
+            const isRecruitmentPoint = hexData.isCity || hexData.isCapital || (currentStructureInfo && currentStructureInfo.allowsRecruitment);
                 
                 console.log(`    - ¿Resultado final de isRecruitmentPoint?: ${isRecruitmentPoint}`);
             
-            if (isRecruitmentPoint) {
-                    console.log("      -> SÍ. Mostrando botón de reclutamiento (➕).");
-                if (this._domElements.floatingCreateDivisionBtn) {
-                    this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
-                }
-                hexToBuildOn = { r, c };
-                } else {
-                    console.log("      -> NO. No se mostrará el botón de reclutamiento.");
-            }
+            
+                if (isRecruitmentPoint) {
+                        // TU LÓGICA PARA UNIDADES TERRESTRES (INTACTA)
+                        if (this._domElements.floatingCreateDivisionBtn) {
+                            this._domElements.floatingCreateDivisionBtn.textContent = '➕';
+                            this._domElements.floatingCreateDivisionBtn.title = 'Crear División Terrestre';
+                            this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
+                        }
+                        
+                        // >> INICIO DEL CÓDIGO AÑADIDO: LÓGICA PARA UNIDADES NAVALES <<
+                        
+                        // 1. Comprobamos si el punto de reclutamiento es costero
+                        const isCoastal = getHexNeighbors(r, c).some(n => board[n.r]?.[n.c]?.terrain === 'water');
+                        
+                        // 2. Comprobamos si el jugador tiene la tecnología naval
+                        const hasNavalTech = playerTechs.includes('NAVIGATION');
+                        
+                        if (isCoastal && hasNavalTech) {
+                            // Si se cumplen ambas, mostramos el botón con un ícono diferente.
+                            // Podríamos usar el mismo botón y cambiarle el comportamiento,
+                            // o tener un botón dedicado. Por ahora, esto es lo más seguro.
+                            console.log(`[Lógica Naval] La ciudad en (${r},${c}) es costera. Habilitando creación naval.`);
 
-        } else {
-            hexToBuildOn = null;
-        }
+                            // Haremos que el mismo botón de "Crear División" sirva, asumiendo
+                            // que el modal que se abre te permitirá elegir entre unidades terrestres o navales.
+                            if (this._domElements.floatingCreateDivisionBtn) {
+                                this._domElements.floatingCreateDivisionBtn.title = 'Crear División Terrestre o Naval';
+                            }
+                        }
+                        // >> FIN DEL CÓDIGO AÑADIDO <<
+
+                        hexToBuildOn = { r, c }; 
+                    }
+
+                } else {
+                    hexToBuildOn = null;
+                }
+
         
         this._domElements.contextualInfoPanel.classList.add('visible');
             console.groupEnd();

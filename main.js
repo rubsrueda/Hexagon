@@ -40,7 +40,8 @@ function onHexClick(r, c) {
     
     // Obtenemos la unidad que pueda estar en ese hexágono.
     const clickedUnit = getUnitOnHex(r, c);
-
+    console.log(`[DIAGNÓSTICO getUnitOnHex] Para el clic en (${r},${c}), la función encontró:`, clickedUnit ? clickedUnit.name : 'ninguna unidad');
+    
     // --- LÓGICA DE SELECCIÓN Y ACCIÓN ---
     // Este es el corazón de la interacción del jugador durante su turno.
 
@@ -52,7 +53,11 @@ function onHexClick(r, c) {
         // Si no se realizó ninguna acción (por ejemplo, hiciste clic en una casilla vacía
         // a la que no te puedes mover), se deselecciona la unidad actual
         // y se procede a seleccionar lo que haya en la nueva casilla.
-        if (!actionTaken) {
+    if (actionTaken) {
+            // Si se tomó una acción, refrescamos la UI de la unidad seleccionada.
+            // Esto es crucial para mostrar que ya no tiene movimiento, actualizar sus botones, etc.
+            UIManager.showUnitContextualInfo(selectedUnit, true);
+        } else {
             deselectUnit();
             if (clickedUnit) {
                 // Si hay una unidad en la nueva casilla, la seleccionas.
@@ -847,6 +852,7 @@ function executeConfirmedAction(action) {
     const payload = action.payload;
     
     switch (action.type) {
+
         case 'syncGameState':
             const miNumero = gameState.myPlayerNumber; 
             Object.assign(gameState, payload.newGameState);
@@ -854,7 +860,11 @@ function executeConfirmedAction(action) {
             
             resetUnitsForNewTurn(gameState.currentPlayer);
             logMessage(`Turno del Jugador ${gameState.currentPlayer}.`);
-            if (UIManager) UIManager.updateTurnIndicatorAndBlocker();
+
+            if (UIManager) {
+                UIManager.updateTurnIndicatorAndBlocker();
+                UIManager.updateAllUIDisplays();
+            };
             break;
 
         case 'placeUnit':
@@ -916,6 +926,10 @@ function executeConfirmedAction(action) {
             const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId); 
             if (divisionToReinforce && regimentToReinforce) handleReinforceRegiment(divisionToReinforce, regimentToReinforce); 
             break;
+
+        if (UIManager && action.type !== 'syncGameState') {
+            UIManager.updateAllUIDisplays();
+        }
     }
     
     // Al final de CUALQUIER acción, actualizamos la UI para asegurar la consistencia visual.

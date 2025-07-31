@@ -495,7 +495,7 @@ const TUTORIAL_MESSAGES = {
     sections: [
         {
             heading: "Tu Misión",
-            content: "Eres un General al mando de un ejército en un teatro de operaciones. Tu misión principal es la supremacía estratégica. Esto se logra de dos maneras: <br>• Conquistando la capital del enemigo.<br>• Eliminando completamente a todas las unidades enemigas del tablero. <br>Para alcanzar la victoria, deberás gestionar tus recursos, expandir tu territorio, investigar nuevas tecnologías y comandar tus divisiones en el campo de batalla con astucia.<br><b>¡La victoria te espera!</b>"
+            content: "El Juego tiene 2 fases, una de Despliegue y otra de Juego, en la de Despliegue puedes poner unas pocas unidades, en la de juego solo podrás construir en fortalezas y ciudades. Tu misión es acabar y conquistar las ciudades del enemigo. <br>Para alcanzar la victoria, deberás gestionar tus recursos, expandir tu territorio, investigar nuevas tecnologías y comandar tus divisiones en el campo de batalla con astucia.<br><b>¡La victoria te espera!</b>"
         },
         {
             heading: "Antes de iniciar el Juego puedes decidir",

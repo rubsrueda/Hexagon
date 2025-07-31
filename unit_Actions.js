@@ -156,6 +156,9 @@ function handlePlacementModeClick(r, c) {
 }
 
 function placeFinalizedDivision(unitData, r, c) {
+    if (unitData.id === null) {
+        unitData.id = `u${unitIdCounter++}`;
+    }
     console.log(`[PFD v2] Colocando ${unitData.name} en (${r},${c})`);
     if (!unitData) { return; }
 
@@ -665,44 +668,27 @@ function selectUnit(unit) {
         return;
     }
 
-     // <<< MODIFICACIÓN: Comprobar moral rota ANTES de seleccionar >>>
-    if (typeof checkAndProcessBrokenUnit === 'function' && checkAndProcessBrokenUnit(unit)) {
-        // Si la función devuelve true, la unidad estaba rota y fue procesada.
-        // La selección se aborta.
-        return;
-    }
-    // <<< FIN DE MODIFICACIÓN >>>
-
+    // No llamar a checkAndProcessBrokenUnit aquí, para permitir la selección.
+    
     if (gameState.currentPhase === 'play' && unit.player !== gameState.currentPlayer) {
         console.log(`[selectUnit] No se puede tomar control de ${unit.name} (Jugador ${unit.player}).`);
         if (typeof deselectUnit === "function") deselectUnit();
-        return;
+        return; // Mostramos su info pero no la seleccionamos como 'activa'
     }
 
-    // No deseleccionar/reseleccionar si ya hay una acción de división PREPARADA
     if (selectedUnit && selectedUnit.id === unit.id && gameState.preparingAction?.type === 'split_unit') {
         console.log(`[DEBUG selectUnit] Clic en la misma unidad (${unit.name}) con acción de división preparada. No se hace nada.`);
-        // Si ya está seleccionada y estamos dividiendo, solo refrescar highlights.
         if (typeof highlightPossibleActions === "function") highlightPossibleActions(selectedUnit);
         return; 
     }
-
-     // 1. Comprobar si la unidad está rota ANTES de seleccionarla
-    if (checkAndProcessBrokenUnit(unit)) {
-        // Si la función devuelve 'true', significa que la unidad estaba rota
-        // y ya se ha procesado (huyó o se rindió). No debemos seleccionarla.
-        // La propia función ya se encarga de deseleccionar si era necesario.
-        return; 
-    }
-
-    // Deseleccionar la unidad previamente seleccionada si no es la misma.
+    
     if (selectedUnit) {
         if (typeof deselectUnit === "function") deselectUnit();
     }
 
     selectedUnit = unit;
     console.log(`[selectUnit] ${selectedUnit.name} establecida como selectedUnit.`);
-
+    
     if (gameState) {
         gameState.selectedHexR = unit.r;
         gameState.selectedHexC = unit.c;
@@ -716,20 +702,37 @@ function selectUnit(unit) {
         if (gameState) { gameState.selectedHexR = -1; gameState.selectedHexC = -1; }
         return;
     }
+    
+    logMessage(`${unit.name} (J${unit.player}) seleccionada.`);
 
-    if (typeof logMessage === "function") logMessage(`${unit.name} (J${unit.player}) seleccionada.`);
+    // >> LÓGICA AÑADIDA/MODIFICADA PARA UNIDADES "ZOMBIS" <<
+    const isBroken = unit.morale <= 0;
+    const canAct = gameState.currentPhase !== 'play' || (!unit.hasMoved && !unit.hasAttacked);
 
-     const canStillAct = gameState.currentPhase !== 'play' || (!unit.hasMoved || !unit.hasAttacked);
-    if (canStillAct) {
-        // La llamada ahora apunta al UIManager
+    // Siempre mostramos la información de la unidad, esté rota o no.
+    if (typeof UIManager !== 'undefined' && UIManager.showUnitContextualInfo) {
+        UIManager.showUnitContextualInfo(unit, unit.player === gameState.currentPlayer);
+    }
+    
+    if (isBroken) {
+        // Si la unidad está rota, no mostramos ninguna acción posible.
+        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) {
+            UIManager.clearHighlights();
+        }
+        logMessage(`${unit.name} tiene la moral rota y no puede actuar este turno.`);
+    } else if (canAct) {
+        // Si no está rota Y puede actuar, mostramos las acciones posibles.
         if (typeof UIManager !== 'undefined' && UIManager.highlightPossibleActions) {
             UIManager.highlightPossibleActions(unit);
         }
     } else {
-        if (typeof logMessage === "function") logMessage(`${unit.name} ya ha actuado este turno.`);
-        // ...
+        // Si no está rota pero ya actuó.
+        logMessage(`${unit.name} ya ha actuado este turno.`);
+        if (typeof UIManager !== 'undefined' && UIManager.clearHighlights) {
+            UIManager.clearHighlights();
+        }
     }
-    
+
     console.log(`[DEBUG selectUnit] FIN - selectedUnit ahora es: ${selectedUnit?.name}`);
 }
 
@@ -1677,14 +1680,18 @@ function resetUnitsForNewTurn(playerNumber) {
         return;
     }
     
+    // Iteramos sobre TODAS las unidades
     units.forEach(unit => {
+        // >> INICIO DE LA CORRECCIÓN LÓGICA <<
+        // Si la unidad pertenece al jugador cuyo turno está COMENZANDO...
         if (unit.player === playerNumber) {
-            
-            unit.movement = calculateRegimentStats(unit.regiments, unit.player).movement;
+            // Se resetean sus acciones y su movimiento
+            const statsFromRegiments = calculateRegimentStats(unit.regiments, unit.player);
+            unit.movement = statsFromRegiments.movement;
             unit.currentMovement = unit.movement;
             unit.hasMoved = false;
             unit.hasAttacked = false;
-            unit.isFlanked = false;
+            unit.isFlanked = false; // Se resetea el estado de flanqueo al inicio de su turno
         }
     });
 
@@ -1858,7 +1865,12 @@ function handlePillageAction() {
 }
 
 function handleDisbandUnit(unitToDisband) {
-    RequestDisbandUnit(unitToDisband);
+    if (!unitToDisband) return;
+
+    const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"? Se recuperará el 50% de su coste en oro.`;
+    if (window.confirm(confirmationMessage)) {
+        RequestDisbandUnit(unitToDisband);
+    }
 }
 
 function handlePlacementModeClick(r, c) {
@@ -2066,23 +2078,45 @@ function RequestPillageAction() {
 
 function RequestDisbandUnit(unitToDisband) {
     if (!unitToDisband) return;
-    const confirmationMessage = `¿Estás seguro de que quieres disolver "${unitToDisband.name}"?`;
-    if (window.confirm(confirmationMessage)) {
-        if (isNetworkGame()) {
-            const action = { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
-             if (NetworkManager.esAnfitrion) {
-                processActionRequest(action);
-            } else {
-                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+
+    if (isNetworkGame()) {
+        const action = { 
+            type: 'disbandUnit', 
+            payload: { 
+                playerId: unitToDisband.player, 
+                unitId: unitToDisband.id 
             }
-            if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
-            UIManager.hideContextualPanel();
-            return;
+        };
+        
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
-        // Asumo que tienes una función handleDisbandUnit para la lógica local
-        if (typeof handleDisbandUnit === "function") handleDisbandUnit(unitToDisband);
+
+        // Cierre de UI inmediato para el jugador que realiza la acción
+        if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+        if (UIManager) UIManager.hideContextualPanel();
+
+    } else {
+        // Ejecución en modo LOCAL
+        const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
+        
+        if (gameState.playerResources[unitToDisband.player]) {
+            gameState.playerResources[unitToDisband.player].oro += goldToRefund;
+            logMessage(`Has recuperado ${goldToRefund} de oro al disolver a ${unitToDisband.name}.`);
+        }
+
+        handleUnitDestroyed(unitToDisband, null);
+
+        if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+        if (UIManager) {
+            UIManager.hideContextualPanel();
+            UIManager.updateAllUIDisplays();
+        }
     }
 }
+
 /**
  * [Función Pura de Ejecución] Mueve la unidad en el estado del juego y la UI.
  * No contiene lógica de red. Asume que la acción ya ha sido validada y confirmada.
@@ -2137,7 +2171,7 @@ async function _executeMoveUnit(unit, toR, toC) {
 
             const city = gameState.cities.find(ci => ci.r === toR && ci.c === toC);
             if (city && city.owner === null) {
-                city.owner = movingPlayer;
+                city.owner = movingPlayer; // Actualizamos el 'owner' en el array global
                 logMessage(`¡La ciudad neutral '${city.name}' se une a tu imperio!`);
             }
             renderSingleHexVisuals(toR, toC);

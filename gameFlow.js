@@ -45,7 +45,15 @@ function checkAndProcessBrokenUnit(unit) {
 
     if (retreatHex) {
         logMessage(`¡${originalUnit.name} huye hacia (${retreatHex.r}, ${retreatHex.c})!`);
-        moveUnit({ ...originalUnit, currentMovement: 1, hasMoved: false }, retreatHex.r, retreatHex.c);
+        //moveUnit({ ...originalUnit, currentMovement: 1, hasMoved: false }, retreatHex.r, retreatHex.c);
+        const oldR = originalUnit.r;
+        const oldC = originalUnit.c;
+        if(board[oldR]?.[oldC]) board[oldR][oldC].unit = null; // Quitar lógicamente del hex original
+        
+        originalUnit.r = retreatHex.r; // Mover el OBJETO ORIGINAL
+        originalUnit.c = retreatHex.c;
+        if(board[retreatHex.r]?.[retreatHex.c]) board[retreatHex.r][retreatHex.c].unit = originalUnit; // Poner en el nuevo hex
+
     } else {
         logMessage(`¡${originalUnit.name} está rodeada y se rinde!`, "error");
         handleUnitDestroyed(originalUnit, null);
@@ -55,7 +63,7 @@ function checkAndProcessBrokenUnit(unit) {
         deselectUnit();
         if (UIManager) UIManager.hideContextualPanel();
     }
-
+    if (typeof renderFullBoardVisualState === "function") renderFullBoardVisualState();
     return true; 
 }
 
@@ -1004,17 +1012,20 @@ function handleEndTurn() {
                     logMessage(`Despliegue: Turno Jugador 2. (Límite: ${limit === Infinity ? 'Ilimitado' : limit})`);
                 } else {
                     nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
+                    if (typeof resetUnitsForNewTurn === "function") resetUnitsForNewTurn(1);
                 }
             } else { 
                 if ((gameState.unitsPlacedByPlayer[player2Id] || 0) < limit) {
                     nextPlayerForGame = player2Id; triggerAiDeployment = true; aiPlayerToDeploy = player2Id;
                 } else { 
                     nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
+                    if (typeof resetUnitsForNewTurn === "function") resetUnitsForNewTurn(1);
                 }
             }
         } else { 
             if (player2CanStillDeploy) logMessage(`Jugador 2: Aún puedes desplegar (Límite: ${limit === Infinity ? 'Ilimitado' : limit}).`);
             nextPhaseForGame = "play"; nextPlayerForGame = player1Id;
+            if (typeof resetUnitsForNewTurn === "function") resetUnitsForNewTurn(1);
         }
         gameState.currentPhase = nextPhaseForGame;
         gameState.currentPlayer = nextPlayerForGame;
