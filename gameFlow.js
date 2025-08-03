@@ -932,6 +932,229 @@ function calculateTradeIncome(playerNum) {
     return tradeIncome;
 }
 
+/**
+ * Solicita cambiar la capital del jugador a una ciudad seleccionada.
+ * Valida la ciudad y maneja la lógica local o de red.
+ * @param {number} r - Fila de la ciudad objetivo.
+ * @param {number} c - Columna de la ciudad objetivo.
+ * @returns {boolean} True si la acción fue procesada o enviada, false si falló.
+ */
+function requestChangeCapital(r, c) {
+    // --- VALIDACIONES ---
+    if (!board || !gameState || !gameState.playerResources || typeof hexDistance === 'undefined') {
+        logMessage("Error: Estado del juego o módulos requeridos no disponibles.", "error");
+        return false;
+    }
+    const hexData = board[r]?.[c];
+    const currentPlayer = gameState.currentPlayer;
+    const playerRes = gameState.playerResources[currentPlayer];
+    
+    if (!hexData) { logMessage("Hexágono inválido."); return false; }
+    if (hexData.owner !== currentPlayer) { logMessage("Solo puedes establecer tu capital en ciudades propias."); return false; }
+    const isEligibleCity = hexData.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexData.structure);
+    if (!isEligibleCity) { logMessage("Solo Aldeas, Ciudades o Metrópolis pueden ser capitales."); return false; }
+    // Aquí se necesita una forma de determinar si la ciudad es "Avanzada" (Aldea+)
+    // Asumamos que si no tiene estructura ('Aldea' base) y NO es la capital actual, es válida.
+    // Si tiene estructura, verificamos que sea Aldea, Ciudad, o Metrópoli.
+    const structureHierarchy = ["Aldea", "Ciudad", "Metrópoli"]; // Necesitarías definir esto bien
+    const isAdvancedCity = hexData.isCapital || 
+                           (hexData.structure && structureHierarchy.includes(hexData.structure)) ||
+                           (!hexData.structure && hexData.isCity); // O que sea simplemente una ciudad válida
+
+    if (!isAdvancedCity) {
+        logMessage("Solo se puede establecer capitales en Aldeas o superiores.");
+        return false;
+    }
+    if (hexData.isCapital) {
+        logMessage("Esta ciudad ya es tu capital.");
+        return false;
+    }
+    // --- FIN DE VALIDACIONES ---
+
+    // --- ACCIÓN DE RED (si aplica) ---
+    if (isNetworkGame()) { // Asumiendo que isNetworkGame() es una función útil de networkManager.js
+        console.log(`[Capital Change - Network] Solicitando cambio de capital a (${r},${c}) para J${currentPlayer}.`);
+        const action = {
+            type: 'changeCapital',
+            payload: {
+                playerId: currentPlayer,
+                cityR: r,
+                cityC: c
+            }
+        };
+        // Enviar la acción a través del NetworkManager
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action); // Anfitrión procesa localmente y retransmite
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action }); // Cliente pide
+        }
+    } else {
+        // --- ACCIÓN LOCAL ---
+        console.log(`[Capital Change - Local] Ejecutando cambio de capital a (${r},${c}) para J${currentPlayer}.`);
+        handleChangeCapital(r, c);
+    }
+    
+    // Devuelve true para indicar que la acción se ha iniciado
+    return true;
+}
+
+/**
+ * Ejecuta el cambio de capital en el estado del juego y actualiza la UI.
+ * Esta es la función que modifica directamente el estado global.
+ * @param {number} r - Fila de la nueva capital.
+ * @param {number} c - Columna de la nueva capital.
+ * @returns {boolean} True si el cambio fue exitoso.
+ */
+function handleChangeCapital(r, c) {
+    const currentPlayer = gameState.currentPlayer;
+
+    // --- 1. ENCONTRAR Y DESMARCAR LA CAPITAL ANTIGUA ---
+    let oldCapitalData = null;
+    
+    // Buscar la capital antigua directamente en el array gameState.cities
+    const oldCapitalEntryInGameState = gameState.cities.find(city => city.owner === currentPlayer && city.isCapital);
+
+    if (oldCapitalEntryInGameState) {
+        // Obtenemos sus coordenadas
+        const oldR = oldCapitalEntryInGameState.r;
+        const oldC = oldCapitalEntryInGameState.c;
+        oldCapitalData = board[oldR]?.[oldC];
+        
+        // Desmarcar en gameState.cities Y en el board
+        oldCapitalEntryInGameState.isCapital = false;
+        if (oldCapitalData) {
+            oldCapitalData.isCapital = false;
+        }
+        console.log(`[Capital Change] Capital antigua en (${oldR},${oldC}) desmarcada.`);
+        if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(oldR, oldC);
+    }
+    // Si no la encontramos en gameState.cities, como fallback, la buscamos en el tablero (tu código anterior).
+    else {
+        for (let row of board) {
+            for (const hex of row) {
+                if (hex && hex.owner === currentPlayer && hex.isCapital) {
+                    oldCapitalData = hex;
+                    oldCapitalData.isCapital = false;
+                    console.log(`[Capital Change] Capital antigua en (${hex.r},${hex.c}) desmarcada (encontrada por fallback).`);
+                    if (typeof renderSingleHexVisuals === "function") renderSingleHexVisuals(hex.r, hex.c);
+                    break;
+                }
+            }
+            if (oldCapitalData) break;
+        }
+    }
+
+
+    // --- 2. MARCAR LA NUEVA CAPITAL ---
+    const targetHexData = board[r]?.[c];
+    if (!targetHexData || targetHexData.owner !== currentPlayer) {
+        logMessage(`Error: No se puede establecer la capital en (${r},${c}).`, "error");
+        return false;
+    }
+
+    targetHexData.isCapital = true;
+    
+    let targetCityEntry = gameState.cities.find(city => city.r === r && city.c === c);
+    
+    if (targetCityEntry) {
+        targetCityEntry.isCapital = true;
+    } else {
+        // Si no existe, es una Aldea/Ciudad/Metrópoli que no estaba en la lista, la añadimos.
+        gameState.cities.push({
+            r: r, c: c, owner: currentPlayer,
+            name: targetHexData.structure || 'Nueva Ciudad',
+            isCapital: true 
+        });
+        console.log(`[Capital Change] La nueva capital (${r},${c}) fue añadida a gameState.cities.`);
+    }
+
+    if (gameState.capitalCityId) {
+        gameState.capitalCityId[currentPlayer] = { r: r, c: c };
+    }
+
+    logMessage(`Capital establecida en (${r},${c}) para el Jugador ${currentPlayer}.`);
+
+    // --- 3. ACTUALIZAR LA UI ---
+    if (typeof renderSingleHexVisuals === 'function') renderSingleHexVisuals(r, c);
+    if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+        UIManager.updateAllUIDisplays();
+    }
+
+    return true;
+}
+
+/**
+ * Calcula los stats combinados de una división a partir de sus regimientos.
+ * Este tipo de función probablemente ya exista o necesite ser creada si no.
+ * Devuelve un objeto con: attack, defense, maxHealth, movement, visionRange, attackRange.
+ * @param {Array<object>} regimentsArray - El array de regimientos que componen la unidad.
+ * @param {number} playerNum - El número del jugador (para bonus de civilización).
+ * @returns {object} Objeto con los stats calculados.
+ */
+function calculateRegimentStats(regimentsArray, playerNum) {
+    let finalStats = { attack: 0, defense: 0, maxHealth: 0, movement: Infinity, visionRange: 0, attackRange: 0, initiative: 0, sprite: '❓', is_naval: false, category: '' };
+    
+    if (!regimentsArray || regimentsArray.length === 0) {
+        return finalStats;
+    }
+
+    const playerCivName = gameState?.playerCivilizations?.[playerNum] || 'ninguna';
+    const civBonuses = CIVILIZATIONS[playerCivName]?.bonuses?.unitTypeBonus || {};
+
+    for (const reg of regimentsArray) {
+        const baseRegData = REGIMENT_TYPES[reg.type];
+        if (!baseRegData) continue;
+
+        const unitBonuses = civBonuses[reg.type] || {};
+
+        // Sumar stats base y bonus de nivel (si aplicase aquí, sino se hace después)
+        const effectiveAttack = (baseRegData.attack || 0) + (unitBonuses.attackBonus || 0);
+        const effectiveDefense = (baseRegData.defense || 0) + (unitBonuses.defenseBonus || 0);
+        
+        finalStats.attack += effectiveAttack;
+        finalStats.defense += effectiveDefense;
+        finalStats.maxHealth += baseRegData.health || 0;
+        finalStats.movement = Math.min(finalStats.movement, (baseRegData.movement || 0) + (unitBonuses.movementBonus || 0));
+        finalStats.visionRange = Math.max(finalStats.visionRange, baseRegData.visionRange || 0);
+        finalStats.attackRange = Math.max(finalStats.attackRange, (baseRegData.attackRange || 0) + (unitBonuses.attackRange || 0));
+        finalStats.initiative = Math.max(finalStats.initiative, baseRegData.initiative || 0);
+        finalStats.is_naval = finalStats.is_naval || baseRegData.is_naval;
+        
+        // Sprite: usar el del primer regimiento o uno por defecto
+        if (!finalStats.sprite || finalStats.sprite === '❓') {
+            finalStats.sprite = baseRegData.sprite || '❓';
+        }
+    }
+
+    finalStats.movement = (finalStats.movement === Infinity) ? 0 : finalStats.movement; // Si no hay movimiento, 0
+
+    return finalStats;
+}
+
+// --- EJEMPLO DE CÓMO SE USARÍA DESDE UN BOTÓN DE LA UI ---
+/*
+// Suponiendo que tienes un botón en el HTML: <button id="setAsCapitalBtn">Establecer como Capital</button>
+// Y que este botón está dentro de un contexto donde se muestra información de una ciudad propia seleccionada.
+
+const setCapitalBtn = document.getElementById('setAsCapitalBtn');
+if (setCapitalBtn) {
+    // Asegúrate de que 'selectedCityData' tenga la información de la ciudad del jugador
+    // Esto podría venir de un click en el mapa, o de la información mostrada en el panel contextual.
+    let selectedCityData = null; // Esto se obtendría de otra parte del código
+
+    setCapitalBtn.addEventListener('click', () => {
+        if (selectedCityData) {
+            requestChangeCapital(selectedCityData.r, selectedCityData.c);
+            
+            // Ocultar el botón/panel después de la acción
+            if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === 'function') {
+                UIManager.hideContextualPanel();
+            }
+        }
+    });
+}
+*/
+
 function handleEndTurn() {
     console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
 

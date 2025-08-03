@@ -144,6 +144,17 @@ const AiManager = {
                 actionPerformed = await this.attemptOpportunisticAttack(unit, aiPlayerNumber, aiLevel, enemyPlayer);
             }
 
+            // Priorizamos la fusión si mejora la unidad ANTES de decidir su rol,
+            // Y si aún tiene movimiento o no ha hecho NADA este turno.
+            if (!actionPerformed && !unit.hasMoved && !unit.hasAttacked) { 
+                console.log(`[AI Action - Pre-Role] ${unit.name} buscando fusión beneficiosa...`);
+                const mergePerformed = this.findAndExecuteMergeAction(unit, aiPlayerNumber, aiLevel);
+                if (mergePerformed) {
+                    actionPerformed = true; // La fusión cuenta como una acción.
+                    console.log(`[AI Action] Fusión realizada para ${unit.name}.`);
+                }
+            }
+
             // --- LÓGICA DE ROL ---
             if (!actionPerformed) {
                 switch (unitRole) {
@@ -867,6 +878,120 @@ const AiManager = {
         return await this.executeConquerorLogic(unit, aiPlayerNumber, enemyPlayer);
     },
 
+    // --- C9: FUNCIÓN PARA FUSIONAR/UNIR UNIDADES ---
+    findAndExecuteMergeAction: function(unitToPotentiallyMerge, aiPlayerNumber, aiLevel) {
+        //console.log(`[AI Merge Check] Buscando fusiones para ${unitToPotentiallyMerge.name} (${unitToPotentiallyMerge.id})`);
+        // Verificamos si la unidad puede actuar y es del jugador IA.
+        if (unitToPotentiallyMerge.hasMoved || unitToPotentiallyMerge.player !== aiPlayerNumber || unitToPotentiallyMerge.currentHealth <= 0) {
+            return false; // Ya actuó, está herida o no es IA.
+        }
+
+        // Encontrar unidades amigas adyacentes que estén disponibles para actuar (no hayan movido/atacado).
+        const friendlyUnits = units.filter(u =>
+            u.player === aiPlayerNumber &&
+            u.id !== unitToPotentiallyMerge.id && // No consigo misma unidad
+            !u.hasMoved && !u.hasAttacked &&     // Deben estar disponibles
+            u.currentHealth > 0 &&                // Deben estar vivas
+            hexDistance(unitToPotentiallyMerge.r, unitToPotentiallyMerge.c, u.r, u.c) === 1 // Solo adyacentes
+        );
+
+        if (friendlyUnits.length === 0) {
+            //console.log(`  - No hay unidades amigas adyacentes disponibles para fusionar.`);
+            return false; // No hay nadie cerca con quien fusionarse.
+        }
+
+        let bestMergeOption = null;
+        let highestMergeBenefit = -Infinity; // Para decidir cuál es la mejor fusión
+
+        console.log(`[AI Merge Check] Para ${unitToPotentiallyMerge.name}: encontradas ${friendlyUnits.length} unidades amigas adyacentes.`);
+
+        // Iterar sobre las unidades amigas para encontrar la mejor candidata a fusión.
+        for (const otherUnit of friendlyUnits) {
+            
+            // --- Heurística de Beneficio de Fusión ---
+            // Este cálculo determina qué tan "buena" es la fusión.
+            // Aquí se define la "inteligencia" de la IA al decidir fusionarse.
+            
+            let mergeBenefitScore = 0;
+            
+            // 1. Compatibilidad básica: Se asume que `mergeUnits` valida esto. Si no, debería ir aquí.
+            //    Ejemplo: mismo tipo de unidad, o una compatible (ej. Infantería + Cuartel General).
+
+            // 2. Mejora de estadísticas: Calculamos las estadísticas combinadas simuladas.
+            //    Asumimos que `calculateRegimentStats` funciona correctamente y devuelve las stats
+            //    combinadas de una división dada su lista de regimientos.
+            const currentUnitStats = calculateRegimentStats([unitToPotentiallyMerge.regiments[0]], unitToPotentiallyMerge.player);
+            const otherUnitStats = calculateRegimentStats([otherUnit.regiments[0]], otherUnit.player); // Asumimos que la unidad aliada tiene solo 1 regimiento por ahora
+            
+            // Simulamos las stats de la unidad combinada.
+            // Nota: Esto es una simplificación; `mergeUnits` debe manejar correctamente la combinación de MÚLTIPLES regimientos si las unidades pueden tenerlos.
+            // Por ahora, asumimos unidades simples o fusionamos regimientos base.
+            // Asumiendo que `calculateRegimentStats` puede tomar un array de regimientos y calcular los combinados:
+            const mergedStats = calculateRegimentStats([...(unitToPotentiallyMerge.regiments || []), ...(otherUnit.regiments || [])], aiPlayerNumber);
+
+            // Beneficio = Mejora en Stats (Ataque + Defensa) + Supervivencia de la unidad fusionada.
+            const currentTotalStats = (currentUnitStats.attack || 0) + (currentUnitStats.defense || 0);
+            const otherTotalStats = (otherUnitStats.attack || 0) + (otherUnitStats.defense || 0);
+            const mergedTotalStats = (mergedStats.attack || 0) + (mergedStats.defense || 0);
+
+            // Bonus si la combinación es SIGNIFICATIVAMENTE mejor (ej: >15% de mejora)
+            if (mergedTotalStats > (currentTotalStats + otherTotalStats) * 1.15) {
+                mergeBenefitScore += 10; 
+            }
+
+            // Bonus si ambas unidades están MUY dañadas (fusión de supervivientes)
+            const damageUnitA = Math.max(0, currentUnitStats.maxHealth - currentUnitStats.currentHealth);
+            const damageUnitB = Math.max(0, otherUnitStats.maxHealth - otherUnitStats.currentHealth);
+            if (damageUnitA > currentUnitStats.maxHealth * 0.6 && damageUnitB > otherUnitStats.maxHealth * 0.6) { // Si ambas perdieron >60% de vida
+                 mergeBenefitScore += 5;
+            }
+            
+            // Penalización si alguna de las unidades ya ha actuado este turno.
+            // Priorizamos fusionar unidades que aún PUEDEN actuar después.
+            if (unitToPotentiallyMerge.hasMoved || unitToPotentiallyMerge.hasAttacked) mergeBenefitScore -= 10;
+            if (otherUnit.hasMoved || otherUnit.hasAttacked) mergeBenefitScore -= 10; // Penalización doble si la otra unidad tampoco puede actuar
+
+            // Penalización si la fusión resultante excede el límite de regimientos.
+            // ¡Esto debería ser validado PRIMERO por `isValidMerge` si existiera!
+            // Aquí lo manejamos de forma simple: no se fusiona si supera el límite.
+            const totalRegimentsAfterMerge = (unitToPotentiallyMerge.regiments?.length || 0) + (otherUnit.regiments?.length || 0);
+            if (totalRegimentsAfterMerge > MAX_REGIMENTS_PER_DIVISION) {
+                 mergeBenefitScore -= 50; // Penalización grande si excede el límite.
+                 console.log(`  - ¡Alerta! Fusión de ${otherUnit.name} excedería el límite de ${MAX_REGIMENTS_PER_DIVISION} regimientos.`);
+            }
+
+            console.log(`  - Candidata: ${otherUnit.name} [${otherUnit.regiments.length} reg.] vs ${unitToPotentiallyMerge.name} [${unitToPotentiallyMerge.regiments.length} reg.] -> Beneficio: ${mergeBenefitScore}`);
+
+            // Actualizamos la mejor opción si esta fusión es mejor
+            if (mergeBenefitScore > highestMergeBenefit) {
+                highestMergeBenefit = mergeBenefitScore;
+                bestMergeOption = { unitA: unitToPotentiallyMerge, unitB: otherUnit };
+            }
+        }
+        
+        // --- EJECUCIÓN DE LA FUSIÓN SI SE ENCUENTRA UNA OPCIÓN VÁLIDA ---
+        // Solo realizamos la fusión si el beneficio es significativamente positivo.
+        if (bestMergeOption && highestMergeBenefit > 5) { 
+            console.log(`%c[AI Merge Decision] Ejecutando fusión: ${bestMergeOption.unitA.name} <-> ${bestMergeOption.unitB.name} (Beneficio estimado: ${highestMergeBenefit})`, "color: purple; font-weight: bold;");
+            
+            // Aquí llamamos a la función principal `mergeUnits`
+            // Asegúrate de que `mergeUnits` maneja la eliminación de la unidad fusionada (unitB)
+            // y la actualización de stats de la unidad resultante (unitA).
+            if (typeof mergeUnits === "function") {
+                // ¡ IMPORTANTE ! Pasar las unidades correctas: unitA es la que decide, unitB es la fusionada.
+                mergeUnits(bestMergeOption.unitA, bestMergeOption.unitB);
+                return true; // Devolver true para indicar que se realizó una acción.
+            } else {
+                console.error("[AI Merge] ¡Error crítico! La función 'mergeUnits' no está definida o no es accesible.");
+                return false;
+            }
+        }
+
+        // Si no se encontró una buena fusión.
+        console.log(`  - No se encontraron fusiones beneficiosas para ${unitToPotentiallyMerge.name}. Beneficio máximo estimado: ${highestMergeBenefit}.`);
+        return false;
+    },
+
     // --- FUNCIONES DE SOPORTE PARA LAS NUEVAS LÓGICAS ---
 
     compareGoldIncome: function(aiPlayer, enemyPlayer) {
@@ -913,6 +1038,7 @@ const AiManager = {
         if (!aiCapital) return false;
         return units.some(u => u.player === enemyPlayer && hexDistance(u.r, u.c, aiCapital.r, aiCapital.c) < 6);
     },
+
 };
 
 // ========================================================================
@@ -1659,6 +1785,7 @@ function deployUnitsAI(playerNumber) {
     console.log(`%c[DeployAI V30.1 - FINAL PUSH Modular] Despliegue FINALIZADO para Jugador IA 2. Unidades creadas: ${unitsActuallyCreated}`, "color: purple; font-weight:bold");
 }
 
+ 
 
 // Asegúrate de que las siguientes variables/funciones globales están accesibles y son correctas:
 // - REGIMENT_TYPES (con stats y costos de oro para cada tipo)

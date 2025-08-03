@@ -340,6 +340,27 @@ const UIManager = {
         }
         }
         else { this.removeAttackPredictionListener(); }
+
+        if (isPlayerUnit && gameState.currentPhase === 'play') {
+            const hexUnderUnit = board[unit.r]?.[unit.c];
+            if (hexUnderUnit && this._domElements.setAsCapitalBtn) {
+                const isEligibleCity = hexUnderUnit.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexUnderUnit.structure);
+                const isNotAlreadyCapital = !hexUnderUnit.isCapital;
+
+                if (isEligibleCity && isNotAlreadyCapital) {
+                    const setCapitalBtn = this._domElements.setAsCapitalBtn;
+                    setCapitalBtn.style.display = 'inline-block';
+                    setCapitalBtn.title = `Establecer ${hexUnderUnit.name || `(${unit.r},${unit.c})`} como Capital`;
+                    setCapitalBtn.onclick = (event) => {
+                        event.stopPropagation();
+                        if (typeof requestChangeCapital === "function") {
+                            requestChangeCapital(unit.r, unit.c);
+                            this.hideContextualPanel();
+                        }
+                    };
+                }
+            }
+        }
         
         this._domElements.contextualInfoPanel.classList.add('visible');
     },
@@ -442,7 +463,93 @@ const UIManager = {
                                 this._domElements.floatingCreateDivisionBtn.title = 'Crear División Terrestre o Naval';
                             }
                         }
-                        // >> FIN DEL CÓDIGO AÑADIDO <<
+
+                        // Obtener el botón del DOM usando la referencia de domElements
+                        const setCapitalBtn = domElements.setAsCapitalBtn;
+                        const currentPlayer = gameState.currentPlayer; 
+                        const isOwnCity = hexData.owner === currentPlayer;
+                        const isEligibleCity = hexData.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexData.structure);
+                        
+
+                        // Validaciones previas
+                        if (!hexData || !currentPlayer || !gameState.capitalCityId) { // <<-- CORRECCIÓN: Ahora 'currentPlayer' existe
+                            console.error(`[UIManager UI Update] Faltan datos críticos para el botón de capital.`);
+                            if (setCapitalBtn) setCapitalBtn.style.display = 'none';
+                            // return; // Quitamos el return para no cortar la ejecución del resto de la función
+                        } else {
+                            const isNotAlreadyCapital = !hexData.isCapital;
+
+                            if (setCapitalBtn) {
+                                if (isOwnCity && isEligibleCity && isNotAlreadyCapital) {
+                                    setCapitalBtn.style.display = 'inline-block';
+                                    setCapitalBtn.title = `Establecer ${hexData.name || `(${r},${c})`} como Capital`;
+
+                                    setCapitalBtn.onclick = (event) => {
+                                        event.stopPropagation();
+                                        console.log(`[UI Action] Clic en el botón 'Establecer como Capital' para el hexágono (${r}, ${c}).`);
+                                        
+                                        if (typeof requestChangeCapital === "function") {
+                                            const requestSuccess = requestChangeCapital(r, c);
+                                            if (requestSuccess) {
+                                                if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
+                                                    UIManager.hideContextualPanel();
+                                                }
+                                            }
+                                        } else {
+                                            console.error("La función 'requestChangeCapital' no está definida.");
+                                        }
+                                    };
+                                    console.log(`   - Botón 'Establecer Capital' mostrado y configurado para (${r}, ${c}).`);
+                                    
+                                } else {
+                                    setCapitalBtn.style.display = 'none';
+                                    console.log(`   - Botón 'Establecer Capital' oculto para (${r}, ${c}). (Dueño: ${hexData.owner}, Propio: ${isOwnCity}, Es Ciudad: ${isEligibleCity}, Es Capital: ${!isNotAlreadyCapital})`);
+                                }
+                            } else {
+                                console.warn("UIManager: domElements.setAsCapitalBtn no está referenciado.");
+                            }
+                        }
+                        hexToBuildOn = { r, c }; 
+                        const isNotAlreadyCapital = !hexData.isCapital;
+                        
+                        // Mostrar/Ocultar el botón según la elegibilidad
+                        if (setCapitalBtn) { // Solo proceder si el botón existe
+                            if (isOwnCity && isEligibleCity && isNotAlreadyCapital) {
+                                setCapitalBtn.style.display = 'inline-block'; // Mostrar el botón
+                                setCapitalBtn.title = `Establecer ${hexData.name || `(${r},${c})`} como Capital`;
+
+                                // Asignar el listener para la acción
+                                // Es importante asegurarse de que este listener no se añada múltiples veces si la función se llama repetidamente.
+                                // Una forma es quitar el listener anterior si existe, o asegurarse de que solo se añada una vez.
+                                // Simplificado aquí: si ya hay onclick, asumimos que está bien, o que una nueva asignación lo sobreescribe.
+                                setCapitalBtn.onclick = (event) => { // Añadir event para stopPropagation si fuera necesario
+                                    event.stopPropagation(); // Evitar que el clic se propague al panel/fondo
+                                    console.log(`[UI Action] Clic en el botón 'Establecer como Capital' para el hexágono (${r}, ${c}).`);
+
+                                    // Llamamos a la función de solicitud, que maneja la lógica de red/local
+                                    const requestSuccess = requestChangeCapital(r, c);
+
+                                    // Si la solicitud fue exitosa o si ya está gestionada por la red, cerramos el panel de contexto.
+                                    if (requestSuccess) { // Asumimos que requestChangeCapital devuelve true si la acción fue procesada o enviada.
+                                        console.log("[UI Action] Solicitud de cambio de capital procesada/enviada.");
+                                        if (UIManager && typeof UIManager.hideContextualPanel === 'function') {
+                                            UIManager.hideContextualPanel();
+                                        }
+                                    } else {
+                                        // Si hubo un error en la validación de la solicitud, el propio requestChangeCapital
+                                        // debería haber mostrado un mensaje de error. No cerramos el panel.
+                                        console.log("[UI Action] Solicitud de cambio de capital rechazada (ver log para más detalles).");
+                                    }
+                                };
+                                console.log(`   - Botón 'Establecer Capital' mostrado y configurado para (${r}, ${c}).`);
+                                
+                            } else {
+                                setCapitalBtn.style.display = 'none'; // Ocultar el botón si no es aplicable
+                                console.log(`   - Botón 'Establecer Capital' oculto para (${r}, ${c}). (Dueño: ${hexData.owner}, Propio: ${isOwnCity}, Es Ciudad: ${isEligibleCity}, Es Capital: ${hexData.isCapital})`);
+                            }
+                        } else {
+                            console.warn("UIManager: domElements.setAsCapitalBtn no está referenciado. El botón no se puede mostrar/controlar.");
+                        }
 
                         hexToBuildOn = { r, c }; 
                     }

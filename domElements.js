@@ -48,6 +48,7 @@ domElements.hostStatusEl = null;
 domElements.hostPlayerListEl = null;
 domElements.backToMainMenuBtn_fromHostLobby = null;
 
+
 // Antiguo botón startGameBtn se renombra a startLocalGameBtn
 domElements.player1TypeSelect = null;
 domElements.player1AiLevelDiv = null;
@@ -145,6 +146,7 @@ domElements.welcomeHelpSectionsEl = null;
 domElements.welcomeHelpFooterEl = null;
 domElements.doNotShowAgainCheckbox = null;
 domElements.startGameFromHelpBtn = null; 
+domElements.setAsCapitalBtn = null;
 domElements.player1Civ = null;
 domElements.player2Civ = null;
 
@@ -198,6 +200,7 @@ function initializeDomElements() {
     domElements.welcomeHelpFooterEl = document.getElementById('welcomeHelpFooter');
     domElements.doNotShowAgainCheckbox = document.getElementById('doNotShowAgainCheckbox');
     domElements.startGameFromHelpBtn = document.getElementById('startGameFromHelpBtn');
+    domElements.setAsCapitalBtn = document.getElementById('setAsCapitalBtn');
 
     domElements.floatingTechTreeBtn = document.getElementById('floatingTechTreeBtn');
     

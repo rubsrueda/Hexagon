@@ -17,8 +17,11 @@ let _tempNewUnitRegiments = [];   // Copia de los regimientos que irán a la nue
 // ===>>> CORRECCIÓN AQUÍ: Declarar las variables de estado para la construcción <<<===
 let hexToBuildOn = null;                // Guarda las coordenadas {r, c} del hexágono donde se va a construir.
 let selectedStructureToBuild = null;    // Guarda el tipo de estructura (string) que se ha seleccionado en el modal.
-// ===>>> FIN DE LA CORRECCIÓN <<<===
 
+gameState.capitalCityId = {
+    1: null, // Coordenadas o null si no hay capital
+    2: null
+};
 
 let placementMode = {
     active: false,
@@ -70,6 +73,7 @@ function resetGameStateVariables() {
         playerTypes: { player1: 'human', player2: 'ai_normal' },
         playerAiLevels: { player2: 'normal' },
         playerCivilizations: { 1: 'ninguna', 2: 'ninguna' }, 
+        capitalCityId: { 1: null, 2: null },
         playerResources: {
             // Crear copias profundas de los recursos iniciales
             1: JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[0])),
