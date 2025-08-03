@@ -502,6 +502,19 @@ function initApp() {
         });
     } else { console.warn("main.js: startLocalGameBtn no encontrado."); }
 
+     if (domElements.expandPanelBtn && domElements.contextualInfoPanel) {
+        domElements.expandPanelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const panel = domElements.contextualInfoPanel;
+            // Alterna la clase que controla la expansión
+            panel.classList.toggle('is-expanded');
+            // Cambia el icono del botón para que indique la acción posible
+            domElements.expandPanelBtn.textContent = panel.classList.contains('is-expanded') ? '▼' : '▲';
+        });
+    } else {
+        console.warn("main.js: No se encontraron los elementos necesarios para el panel contextual colapsable (expandPanelBtn o contextualInfoPanel).");
+    }
+
     if (domElements.floatingEndTurnBtn) { 
         domElements.floatingEndTurnBtn.addEventListener('click', () => { 
             // La única responsabilidad del botón es llamar a la función principal.
@@ -541,18 +554,37 @@ function initApp() {
         });
     }
     
-    if (domElements.closeContextualPanelBtn && domElements.contextualInfoPanel) { 
-        domElements.closeContextualPanelBtn.addEventListener('click', () => { 
-            if (typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") {
-                 UIManager.hideContextualPanel();
-            } else if (domElements.contextualInfoPanel) {
-                 domElements.contextualInfoPanel.style.display = 'none';
-                 if(typeof UIManager !== 'undefined' && typeof UIManager.hideAllActionButtons === 'function') UIManager.hideAllActionButtons();
-                 if (typeof selectedUnit !== 'undefined') selectedUnit = null;
-                 if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
+
+    if (domElements.closeContextualPanelBtn) { 
+        domElements.closeContextualPanelBtn.addEventListener('click', (event) => {
+            
+            // Paso 1: Evitar el "clic fantasma" que reabre el panel.
+            event.stopPropagation();
+            event.preventDefault(); // Añadimos una capa extra de prevención
+
+            console.log("%c[FORZANDO CIERRE] Clic en 'X' detectado. Ejecutando cierre directo...", "background: red; color: white; font-size: 14px;");
+
+            // Paso 2: Localizar el panel en el momento del clic.
+            const panel = document.getElementById('contextualInfoPanel');
+            
+            if (panel) {
+                // Paso 3: LA ORDEN DIRECTA Y BRUTAL. Esto anula CUALQUIER CSS.
+                panel.style.display = 'none';
+
+                console.log("[FORZANDO CIERRE] ¡Panel ocultado con 'display: none'!");
+
+                // Paso 4: Llamar a la función de limpieza de UIManager DESPUÉS
+                // para que limpie el estado del juego (deseleccionar unidad, etc.)
+                if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
+                    UIManager.hideContextualPanel(); // Se ejecutará sin intentar ocultar el panel de nuevo.
+                }
+
+            } else {
+                console.error("[FORZANDO CIERRE] No se pudo encontrar #contextualInfoPanel en el DOM al hacer clic en 'X'.");
             }
-        }); 
-    } else { console.warn("main.js: closeContextualPanelBtn o contextualInfoPanel no encontrado."); }
+        });
+        console.log("Listener de cierre FINAL y FORZADO añadido al botón 'X'.");
+    }
 
     if (domElements.saveGameBtn_float) { 
         domElements.saveGameBtn_float.addEventListener('click', () => { 

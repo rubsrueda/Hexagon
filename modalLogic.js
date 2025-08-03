@@ -15,6 +15,35 @@ function RequestConfirmBuildStructure() {
     handleConfirmBuildStructure();
 }
 
+function showCityContextualInfo(cityData) { // Modificar función existente o crear una nueva
+    if (!cityData || !domElements) return;
+    
+    const currentPlayer = gameState.currentPlayer;
+    const isOwnCity = cityData.owner === currentPlayer;
+    // Determinar si la ciudad es "Avanzada" (Aldea o superior).
+    // Esto puede depender de si tiene una estructura definida ('Aldea', 'Ciudad', 'Metrópoli')
+    // o si 'isCapital' ya está set true (indicando que fue establecida previamente).
+    // Si no hay estructura pero es 'isCity' y no es la capital, podemos considerarla al menos como una Aldea.
+    const isAdvancedCity = cityData.isCapital || (cityData.structure && STRUCTURE_TYPES[cityData.structure]?.typeHierarchy >= "Aldea") || (cityData.isCity && !cityData.isCapital);
+    
+    const setCapitalBtn = document.getElementById('setAsCapitalBtn'); // El botón que añadiremos en HTML
+
+     if (isOwnCity && isAdvancedCity && !cityData.isCapital) {
+        if (setCapitalBtn) {
+            setCapitalBtn.style.display = 'block'; // Mostrar botón
+            setCapitalBtn.onclick = () => {
+                requestChangeCapital(cityData.r, cityData.c);
+                // Opcionalmente cerrar panel si la acción es final
+                if (UIManager.hideContextualPanel) UIManager.hideContextualPanel(); 
+            };
+        } else {
+            console.warn("UIManager: Botón 'setAsCapitalBtn' no encontrado.");
+        }
+    } else {
+        if (setCapitalBtn) setCapitalBtn.style.display = 'none'; // Ocultar si no es aplicable
+    }
+}
+
 function addModalEventListeners() {
     console.log("modalLogic: addModalEventListeners INICIADO.");
 

@@ -38,6 +38,8 @@ domElements.startSkirmishBtnEl = null;
 domElements.startTutorialBtn = null;
 domElements.floatingPillageBtn = null;
 domElements.startGameBtn = null;
+domElements.expandPanelBtn = null;
+
 // NUEVO: Botones de la pantalla de configuración y lobby
 domElements.startLocalGameBtn = null;
 domElements.createNetworkGameBtn = null;
@@ -214,6 +216,7 @@ function initializeDomElements() {
     domElements.startCampaignBtnEl = document.getElementById('startCampaignBtn');
     domElements.startSkirmishBtnEl = document.getElementById('startSkirmishBtn'); 
     domElements.startTutorialBtn = document.getElementById('startTutorialBtn'); 
+    domElements.expandPanelBtn = document.getElementById('expandPanelBtn');
 
     // --- CORRECCIONES Y ADICIONES PARA EL NUEVO FLUJO ---
     domElements.startGameBtn = document.getElementById('startGameBtn'); // Original preservado

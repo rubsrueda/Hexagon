@@ -1,4 +1,5 @@
-// uiUpdates.js
+// uiUpdates.js (ESTA ES TU VERSIÓN ORIGINAL Y COMPLETA, RESTAURADA)
+
 const UIManager = {
     _tutorialMessagePanel: null, 
     _originalEndTurnButtonListener: null, 
@@ -8,6 +9,7 @@ const UIManager = {
     _currentAttackPredictionListener: null, 
     _hidePredictionTimeout: null, 
     _domElements: null, 
+    _restoreTimeout: null,
 
     setDomElements: function(domElementsRef) {
         this._domElements = domElementsRef; 
@@ -168,7 +170,7 @@ const UIManager = {
 
     hideAllActionButtons: function() {
          if (!this._domElements) return;
-         ['floatingUndoMoveBtn', 'floatingReinforceBtn', 'floatingSplitBtn', 'floatingBuildBtn', 'floatingPillageBtn'].forEach(id => {
+         ['floatingUndoMoveBtn', 'floatingReinforceBtn', 'floatingSplitBtn', 'floatingBuildBtn', 'floatingPillageBtn', 'setAsCapitalBtn'].forEach(id => {
              if (this._domElements[id]) this._domElements[id].style.display = 'none';
          });
     },
@@ -199,53 +201,6 @@ const UIManager = {
             });
         }
     },
-
-    showMessageTemporarily: function(message, duration = 3000, isError = false) {
-        // Obtenemos el panel principal
-        if (!this._domElements?.contextualInfoPanel) return;
-        const panel = this._domElements.contextualInfoPanel;
-
-        // Guardamos el contenido y las clases actuales del panel si está visible
-        const originalContent = {
-            title: this._domElements.contextualTitle.innerHTML,
-            content: this._domElements.contextualContent.innerHTML
-        };
-        const wasVisible = panel.classList.contains('visible');
-        
-        // Limpiamos timeouts anteriores para evitar solapamientos
-        if (panel.restoreTimeout) {
-            clearTimeout(panel.restoreTimeout);
-        }
-
-        // Modificamos el panel para mostrar el nuevo mensaje
-        this._domElements.contextualTitle.innerHTML = message; // Usamos el título para el mensaje
-        this._domElements.contextualContent.innerHTML = ''; // Vaciamos el contenido secundario
-
-        // Aplicamos la clase de color y nos aseguramos de que el panel esté visible
-        panel.classList.remove('info-message', 'error-message'); // Limpiar clases de color anteriores
-        if (isError) {
-            panel.classList.add('error-message');
-        } else {
-            panel.classList.add('info-message');
-        }
-        panel.classList.add('visible'); // Mostramos el panel
-
-        // Programamos la restauración del estado original del panel
-        panel.restoreTimeout = setTimeout(() => {
-            // Quitamos la clase de color del mensaje
-            panel.classList.remove('info-message', 'error-message');
-            
-            // Si el panel estaba visible antes, restauramos su contenido.
-            // Si no, simplemente lo ocultamos.
-            if (wasVisible) {
-                this._domElements.contextualTitle.innerHTML = originalContent.title;
-                this._domElements.contextualContent.innerHTML = originalContent.content;
-            } else {
-                panel.classList.remove('visible');
-            }
-            panel.restoreTimeout = null;
-        }, duration);
-    },
     
     updateActionButtonsBasedOnPhase: function() {
         if (!gameState || !this._domElements) return;
@@ -271,17 +226,59 @@ const UIManager = {
              this.hideContextualPanel(); 
         }
     },
+  
+    showMessageTemporarily: function(message, duration = 3000, isError = false) {
+        if (!this._domElements?.contextualInfoPanel) return;
+        const panel = this._domElements.contextualInfoPanel;
 
-    showUnitContextualInfo: function(unit, isOwnUnit = true) {
+        if (this._restoreTimeout) clearTimeout(this._restoreTimeout);
+        
+        // El mensaje toma control TOTAL del panel
+        this._domElements.contextualTitle.innerHTML = message;
+        if(this._domElements.contextualContent) this._domElements.contextualContent.innerHTML = '';
+        if(this._domElements.contextualActions) this._domElements.contextualActions.style.display = 'none';
+
+        panel.classList.remove('info-message', 'error-message');
+        panel.classList.add(isError ? 'error-message' : 'info-message');
+
+        // Mostramos el panel de forma inequívoca
+        panel.classList.add('visible');
+
+        // El timer SIEMPRE oculta el panel al terminar.
+        this._restoreTimeout = setTimeout(() => {
+            this.hideContextualPanel();
+        }, duration);
+    },
+
+    hideContextualPanel: function() {
+        if (this._restoreTimeout) {
+            clearTimeout(this._restoreTimeout);
+            this._restoreTimeout = null;
+        }
+        
+        const panel = this._domElements?.contextualInfoPanel;
+        if (panel) {
+            panel.classList.remove('visible');
+        }
+        
+        this.removeAttackPredictionListener();
         this.hideAllActionButtons();
+        if (typeof selectedUnit !== 'undefined') selectedUnit = null;
+        if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
+    },
+    
+    showUnitContextualInfo: function(unit, isOwnUnit = true) {
+        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
+        if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
+        this.hideAllActionButtons();
+        this._domElements.contextualInfoPanel.style.display = 'flex';
         hexToBuildOn = null;
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
         const isPlayerUnit = unit.player === gameState.currentPlayer;
         this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (ID: ${unit.id})`;
         
-        let contentHTML = ``;
-        contentHTML += `<p>Salud: ${unit.currentHealth}/${unit.maxHealth}</p>`;
+        let contentHTML = `<p>Salud: ${unit.currentHealth}/${unit.maxHealth}</p>`;
         contentHTML += `<p>A/D/M: ${unit.attack}/${unit.defense}/${unit.currentMovement || unit.movement}</p>`;
         let moralStatus = "Normal", moralColor = "#f0f0f0";
         if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
@@ -296,17 +293,25 @@ const UIManager = {
             if (nextLevelXP !== 'Max') { xpText += ` (XP: ${unitExperience} / ${nextLevelXP})`; }
             contentHTML += `<p>${xpText}</p>`;
         }
+        const hexData = board[unit.r]?.[unit.c];
+        if (hexData) {
+            contentHTML += `<hr style="border-color: #4a5568; margin: 10px 0;">`;
+            let hexTitle = TERRAIN_TYPES[hexData.terrain]?.name || hexData.terrain;
+            if (hexData.resourceNode) {
+                hexTitle += `, ${RESOURCE_NODES_DATA[hexData.resourceNode]?.name || hexData.resourceNode}`;
+            }
+            contentHTML += `<p><strong>Terreno:</strong> ${hexTitle}</p>`;
+            
+            if (hexData.owner !== null) {
+                contentHTML += `<p><strong>Dueño:</strong> Jugador ${hexData.owner} | <strong>Est:</strong> ${hexData.estabilidad}/${MAX_STABILITY} | <strong>Nac:</strong> ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}</p>`;
+            }
+        }
         this._domElements.contextualContent.innerHTML = contentHTML;
 
-        // --- LÓGICA DE BOTONES SIMPLIFICADA ---
-
-        // El botón de Gestionar/Reforzar (💪) se mostrará siempre que haya una unidad seleccionada (sea propia o enemiga)
         if (this._domElements.floatingReinforceBtn) {
             this._domElements.floatingReinforceBtn.style.display = 'flex';
-            this._domElements.floatingReinforceBtn.title = 'Gestionar / Ver Detalles de Unidad';
         }
 
-        // El resto de botones solo aparecen para unidades propias y bajo ciertas condiciones
         if (isPlayerUnit && gameState.currentPhase === 'play') {
             const canAct = !unit.hasMoved && !unit.hasAttacked;
 
@@ -331,13 +336,8 @@ const UIManager = {
             }
         }
         
-        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) { this.attachAttackPredictionListener(unit); 
-            // BOTÓN: Saquear Hexágono
-        const hexUnderUnit = board[unit.r]?.[unit.c];
-        const canPillage = !unit.hasMoved && !unit.hasAttacked && hexUnderUnit && hexUnderUnit.owner !== null && hexUnderUnit.owner !== unit.player;
-        if (canPillage && this._domElements.floatingPillageBtn) {
-            this._domElements.floatingPillageBtn.style.display = 'flex';
-        }
+        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
+             this.attachAttackPredictionListener(unit);
         }
         else { this.removeAttackPredictionListener(); }
 
@@ -346,18 +346,8 @@ const UIManager = {
             if (hexUnderUnit && this._domElements.setAsCapitalBtn) {
                 const isEligibleCity = hexUnderUnit.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexUnderUnit.structure);
                 const isNotAlreadyCapital = !hexUnderUnit.isCapital;
-
                 if (isEligibleCity && isNotAlreadyCapital) {
-                    const setCapitalBtn = this._domElements.setAsCapitalBtn;
-                    setCapitalBtn.style.display = 'inline-block';
-                    setCapitalBtn.title = `Establecer ${hexUnderUnit.name || `(${unit.r},${unit.c})`} como Capital`;
-                    setCapitalBtn.onclick = (event) => {
-                        event.stopPropagation();
-                        if (typeof requestChangeCapital === "function") {
-                            requestChangeCapital(unit.r, unit.c);
-                            this.hideContextualPanel();
-                        }
-                    };
+                    this._domElements.setAsCapitalBtn.style.display = 'block';
                 }
             }
         }
@@ -366,14 +356,16 @@ const UIManager = {
     },
 
     showHexContextualInfo: function(r, c, hexData) {
+        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
+        if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
         this.hideAllActionButtons();
+         this._domElements.contextualInfoPanel.style.display = 'flex';
         this.removeAttackPredictionListener();
         if (this._domElements.floatingCreateDivisionBtn && gameState.currentPhase !== "deployment") {
             this._domElements.floatingCreateDivisionBtn.style.display = 'none';
         }
         if (!this._domElements.contextualInfoPanel || !hexData) return;
 
-        // --- CONSTRUCCIÓN DEL TÍTULO COMPACTO ---
         let titleParts = [];
         titleParts.push(TERRAIN_TYPES[hexData.terrain]?.name || hexData.terrain);
         if (hexData.resourceNode) {
@@ -381,10 +373,7 @@ const UIManager = {
         }
         this._domElements.contextualTitle.textContent = `Hexágono (${r},${c}) - ${titleParts.join(', ')}`;
         
-        // --- CONSTRUCCIÓN DEL CONTENIDO PRINCIPAL COMPACTO ---
         let contentHTML = '';
-        
-        // Línea 1: Dueño, Estabilidad y Nacionalidad
         let ownerLineParts = [];
         if (hexData.owner !== null) {
             ownerLineParts.push(`Dueño: Jugador ${hexData.owner}`);
@@ -395,7 +384,6 @@ const UIManager = {
         }
         contentHTML += `<p>${ownerLineParts.join(' | ')}</p>`;
         
-        // Línea 2: Estructura (si existe)
         if (hexData.structure) {
             contentHTML += `<p>Estructura: ${STRUCTURE_TYPES[hexData.structure]?.sprite || ''} ${STRUCTURE_TYPES[hexData.structure]?.name || hexData.structure}</p>`;
         } else if (hexData.isCity) {
@@ -404,180 +392,40 @@ const UIManager = {
         
         this._domElements.contextualContent.innerHTML = contentHTML;
         
-        // --- LÓGICA DE ACCIONES (Sin cambios) ---
         const isPlayerTerritory = hexData.owner === gameState.currentPlayer;
         const isUnitPresent = getUnitOnHex(r, c);
         const canActHere = gameState.currentPhase === 'play' && isPlayerTerritory && !isUnitPresent;
-
-            console.log(`  - ¿Es territorio del jugador ${gameState.currentPlayer}?: ${isPlayerTerritory} (Dueño del hex: ${hexData.owner})`);
-            console.log(`  - ¿Hay una unidad en el hex?: ${isUnitPresent ? isUnitPresent.name : 'No'}`);
 
         if (canActHere) {
             const playerTechs = gameState.playerResources[gameState.currentPlayer]?.researchedTechnologies || [];
             if (playerTechs.includes('ENGINEERING')) {
                 if (this._domElements.floatingBuildBtn) this._domElements.floatingBuildBtn.style.display = 'flex';
                 hexToBuildOn = {r, c};
-                } else {
-                    console.log("    - NO tiene tecnología 'ENGINEERING'.");
             }
             
-            
-            // La lógica se asegura de que CUALQUIER estructura con 'allowsRecruitment' active el botón.
             const currentStructureInfo = hexData.structure ? STRUCTURE_TYPES[hexData.structure] : null;
-            
-                console.log(`    - ¿Tiene estructura?: ${hexData.structure || 'No'}`);
-                if(currentStructureInfo) {
-                    console.log(`    - ¿La estructura permite reclutar?: ${currentStructureInfo.allowsRecruitment === true}`);
-                }
-            
             const isRecruitmentPoint = hexData.isCity || hexData.isCapital || (currentStructureInfo && currentStructureInfo.allowsRecruitment);
                 
-                console.log(`    - ¿Resultado final de isRecruitmentPoint?: ${isRecruitmentPoint}`);
-            
-            
-                if (isRecruitmentPoint) {
-                        // TU LÓGICA PARA UNIDADES TERRESTRES (INTACTA)
-                        if (this._domElements.floatingCreateDivisionBtn) {
-                            this._domElements.floatingCreateDivisionBtn.textContent = '➕';
-                            this._domElements.floatingCreateDivisionBtn.title = 'Crear División Terrestre';
-                            this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
-                        }
-                        
-                        // >> INICIO DEL CÓDIGO AÑADIDO: LÓGICA PARA UNIDADES NAVALES <<
-                        
-                        // 1. Comprobamos si el punto de reclutamiento es costero
-                        const isCoastal = getHexNeighbors(r, c).some(n => board[n.r]?.[n.c]?.terrain === 'water');
-                        
-                        // 2. Comprobamos si el jugador tiene la tecnología naval
-                        const hasNavalTech = playerTechs.includes('NAVIGATION');
-                        
-                        if (isCoastal && hasNavalTech) {
-                            // Si se cumplen ambas, mostramos el botón con un ícono diferente.
-                            // Podríamos usar el mismo botón y cambiarle el comportamiento,
-                            // o tener un botón dedicado. Por ahora, esto es lo más seguro.
-                            console.log(`[Lógica Naval] La ciudad en (${r},${c}) es costera. Habilitando creación naval.`);
-
-                            // Haremos que el mismo botón de "Crear División" sirva, asumiendo
-                            // que el modal que se abre te permitirá elegir entre unidades terrestres o navales.
-                            if (this._domElements.floatingCreateDivisionBtn) {
-                                this._domElements.floatingCreateDivisionBtn.title = 'Crear División Terrestre o Naval';
-                            }
-                        }
-
-                        // Obtener el botón del DOM usando la referencia de domElements
-                        const setCapitalBtn = domElements.setAsCapitalBtn;
-                        const currentPlayer = gameState.currentPlayer; 
-                        const isOwnCity = hexData.owner === currentPlayer;
-                        const isEligibleCity = hexData.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexData.structure);
-                        
-
-                        // Validaciones previas
-                        if (!hexData || !currentPlayer || !gameState.capitalCityId) { // <<-- CORRECCIÓN: Ahora 'currentPlayer' existe
-                            console.error(`[UIManager UI Update] Faltan datos críticos para el botón de capital.`);
-                            if (setCapitalBtn) setCapitalBtn.style.display = 'none';
-                            // return; // Quitamos el return para no cortar la ejecución del resto de la función
-                        } else {
-                            const isNotAlreadyCapital = !hexData.isCapital;
-
-                            if (setCapitalBtn) {
-                                if (isOwnCity && isEligibleCity && isNotAlreadyCapital) {
-                                    setCapitalBtn.style.display = 'inline-block';
-                                    setCapitalBtn.title = `Establecer ${hexData.name || `(${r},${c})`} como Capital`;
-
-                                    setCapitalBtn.onclick = (event) => {
-                                        event.stopPropagation();
-                                        console.log(`[UI Action] Clic en el botón 'Establecer como Capital' para el hexágono (${r}, ${c}).`);
-                                        
-                                        if (typeof requestChangeCapital === "function") {
-                                            const requestSuccess = requestChangeCapital(r, c);
-                                            if (requestSuccess) {
-                                                if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
-                                                    UIManager.hideContextualPanel();
-                                                }
-                                            }
-                                        } else {
-                                            console.error("La función 'requestChangeCapital' no está definida.");
-                                        }
-                                    };
-                                    console.log(`   - Botón 'Establecer Capital' mostrado y configurado para (${r}, ${c}).`);
-                                    
-                                } else {
-                                    setCapitalBtn.style.display = 'none';
-                                    console.log(`   - Botón 'Establecer Capital' oculto para (${r}, ${c}). (Dueño: ${hexData.owner}, Propio: ${isOwnCity}, Es Ciudad: ${isEligibleCity}, Es Capital: ${!isNotAlreadyCapital})`);
-                                }
-                            } else {
-                                console.warn("UIManager: domElements.setAsCapitalBtn no está referenciado.");
-                            }
-                        }
-                        hexToBuildOn = { r, c }; 
-                        const isNotAlreadyCapital = !hexData.isCapital;
-                        
-                        // Mostrar/Ocultar el botón según la elegibilidad
-                        if (setCapitalBtn) { // Solo proceder si el botón existe
-                            if (isOwnCity && isEligibleCity && isNotAlreadyCapital) {
-                                setCapitalBtn.style.display = 'inline-block'; // Mostrar el botón
-                                setCapitalBtn.title = `Establecer ${hexData.name || `(${r},${c})`} como Capital`;
-
-                                // Asignar el listener para la acción
-                                // Es importante asegurarse de que este listener no se añada múltiples veces si la función se llama repetidamente.
-                                // Una forma es quitar el listener anterior si existe, o asegurarse de que solo se añada una vez.
-                                // Simplificado aquí: si ya hay onclick, asumimos que está bien, o que una nueva asignación lo sobreescribe.
-                                setCapitalBtn.onclick = (event) => { // Añadir event para stopPropagation si fuera necesario
-                                    event.stopPropagation(); // Evitar que el clic se propague al panel/fondo
-                                    console.log(`[UI Action] Clic en el botón 'Establecer como Capital' para el hexágono (${r}, ${c}).`);
-
-                                    // Llamamos a la función de solicitud, que maneja la lógica de red/local
-                                    const requestSuccess = requestChangeCapital(r, c);
-
-                                    // Si la solicitud fue exitosa o si ya está gestionada por la red, cerramos el panel de contexto.
-                                    if (requestSuccess) { // Asumimos que requestChangeCapital devuelve true si la acción fue procesada o enviada.
-                                        console.log("[UI Action] Solicitud de cambio de capital procesada/enviada.");
-                                        if (UIManager && typeof UIManager.hideContextualPanel === 'function') {
-                                            UIManager.hideContextualPanel();
-                                        }
-                                    } else {
-                                        // Si hubo un error en la validación de la solicitud, el propio requestChangeCapital
-                                        // debería haber mostrado un mensaje de error. No cerramos el panel.
-                                        console.log("[UI Action] Solicitud de cambio de capital rechazada (ver log para más detalles).");
-                                    }
-                                };
-                                console.log(`   - Botón 'Establecer Capital' mostrado y configurado para (${r}, ${c}).`);
-                                
-                            } else {
-                                setCapitalBtn.style.display = 'none'; // Ocultar el botón si no es aplicable
-                                console.log(`   - Botón 'Establecer Capital' oculto para (${r}, ${c}). (Dueño: ${hexData.owner}, Propio: ${isOwnCity}, Es Ciudad: ${isEligibleCity}, Es Capital: ${hexData.isCapital})`);
-                            }
-                        } else {
-                            console.warn("UIManager: domElements.setAsCapitalBtn no está referenciado. El botón no se puede mostrar/controlar.");
-                        }
-
-                        hexToBuildOn = { r, c }; 
-                    }
-
-                } else {
-                    hexToBuildOn = null;
+            if (isRecruitmentPoint) {
+                if (this._domElements.floatingCreateDivisionBtn) {
+                    this._domElements.floatingCreateDivisionBtn.textContent = '➕';
+                    this._domElements.floatingCreateDivisionBtn.title = 'Crear División';
+                    this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
                 }
-
+            }
+        }
         
+        const setCapitalBtn = this._domElements.setAsCapitalBtn;
+        if(setCapitalBtn) {
+            const isEligibleCity = hexData.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexData.structure);
+            if(isPlayerTerritory && isEligibleCity && !hexData.isCapital) {
+                 setCapitalBtn.style.display = 'block';
+            }
+        }
+
         this._domElements.contextualInfoPanel.classList.add('visible');
-            console.groupEnd();
     },
 
-    hideContextualPanel: function() {
-        
-        this.removeAttackPredictionListener();
-        this.hideAllActionButtons();
-        if (this._domElements.floatingCreateDivisionBtn && gameState.currentPhase !== "deployment") {
-            this._domElements.floatingCreateDivisionBtn.style.display = 'none';
-        }
-        if (typeof selectedUnit !== 'undefined') selectedUnit = null;
-        if (typeof hexToBuildOn !== 'undefined') hexToBuildOn = null;
-        if (this._domElements.contextualInfoPanel) {
-            this._domElements.contextualInfoPanel.classList.remove('visible');
-        }
-        this.hideAllActionButtons();
-    },
-    
     updateSelectedUnitInfoPanel: function() {
         if (selectedUnit) {
             this.showUnitContextualInfo(selectedUnit, (selectedUnit.player === gameState.currentPlayer));
@@ -595,23 +443,6 @@ const UIManager = {
         }
     },
 
-    highlightTutorialElement: function(elementId, hexCoords) {
-        this.clearHighlights(); 
-        if (elementId) {
-            const el = document.getElementById(elementId);
-            if (el) { el.classList.add('tutorial-highlight'); this._lastTutorialHighlightElementId = elementId; }
-        }
-        if (hexCoords?.length > 0) {
-            hexCoords.forEach(coords => {
-                const hexData = board[coords.r]?.[coords.c];
-                if (hexData?.element) {
-                    hexData.element.classList.add('tutorial-highlight-hex'); 
-                    this._lastTutorialHighlightHexes.push(coords); 
-                }
-            });
-        }
-    },
-
     updateTurnIndicatorAndBlocker: function() {
         if (!this._domElements || !gameState || typeof gameState.myPlayerNumber === 'undefined') return;
 
@@ -621,19 +452,14 @@ const UIManager = {
 
         const isMyTurn = gameState.currentPlayer === gameState.myPlayerNumber;
         
-        console.log(`[UI Update] Chequeando estado del turno. Soy J${gameState.myPlayerNumber}, es el turno de J${gameState.currentPlayer}. ¿Es mi turno? ${isMyTurn}`);
-
         if (isMyTurn) {
-            // ES MI TURNO
-            blocker.style.display = 'none'; // Ocultar el bloqueador
-            endTurnBtn.disabled = false;    // Habilitar el botón de fin de turno
+            blocker.style.display = 'none';
+            endTurnBtn.disabled = false;
             this.showMessageTemporarily("¡Es tu turno!", 2500);
         } else {
-            // NO ES MI TURNO
-            blocker.style.display = 'flex'; // Mostrar el bloqueador
+            blocker.style.display = 'flex';
             blocker.textContent = `Esperando al Jugador ${gameState.currentPlayer}...`;
-            endTurnBtn.disabled = true;     // Deshabilitar el botón
+            endTurnBtn.disabled = true;
         }
     },
-
 };

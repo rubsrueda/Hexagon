@@ -305,7 +305,8 @@ const STRUCTURE_TYPES = {
         movementCost: 0.5, // <<== AÑADIDO: Moverse por un camino es muy rápido
         buildableOn: ['plains', 'hills'], upkeep: {}, requiredTech: "ENGINEERING",
         canBeUpgraded: true, 
-        nextUpgrade: "Fortaleza"
+        nextUpgrade: "Fortaleza",
+        buildOrder: 1
     },
 
     "Fortaleza": { 
@@ -314,7 +315,8 @@ const STRUCTURE_TYPES = {
         allowsRecruitment: true, integrity: 100,  upkeep: { comida: 40, oro: 20 },  buildableOn: [],
         requiredTech: "FORTIFICATIONS", isFortification: true,
         canBeUpgraded: true,
-        nextUpgrade: "Fortaleza con Muralla"
+        nextUpgrade: "Fortaleza con Muralla",
+        buildOrder: 2
     },
     
      "Fortaleza con Muralla": {
@@ -323,7 +325,8 @@ const STRUCTURE_TYPES = {
         allowsRecruitment: true, upkeep: { oro: 40 }, buildableOn: [],
         requiredTech: "SIEGE_CRAFT", isFortification: true, unlocksArtillery: true,
         canBeUpgraded: true, 
-        nextUpgrade: "Aldea"
+        nextUpgrade: "Aldea",
+        buildOrder: 3
     },
     "Aldea": {
         name: "Aldea", 
@@ -336,7 +339,8 @@ const STRUCTURE_TYPES = {
         requiredTech: "COLONY", 
         tradeValue: 5,
         canBeUpgraded: true, 
-        nextUpgrade: "Ciudad"
+        nextUpgrade: "Ciudad",
+        buildOrder: 4
     },
     "Ciudad": {
         name: "Ciudad", 
@@ -349,7 +353,8 @@ const STRUCTURE_TYPES = {
         requiredTech: "COLONY", 
         tradeValue: 10,
         canBeUpgraded: true, 
-        nextUpgrade: "Metrópoli"
+        nextUpgrade: "Metrópoli",
+        buildOrder: 5
     },
     "Metrópoli": {
         name: "Metrópoli", 
@@ -362,7 +367,8 @@ const STRUCTURE_TYPES = {
         requiredTech: "COLONY", 
         tradeValue: 20,
         canBeUpgraded: false,
-        nextUpgrade: null
+        nextUpgrade: null,
+        buildOrder: 6
     }
 };
 

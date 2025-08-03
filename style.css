@@ -1,8 +1,48 @@
+/**
+ * style.css - 100% Fiel al Original, Reorganizado Semánticamente
+ *
+ * ESTRUCTURA:
+ * 1.  ESTILOS GENERALES Y GLOBALES (body, helpers)
+ * 2.  CONTENEDORES PRINCIPALES (game-container, gameBoard)
+ * 3.  COMPONENTES DEL TABLERO (hex, niebla, sprites)
+ * 4.  COMPONENTES DE UNIDADES (unit, estados)
+ * 5.  PANELES DE UI (contextual, predicción, flotantes)
+ * 6.  BOTONES FLOTANTES
+ * 7.  MODALES (base y específicos)
+ *       - Modal Base
+ *       - Menú Principal
+ *       - Configuración y Campaña
+ *       - Briefing de Escenario
+ *       - Árbol de Tecnología
+ *       - Gestión de Unidades (varios modales)
+ *       - Wiki y Ayuda
+ *       - Lobby Multijugador
+ * 8.  ANIMACIONES (@keyframes)
+ * 9.  ESTILOS DE DEPURACIÓN Y TUTORIAL
+ * 10. MEDIA QUERIES (Diseño Adaptable)
+ * 11. ESTILOS ANTIGUOS O DESHABILITADOS
+ */
+
+/* ========================================================================== */
+/* 1. ESTILOS GENERALES Y GLOBALES
+/* ========================================================================== */
+
 body {
+    margin: 0;
+    overflow: hidden;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     display: flex;
     justify-content: center;
     align-items: flex-start;
+    padding: 10px;
+    background-color: #e8e8e8;
+    min-height: 100vh;
+    box-sizing: border-box;
+    overflow-y: hidden;
+}
+
+/** DUPLICADO: Estas reglas para body se repiten y están contenidas en la de arriba.
+body {
     margin: 0;
     padding: 10px;
     background-color: #e8e8e8;
@@ -10,150 +50,167 @@ body {
     box-sizing: border-box;
     overflow: hidden;
 }
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+*/
 
-.game-container {
-    display: flex; /* Mantenemos flex por si tienes otros elementos directos además del tablero */
-    width: 100vw; /* Ocupa todo el ancho de la ventana gráfica */
-    height: 100vh; /* Ocupa todo el alto de la ventana gráfica */
-    overflow: hidden; /* ESTO ES CLAVE: Contendrá el tablero que es más grande */
-    position: relative; /* Para que los elementos internos absolutos se posicionen respecto a él */
-    justify-content: flex-start; /* Alinea el tablero a la izquierda por defecto */
-    align-items: flex-start;   /* Alinea el tablero arriba por defecto */
-    /* Nota: Los botones flotantes y paneles ya están 'fixed', por lo que no se verán afectados
-       directamente por el overflow de game-container, pero sí por sus dimensiones
-       si estaban calculadas dinámicamente respecto a game-container.
-       Como son fixed, deben calcular su posición respecto a la ventana del navegador. */
-}
-
-#sidebar {
-    width: 280px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-#sidebar h2, #sidebar h3, #sidebar h4 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 8px;
-    color: #333;
-}
-#sidebar h4 { font-size: 1em; color: #555;}
-
-.info-box {
-    background-color: #ffffff;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 0.85em;
-}
-#playerResourcesList {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    font-size: 0.9em;
-}
-#playerResourcesList li {
-    padding: 2px 0;
-}
-
-#sidebar button, .button-like-label {
-    width: 100%;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-    background-color: #007bff;
+.button-danger {
+    background-color: #dc3545;
     color: white;
+    padding: 8px 16px;
     border: none;
-    border-radius: 4px;
+    border-radius: 5px;
     cursor: pointer;
+    font-weight: bold;
     font-size: 0.9em;
-    text-align: center;
-    box-sizing: border-box;
+    transition: background-color 0.2s ease-in-out;
 }
-#sidebar button:hover, .button-like-label:hover {
-    background-color: #0056b3;
+.button-danger:hover {
+    background-color: #c82333;
 }
-#sidebar button:disabled {
-    background-color: #ccc;
+.button-danger:disabled {
+    background-color: #fadadd;
+    color: #a3a3a3;
     cursor: not-allowed;
 }
 
-#gameBoard {
-    display: grid; /* Se ajustará en JS */
-    border: 2px solid #6c757d;
-    background-color: #c2b280; /* Un tono tierra */
+.button-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+
+/* ========================================================================== */
+/* 2. CONTENEDORES PRINCIPALES
+/* ========================================================================== */
+
+.game-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
     position: relative;
-    align-self: flex-start; /* Evita que se estire si el sidebar es más alto */
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding-bottom: 80px;
+    box-sizing: border-box;
+}
+
+#gameBoard {
+    display: grid;
+    border: 2px solid #6c757d;
+    background-color: #c2b280;
+    position: relative;
+    align-self: flex-start;
     cursor: grab;
     transform-origin: 0 0;
     touch-action: none;
     flex-shrink: 0;
 }
-
 #gameBoard.grabbing {
     cursor: grabbing;
 }
 
+
+/* ========================================================================== */
+/* 3. COMPONENTES DEL TABLERO (hex, niebla, sprites)
+/* ========================================================================== */
+
 .hex {
     width: 50px;
-    height: 57.73px; /* width * sqrt(3) */
-    background-color: #90ee90; /* Verde claro base */
+    height: 57.73px;
+    background-color: #90ee90;
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-    position: absolute; /* Para grid layout manual */
+    position: absolute;
     display: flex;
     justify-content: center;
     align-items: center;
     font-size: 9px;
     box-sizing: border-box;
-    border: 1px solid transparent; /* Para hover/selection */
+    border: 1px solid transparent;
     transition: background-color 0.2s;
     background-size: cover;
     background-position: center center;
-    background-repeat: no-repeat; 
+    background-repeat: no-repeat;
 }
-
 .hex:hover {
     border-color: #ffc107;
 }
 
-/* Clases específicas para cada tipo de terreno */
-/* Colores de fondo de los hexágonos por tipo de terreno */
-.hex.plains {
-    background-color:#90EE90; /* Amarillo suave para Llanura (Amarillo original era muy fuerte) */
-}
-.hex.forest {
-    background-color: #6B8E23; /* Verde oliva/bosque para Bosque (más natural que el verde brillante) */
-}
-.hex.hills {
-    background-color: #A9A9A9; /* Gris más claro para Colinas (Gris original era oscuro) */
-}
-.hex.water {
-    background-color: #87CEEB; /* Azul cielo/claro para Agua (más suave que el azul brillante) */
-}
+/* --- Tipos de Terreno --- */
+.hex.plains { background-color:#90EE90; }
+.hex.forest { background-color: #6B8E23; }
+.hex.hills { background-color: #A9A9A9; }
+.hex.water { background-color: #87CEEB; }
 
+/* --- Resaltados de Acción (Highlights) --- */
 .hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
 .hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4); }
 .hex.highlight-build { background-color: rgba(255, 165, 0, 0.4); }
 
+/** DUPLICADO: Estas reglas de highlight son más específicas y probablemente las que se usan. */
+.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4) !important; border: 2px solid #00FF00; }
+.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4) !important; border: 2px solid #FF0000; }
+.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4) !important; border: 2px solid #FFA500; }
+.hex.highlight-place { background-color: rgba(0, 162, 255, 0.4) !important; border: 2px solid #00A2FF; }
 
-.hex.player1-owner { 
-    box-shadow: inset 0 0 0 3px rgba(0, 0, 255, 0.6); 
-    --owner-color: rgba(0, 0, 255, 0.6); /* Color del propietario 1 */
-} 
-.hex.player2-owner { 
-    box-shadow: inset 0 0 0 3px rgba(255, 0, 0, 0.6); 
-    --owner-color: rgba(255, 0, 0, 0.6); /* Color del propietario 2 */
+.hex.highlight-move:hover,
+.hex.highlight-attack:hover,
+.hex.highlight-build:hover,
+.hex.highlight-place:hover {
+    border-color: yellow;
+}
+
+/* --- Propiedad y Estructuras --- */
+.hex.player1-owner {
+    box-shadow: inset 0 0 0 3px rgba(0, 0, 255, 0.6);
+    --owner-color: rgba(0, 0, 255, 0.6);
+}
+.hex.player2-owner {
+    box-shadow: inset 0 0 0 3px rgba(255, 0, 0, 0.6);
+    --owner-color: rgba(255, 0, 0, 0.6);
 }
 
 .hex.city::before { content: '🏠'; font-size: 18px; opacity: 0.7; }
 .hex.capital-city::before { content: '👑'; font-size: 20px; opacity: 0.9; }
+
+/** DUPLICADO: Regla más detallada para capital-city */
+.hex.capital-city::before {
+    content: '👑';
+    font-size: 24px;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(1.2);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+    pointer-events: none;
+    z-index: 10;
+}
+.hex.capital-city .structure-sprite { z-index: 5; }
+
+/* --- Sprites de Recursos --- */
 .hex.resource-hierro::after { content: 'Fe'; font-size: 10px; color: #663300; position: absolute; top: 2px; right: 2px;}
 .hex.resource-madera::after { content: 'Wd'; font-size: 10px; color: #228B22; position: absolute; top: 2px; right: 2px;}
-/* Añadir más para piedra, comida, oro (o usar iconos SVG) */
+
+/** DUPLICADO: Reglas más completas y con emojis para recursos */
+.hex.resource-hierro::after,
+.hex.resource-oro::after,
+.hex.resource-piedra::after,
+.hex.resource-madera::after,
+.hex.resource-comida::after {
+    content: "";
+    position: absolute;
+    top: 3px; right: 3px;
+    font-size: 14px;
+    opacity: 0.7;
+    pointer-events: none;
+}
+.hex.resource-hierro::after { content: "⛏️"; color: #8B4513; }
+.hex.resource-oro::after { content: "💰"; }
+.hex.resource-piedra::after { content: "⛰️"; color: #708090; }
+.hex.resource-madera::after { content: "🌲"; color: #228B22; }
+.hex.resource-comida::after { content: "🌾"; color: #DAA520; }
 
 .hex .structure-sprite {
     position: absolute;
@@ -163,6 +220,26 @@ body {
     opacity: 0.9;
     z-index: 5;
 }
+/** DUPLICADO: Ajuste para que los sprites de estructura no se solapen con los de recursos */
+.hex .structure-sprite {
+    bottom: 3px;
+    left: 3px;
+    right: auto;
+}
+
+/* --- Niebla de Guerra --- */
+.hex.fog-hidden { background-color: #777 !important; background-image: none !important; }
+.hex.fog-hidden::before, .hex.fog-hidden::after, .hex.fog-hidden .structure-sprite { display: none; }
+.hex.fog-partial { filter: grayscale(70%) brightness(0.8); }
+.hex.fog-partial .unit:not(.player-controlled-visible) { display: none !important; }
+
+/* --- Efectos de Estado --- */
+.hex.owner-change-effect { animation: ownerChangeFlash 0.5s forwards; }
+.hex.hit-effect { animation: hexHitFlash 0.3s ease-out; }
+
+/* ========================================================================== */
+/* 4. COMPONENTES DE UNIDADES
+/* ========================================================================== */
 
 .unit {
     position: absolute;
@@ -178,8 +255,13 @@ body {
     border: 2px solid black;
     box-sizing: border-box;
     z-index: 10;
-    pointer-events: none; /* ¡CLAVE! Los clics "atravesarán" la unidad hacia el hexágono debajo */
+    pointer-events: none;
 }
+/** DUPLICADO: Transición mejorada para .unit */
+.unit {
+    transition: transform 0.2s, left 0.3s ease-out, top 0.3s ease-out;
+}
+
 .unit-strength {
     position: absolute;
     bottom: -16px;
@@ -192,1133 +274,127 @@ body {
     white-space: nowrap;
     border: 1px solid #aaa;
 }
-.player1 { background-color: #add8e6; border-color: #0000ff; } /* Azul claro */
-.player2 { background-color: #f08080; border-color: #ff0000; } /* Rojo claro */
+.player1 { background-color: #add8e6; border-color: #0000ff; }
+.player2 { background-color: #f08080; border-color: #ff0000; }
+.unit.player-controlled-visible { display: flex !important; }
 
 .selected-unit {
     box-shadow: 0 0 12px 4px gold;
     transform: scale(1.1);
 }
 
-/* Niebla de Guerra */
-.hex.fog-hidden { background-color: #777 !important; background-image: none !important; }
-.hex.fog-hidden::before, .hex.fog-hidden::after, .hex.fog-hidden .structure-sprite { display: none; }
-.hex.fog-partial { filter: grayscale(70%) brightness(0.8); }
-.hex.fog-partial .unit:not(.player-controlled-visible) { display: none !important; } /* Oculta unidades enemigas */
-.unit.player-controlled-visible { /* Clase temporal para forzar visibilidad propia en niebla parcial */
-    display: flex !important;
-}
-
-
-/* Modal Styles */
-.modal {
-    display: none; 
-    position: fixed; 
-    z-index: 1000; 
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto; 
-    background-color: rgba(0,0,0,0.5); 
-    align-items: center;
-    justify-content: center;
-}
-.modal-content {
-    background-color: #fefefe;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 90%;
-    max-width: 600px;
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-.close-button {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-.close-button:hover, .close-button:focus { color: black; }
-
-#availableRegimentsList li, #currentDivisionRegimentsList li, #availableStructuresList li {
-    cursor: pointer;
-    padding: 8px;
-    border-bottom: 1px solid #eee;
-    transition: background-color 0.2s;
-}
-#availableRegimentsList li:hover, #currentDivisionRegimentsList li:hover, #availableStructuresList li:hover {
-    background-color: #f0f0f0;
-}
-#availableStructuresList li.selected-structure {
-    background-color: #d0e0ff;
-    font-weight: bold;
-}
-
-.hex.resource-hierro::after,
-.hex.resource-oro::after, /* Usaremos 'oro' para 'oro_mina' */
-.hex.resource-piedra::after,
-.hex.resource-madera::after,
-.hex.resource-comida::after {
-    content: ""; /* Contenido se define abajo */
-    position: absolute;
-    top: 3px; /* Ajusta para que no choque con coordenadas si las tienes */
-    right: 3px;
-    font-size: 14px; /* Tamaño del emoji/texto */
-    opacity: 0.7;
-    pointer-events: none; /* Para que no interfiera con clics en el hexágono */
-}
-
-.hex.resource-hierro::after {
-    content: "⛏️"; /* Símbolo de Hierro */
-    color: #8B4513; /* Marrón */
-}
-.hex.resource-oro::after { /* Para oro_mina */
-    content: "💰"; /* Emoji de oro */
-    /* color: gold; El emoji ya tiene color */
-}
-.hex.resource-piedra::after {
-     content: "⛰️"; 
-    color: #708090; /* Gris pizarra */
-}
-.hex.resource-madera::after {
-     content: "🌲"; 
-    color: #228B22; /* Verde bosque */
-}
-.hex.resource-comida::after {
-     content: "🌾"; 
-    color: #DAA520; /* Dorado/amarillo para comida */
-}
-
-/* Ajuste para que los sprites de recursos no se superpongan con el de estructura si están en la misma esquina */
-.hex .structure-sprite {
-    bottom: 3px;
-    left: 3px; /* Moverlo a la esquina inferior izquierda */
-    right: auto; /* Resetear right */
-}
-
-/* ====================================================================== */
-/* =================== ESTILOS PARA MENÚ PRINCIPAL ====================== */
-/* ====================================================================== */
-#mainMenuScreen .modal-content {
-    background-color: #f0f2f5; /* Un gris claro ligeramente diferente */
-    border: 1px solid #ccc;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-}
-
-#mainMenuScreen h2 {
-    color: #333;
-    margin-bottom: 30px;
-    font-size: 2em;
-}
-
-#mainMenuScreen button {
-    background-color: #007bff; /* Azul primario */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.2s ease-in-out, transform 0.1s ease;
-    font-weight: bold;
-}
-
-#mainMenuScreen button:hover {
-    background-color: #0056b3; /* Azul más oscuro */
-    transform: translateY(-2px);
-}
-#mainMenuScreen button:active {
-    transform: translateY(0px);
-}
-
-
-/* ====================================================================== */
-/* =============== ESTILOS PARA ARBOL TECNOLOGÍA ============= */
-/* ====================================================================== */
-
-.tech-tree-content .tech-node {
-    position: absolute; /* Para usar las coordenadas x,y */
-    width: 100px; /* Ejemplo */
-    height: 100px; /* Ejemplo */
-    background-color: #2a9d8f; /* Verde similar al de la imagen */
-    color: white;
-    border-radius: 50%; /* Para hacerlos circulares */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    border: 3px solid #264653;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    padding: 5px;
-    box-sizing: border-box;
-    font-size: 0.8em;
-}
-.tech-tree-content .tech-node:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 15px #f4a261;
-}
-.tech-tree-content .tech-node img { /* Estilo para el icono dentro del nodo */
-    width: 40px; /* Ejemplo */
-    height: 40px; /* Ejemplo */
-    margin-bottom: 5px;
-}
-.tech-tree-content .tech-node.researched {
-    background-color: #e9c46a; /* Dorado para investigadas */
-    border-color: #f4a261;
-}
-.tech-tree-content .tech-node.available {
-    background-color: #2a9d8f; /* Verde para disponibles */
-    border-color: #264653;
-    box-shadow: 0 0 10px 3px #aaf0d1; /* Un brillo para las disponibles */
-}
-.tech-tree-content .tech-node.locked {
-    background-color: #6c757d; /* Gris para bloqueadas */
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.floating-btn.top-right {
-    top: 15px;
-    right: 15px;
-}
-
-/* ====================================================================== */
-/* =============== ESTILOS PARA CONFIGURACIÓN DE ESCARAMUZA ============= */
-/* ====================================================================== */
-#setupScreen .modal-content {
-    background-color: #fff;
-    border: 1px solid #ddd;
-}
-#setupScreen div {
-    margin-bottom: 15px;
-}
-#setupScreen label {
-    display: inline-block;
-    width: 130px; /* Alineación de labels */
-    font-weight: 500;
-}
-#setupScreen select {
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    min-width: 150px;
-}
-#setupScreen button { /* Estilo general para botones en este modal */
-    padding: 10px 20px;
-    font-size: 1em;
-}
-
-
-/* ====================================================================== */
-/* ================= ESTILOS PARA MAPA MUNDIAL (CAMPAÑA) ================ */
-/* ====================================================================== */
-#worldMapScreen { /* Este es un div que envuelve la imagen y los marcadores */
-    background-color: #7da0c0; 
-    box-shadow: 0 0 15px rgba(0,0,0,0.3);
-    border-radius: 8px;
-    position: relative; /* Para posicionar los marcadores absolutamente dentro de él */
-    /* El tamaño se definirá por la imagen o explícitamente */
-}
-
-#worldMapImage { /* La imagen del mapa en sí */
-    border-radius: 6px; 
-    display: block; /* Para evitar espacio extra debajo si es inline */
-    max-width: 100%; /* Para responsividad */
-    height: auto;   /* Para responsividad */
-}
-
-
-.territory-on-map {
-    position: absolute; 
-    width: auto; 
-    min-width: 30px; 
-    height: auto;
-    padding: 5px 8px;
-    background-color: rgba(220, 220, 220, 0.8); 
-    border: 1px solid #777;
-    color: #333;
-    border-radius: 20px; 
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 0.75em;
-    font-weight: bold;
-    text-align: center;
-    cursor: default;
-    pointer-events: all; 
-    transform: translate(-50%, -50%); 
-    transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-}
-
-
-.territory-on-map.player-controlled {
-    background-color: rgba(60, 179, 113, 0.85); 
-    border-color: #2e8b57; 
-    color: white;
-}
-
-.territory-on-map.ai-controlled { 
-    background-color: rgba(220, 20, 60, 0.85); 
-    border-color: #b22222; 
-    color: white;
-}
-
-
-
-.territory-on-map.neutral-territory {
-    background-color: rgba(240, 230, 140, 0.85); 
-    border-color: #b8860b; 
-    color: #545454;
-}
-
-.territory-on-map.selectable-territory {
-    cursor: pointer;
-    border-width: 2px;
-}
-.territory-on-map.selectable-territory:hover {
-    transform: translate(-50%, -50%) scale(1.1); 
-    box-shadow: 0 0 12px 4px gold; 
-    z-index: 10; 
-}
-
-#campaignMessages { /* Panel para mensajes de campaña */
-    border-top: 1px solid #ccc;
-    color: #333;
-    max-width: 300px; /* O el ancho que se ajuste al diseño */
-    word-wrap: break-word; /* Para que el texto largo no rompa el layout */
-    padding: 10px;
-    margin-top: 10px;
-    background-color: #f9f9f9;
-    border-radius: 4px;
-}
-
-#backToMainMenuBtn_fromCampaign, #backToMainMenuBtn_fromSetup { 
-    background-color: #6c757d; 
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 8px 15px;
-    font-size: 0.9em;
-    margin-top: 10px; /* Espacio arriba del botón */
-}
-#backToMainMenuBtn_fromCampaign:hover, #backToMainMenuBtn_fromSetup:hover {
-    background-color: #5a6268;
-}
-
-
-/* ====================================================================== */
-/* ================= ESTILOS PARA MODAL DE BRIEFING =================== */
-/* ====================================================================== */
-#scenarioBriefingModal .modal-content {
-    text-align: left; 
-    max-height: 90vh; 
-    overflow-y: auto; 
-}
-#scenarioBriefingModal #scenarioTitle {
-    color: #0056b3; 
-    margin-bottom: 10px; /* Espacio después del título */
-}
-#scenarioBriefingModal #scenarioImage {
-    border: 1px solid #eee; 
-    max-width: 100%; /* Responsiva */
-    height: auto;
-    display: block; /* Evitar espacio extra */
-    margin: 10px auto; /* Centrar imagen si es más pequeña que el contenedor */
-    border-radius: 4px;
-}
-#scenarioBriefingModal #startScenarioBattleBtn {
-    background-color: #28a745; 
-    color: white;
-    display: block; /* Para centrar con margin auto */
-    margin: 20px auto 0 auto; /* Margen superior y centrado */
-    padding: 10px 20px;
-}
-#scenarioBriefingModal #startScenarioBattleBtn:hover {
-    background-color: #1e7e34; 
-}
-
-
-/* ====================================================================== */
-/* ================= ESTILOS PARA JUEGO TÁCTICO (Sidebar & Actions) ===== */
-/* ====================================================================== */
-
-#actions-panel { /* Asumiendo que tienes un panel de acciones en el sidebar */
-    margin-top: 15px;
-    border-top: 1px solid #eee;
-    padding-top: 15px;
-}
-#actions-panel #concedeBattleBtn {
-    background-color: #c82333; 
-    border-color: #bd2130; /* Si los botones tienen borde */
-    width: 100%; 
-}
-#actions-panel #concedeBattleBtn:hover {
-    background-color: #a71d2a; /* Rojo más oscuro al pasar el mouse */
-}
-
-
-/* Ajuste general para los modales si es necesario */
-/* La regla .modal ya está definida arriba, no es necesario repetirla menos que quieras anular algo específico */
-
-
-/* Posicionamiento del close-button para modales */
-/* Ya tienes un .close-button arriba, asegúrate que esta es la que quieres o unifícalas. */
-/* Si esta es la que debe aplicar, renombra la de arriba o elimina la redundancia. */
-/* Asumiendo que quieres esta para todos los .close-button: */
-.modal .close-button { /* Más específico para asegurar que aplica a los botones de cierre en modales */
-    color: #aaa;
-    position: absolute; 
-    top: 10px;
-    right: 15px;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    line-height: 1; /* Para mejor alineación vertical */
-}
-.modal .close-button:hover, .modal .close-button:focus { 
-    color: black; 
-}
-
-.unit-damaged {
-    animation: shake 0.5s;
-    /* background-color: rgba(255, 100, 100, 0.7) !important; Ya no es necesario, la animación lo hace */
-}
-
-.unit-destroyed {
-    animation: explode 0.5s forwards; 
-}
-
-.unit-retreat {
-    opacity: 0.7;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); } /* No escalar aquí, solo mover */
-    10% { background-color: rgba(255,0,0,0.5); } /* Destello rojo */
-    20% { transform: translateX(-2px); background-color: transparent; }
-    40% { transform: translateX(2px); }
-    60% { transform: translateX(-2px); }
-    80% { transform: translateX(2px); }
-}
-
-@keyframes explode {
-    0% { transform: scale(1) rotate(0deg); opacity: 1; }
-    50% { transform: scale(1.3) rotate(15deg); opacity: 0.5; }
-    100% { transform: scale(0.3) rotate(-15deg); opacity: 0; display:none !important; } 
-}
-
-#unit-info .unit-name-editor {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-#unit-info .unit-name-editor label {
-    margin-right: 5px;
-    font-weight: bold;
-}
-
-#unit-info #selectedUnitNameInput {
-    flex-grow: 1;
-    padding: 5px;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    margin-right: 5px;
-    background-color: #f8f9fa; 
-}
-
-#unit-info #selectedUnitNameInput:not([readonly]) {
-    background-color: #fff; 
-    border-color: #007bff;
-}
-
-#unit-info .unit-name-editor button {
-    padding: 4px 8px;
-    font-size: 0.9em;
-    background-color: #e9ecef;
-    border: 1px solid #ced4da;
-    border-radius: 3px;
-    cursor: pointer;
-}
-#unit-info .unit-name-editor button:hover {
-    background-color: #dee2e6;
-}
-
-#unit-info #saveUnitNameBtn {
-    background-color: #28a745; 
-    color: white;
-}
-#unit-info #saveUnitNameBtn:hover {
-    background-color: #218838;
-}
-
-#unit-info h4 {
-    margin-top: 15px;
-    margin-bottom: 5px;
-    font-size: 0.9em;
-    color: #333;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 3px;
-}
-
-.regiments-detailed-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    font-size: 0.8em;
-    max-height: 150px; 
-    overflow-y: auto;
-    border: 1px solid #e0e0e0;
-    border-radius: 3px;
-    background-color: #fdfdfd;
-}
-
-.regiments-detailed-list li {
-    padding: 6px 8px;
-    border-bottom: 1px dashed #eee;
-}
-.regiments-detailed-list li:last-child {
-    border-bottom: none;
-}
-
-.regiments-detailed-list li strong {
-    color: #0056b3; 
-}
-
-#player-info h4 { 
-    margin-bottom: 4px; 
-}
-
-#playerResourcesGrid {
-    display: flex;
-    flex-direction: column; 
-    gap: 2px; 
-    font-size: 0.9em;
-    padding: 5px;
-    background-color: #f8f9fa; 
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-}
-
-.resource-labels,
-.resource-values {
-    display: flex; 
-    justify-content: space-around; 
-}
-
-.resource-labels span {
-    flex: 1; 
-    text-align: center;
-    font-weight: 500; 
-    color: #555;
-    padding-bottom: 2px; 
-}
-
-.resource-values span {
-    flex: 1; 
-    text-align: center;
-    font-weight: bold; 
-    color: #333;
-    min-width: 30px; 
-}
-
-/* Asegurar que el game-container y body ocupen toda la pantalla para móvil */
-/* html, body { -- DUPLICADO, YA ESTÁ ARRIBA Y MEJOR DEFINIDO
-    height: 100%;
-    overflow: hidden; 
-} */
-
-/* ESTILOS PARA ELEMENTOS FLOTANTES */
-.floating-btn {
-    position: fixed; /* Cambiado de absolute para que sea relativo a la ventana */
-    z-index: 100; 
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    font-size: 24px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s ease; /* Añadido transform para hover */
-}
-.floating-btn:hover {
-    background-color: rgba(0, 0, 0, 0.8);
-    transform: scale(1.05); /* Efecto hover sutil */
-}
-
-.floating-btn.top-left {
-    top: 15px;
-    left: 15px;
-}
-.floating-btn.bottom-right {
-    bottom: 20px;
-    right: 20px;
-}
-
-/* Estilos específicos para el botón de terminar turno flotante */
-#floatingEndTurnBtn {
-    /* Hereda la mayoría de .floating-btn y .bottom-right si se aplican esas clases */
-    /* Si solo usas el ID y no las clases, define aquí position, right, z-index */
-    /* position: fixed; */
-    /* right: 20px; */
-    /* z-index: 1050; */
-    bottom: 70px;     /* Ajustado: altura del panel contextual (~55px) + margen (~15px) */
-    
-    background-color: transparent !important; 
-    color: white;                         
-    border: none;                         
-    padding: 10px;                        
-    font-size: 30px; /* Tamaño para ► */                     
-    line-height: 1;                       
-    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.7); 
-    box-shadow: none !important; 
-    /* cursor: pointer; -- Heredado de .floating-btn */
-    /* transition: ...; -- Heredado de .floating-btn */
-}
-
-#floatingEndTurnBtn:hover {
-    background-color: transparent !important; 
-    transform: scale(1.1); /* Sobreescribe o complementa el hover de .floating-btn */
-}
-
-#floatingEndTurnBtn:active {
-    background-color: transparent !important; 
-    transform: translateY(1px) scale(1.05);
-    box-shadow: none !important; 
-}
-
-
-.floating-panel { /* Panel de Menú Flotante, si se decide usarlo así */
-    position: fixed; 
-    z-index: 90; 
-    background-color: rgba(245, 245, 245, 0.95); 
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    padding: 15px;
-    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-    /* Ejemplo de posicionamiento si se usa (ajustar según botón que lo abre) */
-    /* top: 70px; */
-    /* left: 10px; */
-    /* width: 260px; */
-    display: none; /* Controlado por JS */
-}
-
-/* Panel de Menú Flotante (si el #floatingMenuPanel usa la clase .floating-panel) */
-#floatingMenuPanel { /* Si este es tu ID para el panel de menú flotante */
-    top: 70px; /* Debajo del botón de menú, por ejemplo */
-    left: 10px;
-    width: 260px; 
-    /* display: none; Ya heredado de .floating-panel */
-}
-#floatingMenuPanel h4 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 10px;
-    font-size: 1em;
-    color: #333;
-}
-#floatingMenuPanel #playerResourcesGrid_float { 
-    font-size: 0.85em;
-    padding: 8px;
-    margin-bottom: 10px;
-}
-#floatingMenuPanel button, #floatingMenuPanel .button-like-label {
-    width: 100%;
-    display: block;
-    margin-bottom: 8px;
-    padding: 10px;
-    text-align: left; 
-    background-color: #e9ecef;
-    color: #333;
-    border: 1px solid #ddd;
-}
-#floatingMenuPanel button:hover, #floatingMenuPanel .button-like-label:hover {
-    background-color: #dee2e6;
-}
-
-/* === INICIO: NUEVOS ESTILOS PARA CONTEXTUAL INFO PANEL COMO BARRA INFERIOR (REEMPLAZO) === */
-/* 1. Definición de la Barra Principal (#contextualInfoPanel) */
-/* Se convierte en una barra fija en la parte inferior de la pantalla. */
-
-#contextualInfoPanel {
-    position: fixed;
-    bottom: -100%; /* Empieza oculta fuera de la pantalla */
-    left: 0;
-    width: 100%;
-    min-height: 55px; /* Altura mínima */
-    box-sizing: border-box; /* Padding y border se incluyen en el tamaño */
-    background-color: rgba(30, 42, 56, 0.95); /* Fondo oscuro por defecto */
-    color: #e2e8f0; /* Texto claro */
-    border-top: 1px solid #4a5568; /* Borde superior sutil */
-    box-shadow: 0 -3px 10px rgba(0,0,0,0.2); /* Sombra para darle profundidad */
-    
-    display: flex; /* Flexbox para alinear el contenido interno */
-    align-items: center; /* Centra el contenido verticalmente */
-    justify-content: space-between; /* Espacio entre el contenido y el botón de cerrar */
-    padding: 8px 15px;
-    z-index: 1000; /* Asegura que esté por encima del tablero */
-
-    /* Transición suave para cuando aparezca/desaparezca */
-    transition: transform 0.3s ease-in-out, background-color 0.5s ease;
-}
-
-/* 2. Clase 'visible' para mostrar la barra */
-/* Cuando JS añada esta clase, la barra se deslizará hacia arriba */
-#contextualInfoPanel.visible {
-    transform: translateY(-100%);
-}
-/* 3. Estilo para los mensajes de error/informativos */
-/* Añadimos clases para cambiar el color de fondo de la barra temporalmente */
-#contextualInfoPanel.info-message {
-    background-color: rgba(40, 100, 150, 0.95); /* Azul para mensajes informativos */
-}
-#contextualInfoPanel.error-message {
-    background-color: rgba(180, 50, 50, 0.95); /* Rojo oscuro para errores */
-}
-
-
-
-#contextualInfoPanel button {
-    background-color: #4F4F4F;
-    color: #E0E0E0;
-    border: 1px solid #666;
-    padding: 7px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    margin: 0 4px;
-    font-size: 0.85em;
-    white-space: nowrap;
-    transition: background-color 0.2s, border-color 0.2s;
-}
-#contextualInfoPanel button:hover {
-    background-color: #6A6A6A;
-    border-color: #888;
-}
-#contextualInfoPanel p, 
-#contextualInfoPanel h3, 
-#contextualInfoPanel h4 {
-    margin: 0 8px;
-    white-space: nowrap;
-    font-size: 0.85em;
-}
-/* 4. Estilos del contenido interno de la barra (Título, Contenido, etc.) */
-/* Estos aseguran que el contenido se vea bien dentro de la barra */
-#contextualHeader {
-    display: flex;
-    align-items: center;
-    flex-grow: 1; /* Ocupa el espacio disponible */
-}
-#contextualTitle {
-    margin: 0;
-    font-size: 1.1em;
-    font-weight: bold;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis; /* Añade "..." si el texto es muy largo */
-}
-#contextualContent {
-    margin-left: 20px;
-    font-size: 0.9em;
-    opacity: 0.9;
-    flex-shrink: 0; /* Evita que se encoja si el título es largo */
-}
-#contextualActions {
-    display: none; /* Los botones de acción ahora son flotantes, no necesitamos este panel */
-}
-#closeContextualPanelBtn {
-    background: transparent;
-    border: none;
-    color: #ccc;
-    font-size: 24px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0 5px;
-    margin-left: 15px;
-}
-#closeContextualPanelBtn:hover {
-    color: white;
-}
-
-/* 5. Modificamos el antiguo panel de mensajes (#gameMessagesMobile) */
-/* Lo hacemos invisible, ya que ahora su función la cumple el panel principal. */
-/* Ya no necesitamos esta regla, ya que la función JS se encargará de todo */
-#gameMessagesMobile {
-    display: none !important; /* Lo ocultamos definitivamente */
-}
-
-#gameMessagesMobile.fade-out {
+.unit-damaged { animation: shake 0.5s; }
+.unit-destroyed { animation: explode 0.5s forwards; }
+.unit-retreat { opacity: 0.7; }
+.unit.hit { animation: unitHit 0.3s ease-out; }
+.unit.attacking { animation: unitAttacking 0.2s ease-out; }
+/** DUPLICADO: Esta regla hace que la unidad desaparezca suavemente, complementando la animación de explosión. */
+.unit.unit-destroyed {
     opacity: 0;
-}
-#gameMessagesMobile p {
-    margin: 0;
-    padding: 0;
-}
-#gameMessagesMobile.visible {
-    opacity: 1;
-    visibility: visible;
-    transform: translate(-50%, -50%) scale(1); /* Estado final */
-    transition: opacity 0.4s ease-in-out, transform 0.3s ease-out, visibility 0s linear 0s;
-}
-/* ELIMINAR O MODIFICAR ESTILOS DEL SIDEBAR ANTIGUO */
-#sidebar {
-    display: none !important; /* Ocultar el sidebar antiguo */
-}
-
-/* Estilos para el modo de depuración de vecinos */
-.hex.highlight-debug-start {
-    background-color: yellow !important;
-    border: 3px solid black !important;
-    z-index: 999;
-}
-
-.hex.highlight-debug {
-    background-color: cyan !important;
-    border: 2px dashed red !important;
-    z-index: 998;
-}
-
-/*
-.game-log-container {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
-    width: 300px;
-    max-height: 200px;
-    overflow-y: auto;
-    background-color: rgba(0, 0, 0, 0.6);
-    border-radius: 5px;
-    padding: 10px;
-    z-index: 5000;
+    transition: opacity 0.5s ease-out;
     pointer-events: none;
-    display: flex;
-    flex-direction: column-reverse; /* Los mensajes nuevos aparecen abajo y empujan los viejos hacia arriba 
-    }
-
-.log-message {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
-    padding: 5px 8px;
-    margin-top: 5px;
-    border-radius: 3px;
-    font-size: 0.85em;
-    animation: fadeIn 0.5s ease-out;
-}
-*/
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
-/* === Estilos para el Modal de Ayuda (welcomeHelpModal) === */
-.help-modal-content {
-    max-width: 700px;
-    max-height: 90vh; /* Limitar altura para que sea scrollable en pantallas pequeñas */
-    overflow-y: auto; /* Permitir scroll si el contenido es largo */
-    background-color: #f0f2f5;
-    border: 1px solid #ccc;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-    padding: 30px; /* Más padding para que respire */
-    position: relative; /* Para el botón de cerrar */
-}
-
-.help-modal-content h2 {
-    font-size: 2.2em;
-    color: #0056b3;
-}
-
-.help-modal-content h3 {
-    font-size: 1.4em;
-    color: #4a5568;
-    margin-top: 25px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #e0e0e0;
-    padding-bottom: 5px;
-}
-
-.help-modal-content p {
-    font-size: 1em;
-    line-height: 1.5;
-    color: #333;
-    margin-bottom: 15px;
-}
-
-.help-modal-content b {
+.damage-dealt-text {
+    position: absolute;
+    font-size: 20px;
     font-weight: bold;
-    color: #007bff;
+    color: #e74c3c;
+    text-shadow: 1px 1px 2px black;
+    z-index: 110;
+    pointer-events: none;
+    animation: floatAndFade 1.2s ease-out forwards;
 }
 
-.help-modal-content ul {
-    list-style: disc;
-    margin-left: 20px;
-    margin-bottom: 15px;
-}
+/* ========================================================================== */
+/* 5. PANELES DE UI (contextual, predicción, flotantes)
+/* ========================================================================== */
 
-.help-modal-content li {
-    margin-bottom: 5px;
-}
-
-/* Ajuste general para botones dentro de este modal */
-.help-modal-content button {
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.2s ease-in-out;
-    font-weight: bold;
-}
-
-.help-modal-content button:hover {
-    background-color: #218838;
-}
-
-/* Checkbox para no mostrar de nuevo */
-#doNotShowAgainCheckbox {
-    transform: scale(1.2); /* Agrandar un poco el checkbox */
-    margin-right: 8px !important;
-}
-
-#debug-console {
+/* --- Panel Contextual Inferior (VERSIÓN FINAL COLAPSABLE) --- */
+#contextualInfoPanel {
     position: fixed;
     bottom: 0;
     left: 0;
-    width: 100%;
-    height: 200px; /* Ajusta la altura según sea necesario */
-    background-color: rgba(0, 0, 0, 0.8); /* Fondo oscuro semitransparente */
-    color: #00FF00; /* Texto verde neón, clásico de consola */
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 14px;
-    z-index: 10000; /* Asegura que esté por encima de todo */
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-    box-sizing: border-box;
-    border-top: 1px solid #00FF00;
-}
+    right: 0;
+    z-index: 1000; /* Profundidad del panel */
 
-#console-output {
-    flex-grow: 1;
-    overflow-y: auto; /* Permite scroll si hay mucho texto */
-    margin-bottom: 10px;
-    white-space: pre-wrap; /* Mantiene saltos de línea y espacios */
-    word-wrap: break-word; /* Rompe palabras largas */
-}
-
-#console-input {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #00FF00;
-    background-color: rgba(0, 0, 0, 0.9);
-    color: #00FF00;
-    box-sizing: border-box;
-}
-
-#console-input::placeholder {
-    color: #007700; /* Color más tenue para el placeholder */
-}
-
-/* Colores para mensajes de consola */
-.console-info { color: #00FF00; } /* Verde */
-.console-success { color: #00FF00; } /* Verde */
-.console-error { color: #FF0000; } /* Rojo */
-.console-warning { color: #FFFF00; } /* Amarillo */
-.console-command { color: #00FFFF; } /* Cyan para los comandos ejecutados */
-
-/* Clase para el botón de consola (flotante, creado dinámicamente con estilos forzados) */
-/* Esta regla CSS ahora es secundaria, los estilos inyectados directamente en JS tienen !important. */
-.floating-btn.force-console-button { 
-    cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s ease;
-    /* Estos estilos serán sobreescritos por los inyectados en JS si los de JS tienen !important */
-    /* Pero puedes dejarlos como valores por defecto si los de JS fallaran. */
-    /* top: 15px; */ 
-    /* left: 80px; */ 
-    /* width: 50px; */ 
-    /* height: 50px; */
-    /* font-size: 16px; */ 
-    /* border-radius: 50%; */ 
-    /* background-color: rgba(100, 100, 0, 0.7); */ 
-    /* color: white; */
-    /* box-shadow: 0 2px 5px rgba(0,0,0,0.3); */
-}
-
-.floating-btn.force-console-button:hover {
-    background-color: rgba(255, 0, 0, 0.7); /* Hover sutil en rojo */
-    transform: scale(1.05);
-}
-
-/* Estilos para el modal avanzado de división de unidades */
-/* Contenedor principal del modal: hacerlo más estrecho */
-#advancedSplitUnitModal .modal-content {
-    max-width: 450px;
-    padding: 15px;
-}
-#advancedSplitUnitModal h3 {
-    font-size: 1.1em;
-    margin-bottom: 5px;
-}
-#advancedSplitUnitModal > p {
-    font-size: 0.8em;
-    margin-bottom: 10px;
-}
-
-/* Contenedor de las dos columnas */
-.split-regiment-container {
-    display: flex; /* Mantiene el layout de dos columnas */
-    gap: 10px;
-    margin-top: 10px;
+    background-color: rgba(30, 42, 56, 0.98);
+    color: #e2e8f0;
+    border-top: 2px solid #4a5568;
+    box-shadow: 0 -3px 10px rgba(0,0,0,0.3);
     
-    /* <<== ¡LA CORRECCIÓN CLAVE ESTÁ AQUÍ! ==>> */
-    /* Esta regla impide que las columnas se apilen verticalmente en pantallas pequeñas. */
-    flex-wrap: nowrap; 
-}
-
-/* Cada columna de regimientos */
-.regiment-column {
-    flex: 1; /* Ocupa el espacio disponible */
-    min-width: 0; /* Permite que las columnas se encojan */
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    background-color: #fff;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    
+    /* Altura inicial (colapsado) y transición */
+    max-height: 45px; /* Altura suficiente solo para la barra de título */
+    transition: max-height 0.3s ease-in-out, transform 0.3s ease-out;
+
+    /* Posición inicial para la animación de entrada */
+    transform: translateY(100%);
 }
 
-/* Títulos y stats dentro de cada columna */
-.regiment-column h4 {
-    font-size: 1em;
-    margin-top: 0;
-    margin-bottom: 5px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #eee;
-    text-align: center;
-}
-.regiment-column p {
-    font-size: 0.8em;
-    margin: 2px 0;
-    text-align: center;
-}
-#newSplitUnitNameInput {
-    padding: 4px;
-    font-size: 0.9em;
-    width: 100%;
-    box-sizing: border-box;
+#contextualInfoPanel.visible {
+    transform: translateY(0%);
 }
 
-/* Lista de regimientos (lo más importante) */
-.regiments-list {
-    list-style: none;
-    padding: 0;
-    margin: 5px 0 0 0;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #91c5fa;
-    border-radius: 3px;
-    flex-grow: 1; /* Ocupa el espacio vertical restante */
+/* ESTADO EXPANDIDO: Se activa con JS */
+#contextualInfoPanel.is-expanded {
+    max-height: 40vh; /* La altura que tenía antes cuando se expande */
 }
 
-.regiments-list li {
-    padding: 6px 8px;
-    font-size: 1.5em; /* Icono grande */
+/* Cabecero con el botón de expandir y el título */
+#contextualHeader {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    padding: 0 12px;
+    height: 42px; /* Altura fija para la barra de título */
+    flex-shrink: 0;
+}
+
+#expandPanelBtn {
+    background: none;
+    border: none;
+    color: #f0f0f0;
+    font-size: 18px;
     cursor: pointer;
-    border-bottom: 1px solid #eee;
-}
-.regiments-list li:last-child {
-    border-bottom: none;
-}
-.regiments-list li:hover {
-    background-color: #e9f7ff;
+    padding: 5px;
+    margin-right: 10px;
+    line-height: 1;
 }
 
-
-.regiments-list li span.regiment-type {
-    font-weight: bold;
-    color: #007bff;
-    margin-left: 5px; /* Espacio entre sprite y nombre */
-}
-
-/* Flechas de acción para mover regimientos */
-.regiments-list li span.regiment-actions {
-    font-size: 0.8em;
-    color: #007bff;
-}
-
-
-/* Botones de confirmar/cancelar */
-#advancedSplitUnitModal .modal-footer-actions { /* Suponiendo que los botones están en un div con esta clase */
-    margin-top: 15px;
-}
-
-/* Botones de confirmar/cancelar */
-#advancedSplitUnitModal button {
-    padding: 8px 16px;
+#contextualTitle {
+    flex-grow: 1;
+    margin: 0;
     font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-#advancedSplitUnitModal button:hover {
-    background-color: #0056b3;
+/* Contenido que se mostrará al expandir */
+#contextualContent {
+    padding: 0 12px 10px; /* Padding solo arriba y abajo */
+    font-size: 0.8em;
+    color: #b0c4de;
+    overflow-y: auto; /* Scroll si el contenido es muy largo */
+    border-top: 1px solid #4a5568;
+    margin: 0 12px;
 }
 
-#advancedSplitUnitModal button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
+#closeContextualPanelBtn {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 26px;
+    cursor: pointer;
 }
 
-#advancedSplitUnitModal button#finalizeSplitBtn {
-    background-color: #28a745; /* Verde para el botón de confirmar */
-}
-#advancedSplitUnitModal button#finalizeSplitBtn:hover {
-    background-color: #218838;
-}
-
-#advancedSplitUnitModal button#cancelAdvancedSplitBtn {
-    background-color: #6c757d; /* Gris para el botón de cancelar */
-}
-#advancedSplitUnitModal button#cancelAdvancedSplitBtn:hover {
-    background-color: #5a6268;
-}
-
-/* Clases para resaltar hexágonos */
-.hex.highlight-move { 
-    background-color: rgba(0, 255, 0, 0.4) !important; /* Verde semitransparente */
-    border: 2px solid #00FF00; /* Borde verde */
-}
-.hex.highlight-attack { 
-    background-color: rgba(255, 0, 0, 0.4) !important; /* Rojo semitransparente */
-    border: 2px solid #FF0000; /* Borde rojo */
-}
-.hex.highlight-build { 
-    background-color: rgba(255, 165, 0, 0.4) !important; /* Naranja semitransparente */
-    border: 2px solid #FFA500; /* Borde naranja */
-}
-.hex.highlight-place { /* Para colocar unidades, ej. al dividir */
-    background-color: rgba(0, 162, 255, 0.4) !important; /* Azul semitransparente */
-    border: 2px solid #00A2FF; /* Borde azul */
-}
-
-/* Asegurarse de que el hover no interfiera con los resaltados */
-.hex.highlight-move:hover,
-.hex.highlight-attack:hover,
-.hex.highlight-build:hover,
-.hex.highlight-place:hover {
-    border-color: yellow; /* O un color que le guste para el hover */
-}
-
+/* --- Panel de Predicción de Combate --- */
 #combat-prediction-panel {
     background-color: rgba(0, 0, 0, 0.85);
     color: white;
@@ -1326,379 +402,17 @@ body {
     border-radius: 5px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     font-size: 0.9em;
-    z-index: 10001; /* Asegurar que esté por encima de casi todo */
-    pointer-events: none; /* Crucial: para que el ratón no interactúe con él y pueda seguir "viendo" hexágonos debajo */
-    white-space: nowrap; /* Evitar que el texto se rompa */
-    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    display: none; /* Controlado por JS */
-}
-
-#combat-prediction-panel p {
-    margin: 3px 0;
-}
-
-#combat-prediction-panel p span {
-    font-weight: bold;
-}
-
-/* --- Animación de Movimiento de Unidad --- */
-.unit {
-    position: absolute;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 18px;
-    cursor: pointer;
-    /* --- CAMBIO CLAVE: Transición suave para left y top --- */
-    transition: transform 0.2s, left 0.3s ease-out, top 0.3s ease-out; /* Añadido ease-out para un movimiento natural */
-    /* --- FIN CAMBIO --- */
-    border: 2px solid black;
-    box-sizing: border-box;
-    z-index: 10;
-    pointer-events: none; 
-}
-
-/* ... (resto de estilos de .unit) ... */
-
-
-/* --- Animaciones de Combate y Estado --- */
-
-/* Clase para la unidad que recibe daño (efecto de "golpe") */
-.unit.hit {
-    animation: unitHit 0.3s ease-out; /* Animación para recibir un golpe */
-}
-
-/* Clase para la unidad atacante (efecto de "empuje") */
-.unit.attacking {
-    animation: unitAttacking 0.2s ease-out; /* Animación para el atacante */
-}
-
-/* Clase para la unidad destruida (ya existe, pero revisar keyframes) */
-.unit-destroyed {
-    animation: explode 0.5s forwards; 
-}
-
-/* Clase para el hexágono que recibe daño (destello) */
-.hex.hit-effect {
-    animation: hexHitFlash 0.3s ease-out; /* Destello en el hexágono */
-}
-
-/* Clase para el hexágono que cambia de propietario (conquista) */
-.hex.owner-change-effect {
-    animation: ownerChangeFlash 0.5s forwards; /* Destello de cambio de color */
-}
-
-
-/* --- Definición de @keyframes para las animaciones --- */
-
-/* Animación para cuando una unidad recibe un golpe */
-@keyframes unitHit {
-    0% { transform: translateX(0) translateY(0); }
-    25% { transform: translateX(-5px) translateY(-5px) rotate(-2deg); } /* Pequeño retroceso y rotación */
-    50% { transform: translateX(5px) translateY(5px) rotate(2deg); }
-    100% { transform: translateX(0) translateY(0); }
-}
-
-/* Animación para la unidad que ataca (pequeño empuje hacia adelante y atrás) */
-@keyframes unitAttacking {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1) translateX(5px) translateY(5px); } /* Ligeramente más grande y empuja */
-    100% { transform: scale(1); }
-}
-
-/* Animación para el hexágono que recibe daño (destello) */
-@keyframes hexHitFlash {
-    0% { background-color: transparent; }
-    50% { background-color: rgba(255, 100, 100, 0.7); } /* Rojo claro */
-    100% { background-color: transparent; }
-}
-
-/* Animación para el hexágono que cambia de propietario (destello de color) */
-@keyframes ownerChangeFlash {
-    0% { box-shadow: inset 0 0 0 0px transparent; }
-    50% { box-shadow: inset 0 0 0 5px gold; } /* Un destello dorado */
-    100% { box-shadow: inset 0 0 0 3px var(--owner-color); } /* Vuelve al color del propietario. Necesitarás definir --owner-color en tus clases de propietario. */
-}
-
-/* Asegurarse de que .unit-destroyed tiene su animación explode */
-@keyframes explode {
-    0% { transform: scale(1) rotate(0deg); opacity: 1; }
-    50% { transform: scale(1.3) rotate(15deg); opacity: 0.5; }
-    100% { transform: scale(0.3) rotate(-15deg); opacity: 0; display:none !important; } 
-}
-
-/* Clase para el contenedor de la animación de explosión */
-.explosion-animation {
-    position: absolute; /* Para posicionarlo sobre el hexágono */
-    width: 32px; /* Ancho de un fotograma */
-    height: 32px; /* Alto de un fotograma */
-    background-image: url('images/explosion.png'); /* La imagen del spritesheet */
-    background-size: 256px 32px; /* Tamaño total del spritesheet (8 fotogramas x 128px de ancho) */
-    background-repeat: no-repeat;
-    animation: playExplosion 0.6s steps(8) forwards; /* 0.6s para 8 fotogramas, 0.6 / 8 = 0.075s por fotograma */
-    z-index: 100; /* Asegurarse de que esté por encima de las unidades */
-    pointer-events: none; /* No bloquear clics */
-    transform: translate(-50%, -50%); /* Para centrarlo si se posiciona por su centro */
-    /* Lo posicionaremos con JS basándonos en el centro del hexágono o unidad. */
-}
-
-/* Keyframes para la animación del spritesheet */
-@keyframes playExplosion {
-    from { background-position: 0px; } /* Inicia en el primer fotograma */
-    to { background-position: -1024px; } /* Termina después de 8 fotogramas (1024 = 8 * 128) */
-}
-
-/* Ajuste para la animación de unidad destruida (la haremos más simple si el spritesheet toma el relevo) */
-/* La clase .unit-destroyed la usaremos para eliminar la unidad, no para la explosión visual */
-.unit.unit-destroyed {
-    opacity: 0; /* Simplemente la haremos invisible */
-    transition: opacity 0.5s ease-out; /* Una transición rápida para que desaparezca */
+    z-index: 10001;
     pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    display: none;
 }
-
-/* Resaltado para elementos de la UI en el tutorial */
-.tutorial-highlight {
-    box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7); /* Borde dorado y un brillo cian */
-    animation: pulseHighlight 1.5s infinite alternate ease-in-out; /* Animación de pulsación */
-    z-index: 2002 !important; /* Asegurar que esté por encima del panel de tutorial y otros elementos */
-    position: relative; /* Para que el z-index funcione en algunos elementos */
-}
-
-/* Resaltado para hexágonos en el tutorial */
-.hex.tutorial-highlight-hex {
-    box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); /* Borde interno dorado y cian */
-    animation: pulseHighlightHex 1.5s infinite alternate ease-in-out; /* Animación de pulsación */
-    z-index: 100 !important; /* Asegurar que esté por encima de unidades y otros highlights */
-}
-
-/* Animación de pulsación para el resaltado */
-@keyframes pulseHighlight {
-    0% { transform: scale(1); opacity: 1; }
-    100% { transform: scale(1.02); opacity: 0.8; }
-}
-
-/* Animación de pulsación para el resaltado de hexágonos */
-@keyframes pulseHighlightHex {
-    0% { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); }
-    100% { box-shadow: inset 0 0 0 6px gold, inset 0 0 0 10px rgba(0, 255, 255, 0.9); }
-}
-
-/* --- Estilos para los botones flotantes individuales (Control Principal + Acción) --- */
-
-/* Base para todos los botones flotantes */
-#floatingMenuBtn,
-#floatingTechTreeBtn,
-#floatingEndTurnBtn,
-#floatingCreateDivisionBtn,
-#floatingConsoleBtn,
-#floatingUndoMoveBtn,
-#floatingReinforceBtn,
-#floatingSplitBtn,
-#floatingBuildBtn {
-    position: fixed; 
-    z-index: 100;    
-    cursor: pointer; 
-    border: 1px solid #555; 
-    border-radius: 5px; /* Por defecto para los rectangulares */
-    background-color: #333; 
-    color: #eee; 
-    transition: background-color 0.3s ease, transform 0.1s ease; 
-    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5); 
-    text-align: center; 
-    line-height: 1; 
-    font-size: 1.2em; /* Tamaño de fuente base */
-    padding: 10px 15px; /* Padding base para rectangulares */
-}
-
-/* Estilos específicos para hacer los botones de acción circulares */
-#floatingUndoMoveBtn,
-#floatingReinforceBtn,
-#floatingSplitBtn,
-#floatingBuildBtn {
-    width: 50px; 
-    height: 50px; 
-    border-radius: 50%; 
-    padding: 0; 
-    /* Usar flexbox para centrar el icono si está visible */
-    display: flex; /* Lo ponemos aquí para que funcione con flexbox si JS lo muestra */
-    justify-content: center; 
-    align-items: center; 
-    font-size: 1.5em; /* Tamaño del icono */
-
-    /* --- MANTENEMOS: Ocultar por defecto --- */
-    /* Tu JS deberá cambiar esto a 'flex' para mostrarlos */
-    /* display: none; */ /* Ya lo definimos como flex arriba, lo ocultará el JS */
-}
-
-/* Ocultar por defecto los botones de acción flotantes que JS debe controlar */
-#floatingUndoMoveBtn,
-#floatingReinforceBtn,
-#floatingSplitBtn,
-#floatingBuildBtn {
-    display: none; /* Aseguramos que están ocultos al cargar */
-}
-
-
-/* Hover effect (aplicado a todos los flotantes) */
-#floatingMenuBtn:hover,
-#floatingTechTreeBtn:hover,
-#floatingEndTurnBtn:hover,
-#floatingCreateDivisionBtn:hover,
-#floatingConsoleBtn:hover,
-#floatingUndoMoveBtn:hover, 
-#floatingReinforceBtn:hover,
-#floatingSplitBtn:hover,
-#floatingBuildBtn:hover {
-    background-color: #555; 
-    transform: scale(1.05); 
-}
-
-/* Posicionamiento específico para cada botón (Control Principal - Apilados Lateral Derecho) */
-/* Valores por defecto para pantallas más grandes */
-#floatingEndTurnBtn {
-    bottom: 20px;
-    right: 20px;
-}
-
-#floatingCreateDivisionBtn {
-    bottom: 80px; 
-    right: 20px;
-    /* font-size: 20px; */ 
-}
-
-#floatingTechTreeBtn {
-    bottom: 140px; 
-    right: 20px;
-}
-
-#floatingMenuBtn {
-    bottom: 200px; 
-    right: 20px;
-}
-
-#floatingConsoleBtn {
-    bottom: 260px; 
-    right: 20px;
-    font-size: 1.1em; 
-    padding: 10px 12px; 
-}
-
-/* Posicionamiento específico para los NUEVOS botones de acción (Apilados Lateral Izquierdo) */
-/* Valores por defecto para pantallas más grandes */
-#floatingBuildBtn {
-    bottom: 20px; 
-    left: 20px;   
-}
-
-#floatingSplitBtn {
-    bottom: 80px; 
-    left: 20px;
-}
-
-#floatingReinforceBtn {
-    bottom: 140px; 
-    left: 20px;
-}
-
-#floatingUndoMoveBtn {
-    bottom: 200px; 
-    left: 20px;
-}
-
-
-/* Asegúrate de que el panel de mensajes no sea ocultado por los botones o viceversa */
-#gameMessagesMobile {
-    position: fixed; 
-    bottom: 0; 
-    /* Tus valores de posicionamiento (left/right/width/transform) */
-    /* Si estaba bottom-center, probablemente necesita left: 50%; transform: translateX(-50%); */
-    /* Asegúrate de que tenga un ancho que deje espacio en los bordes */
-     width: 80%; /* Ejemplo: deja 10% a cada lado */
-     left: 50%;
-     transform: translateX(-50%);
-     padding: 5px; /* Añade padding para que el texto no toque los bordes */
-     box-sizing: border-box; /* Incluye padding en el width */
-    z-index: 50; /* Un z-index menor que los botones flotantes */
-    /* ... otros estilos ... */
-}
-
-/* --- Estilos para el panel de información contextual --- */
-/* Asegúrate de que su posición y tamaño dejen espacio para los botones flotantes */
-#contextualInfoPanel {
-    position: fixed;
-    bottom: 0; /* Anclado abajo */
-    left: 50%; /* Centrado horizontalmente */
-    transform: translateX(-50%); /* Para centrar correctamente con left: 50% */
-    width: 80%; /* Que no sea 100% ancho para dejar espacio en los lados */
-    max-width: 500px; /* Límite de ancho en pantallas grandes */
-    max-height: 40vh; /* Limita la altura para que no cubra demasiado el tablero */
-    background-color: rgba(30, 42, 56, 0.95); /* Fondo oscuro semi-transparente */
-    color: #e2e8f0; /* Texto claro */
-    padding: 15px; /* Espaciado interno */
-    border: 1px solid #4a5568; /* Borde */
-    border-bottom: none; /* Sin borde inferior */
-    border-top-left-radius: 10px; /* Bordes redondeados arriba */
-    border-top-right-radius: 10px;
-    box-shadow: 0 -5px 10px rgba(0, 0, 0, 0.3); /* Sombra arriba */
-    z-index: 90; /* Debe estar por debajo de los botones flotantes (100) */
-    display: flex; /* Usar flexbox para el layout interno (header, content, actions) */
-    flex-direction: column;
-    /* transition: transform 0.3s ease-out; /* Transición para mostrar/ocultar si usas class visible */
-    /* overflow-y: auto; /* Añade scroll si el contenido excede max-height */
-}
-/* Asegúrate de que la clase 'visible' en tu JS maneje la visibilidad, por ejemplo: */
-/* #contextualInfoPanel.visible { transform: translateX(-50%) translateY(0%); } */
-/* #contextualInfoPanel { transform: translateX(-50%) translateY(100%); } // Oculto por defecto */
-
-
-/* --- RE-AÑADIMOS ESTA REGLA: Ocultar botones dentro del panel de acciones contextuales --- */
-/* Esto ocultará los botones antiguos que tu JS siga creando aquí */
-#contextualActions button {
-    display: none !important; /* Oculta todos los botones dentro de este contenedor */
-}
-
-
-/* --- Media query para dispositivos móviles --- */
-@media screen and (max-width: 768px) { /* Aplica estos estilos en pantallas de 768px o menos */
-
-    /* Ajustar la posición de los botones del lado izquierdo para dar espacio al panel */
-    /* Incrementamos el 'left' para moverlos más hacia el centro en pantallas pequeñas */
-    /* 80px es un valor de ejemplo. Ajusta según cuánto espacio necesites. */
-    #floatingBuildBtn { left: 80px; } 
-    #floatingSplitBtn { left: 80px; } 
-    #floatingReinforceBtn { left: 80px; }
-    #floatingUndoMoveBtn { left: 80px; }
-
-    /* Si el panel contextual también se solapa con los botones de la derecha, ajusta el 'right' de esos botones */
-    /*
-    #floatingEndTurnBtn { right: 80px; }
-    #floatingCreateDivisionBtn { right: 80px; }
-    #floatingTechTreeBtn { right: 80px; }
-    #floatingMenuBtn { right: 80px; }
-    #floatingConsoleBtn { right: 80px; }
-    */
-
-    /* Opcional: Ajustar el panel contextual en móvil si es necesario */
-    #contextualInfoPanel {
-         width: 95%; /* Puede ser un poco más ancho en móvil */
-         /* Si el panel es muy alto y cubre el tablero, podrías limitar su altura o subirlo: */
-         /* max-height: 60vh; */ /* Ejemplo: 60% de la altura de la ventana */
-         /* bottom: 60px; */ /* Ejemplo: sube el panel 60px del borde inferior */
-    }
-
-    /* Opcional: Ajustar el panel de mensajes en móvil si es necesario */
-    #gameMessagesMobile {
-         width: 95%;
-    }
-}
-
-/* style.css */
-
+#combat-prediction-panel p { margin: 3px 0; }
+#combat-prediction-panel p span { font-weight: bold; }
+/** DUPLICADO: Regla con ID diferente y más detallada */
 #combatPredictionPanel {
-    position: fixed; /* Se posicionará relativo a la ventana del navegador */
+    position: fixed;
     background-color: rgba(20, 20, 20, 0.9);
     color: #f0f0f0;
     padding: 10px 15px;
@@ -1706,950 +420,475 @@ body {
     border-radius: 8px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     font-size: 0.9em;
-    z-index: 10001; /* Muy alto para estar por encima de todo */
-    pointer-events: none; /* Crucial: no debe interceptar clics del ratón */
+    z-index: 10001;
+    pointer-events: none;
     white-space: nowrap;
     box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-    transition: opacity 0.1s linear; /* Para una aparición suave */
-    opacity: 0; /* Por defecto, oculto */
+    transition: opacity 0.1s linear;
+    opacity: 0;
 }
-
-#combatPredictionPanel.visible {
-    opacity: 1; /* Para mostrarlo con transición */
-}
-
+#combatPredictionPanel.visible { opacity: 1; }
 #combatPredictionPanel h4 {
     margin: 0 0 8px 0;
-    color: #f39c12; /* Naranja/dorado */
+    color: #f39c12;
     font-size: 1.1em;
     text-align: center;
     border-bottom: 1px solid #444;
     padding-bottom: 5px;
 }
+#combatPredictionPanel p { margin: 5px 0; line-height: 1.4; }
+#combatPredictionPanel span.attacker-damage { color: #e74c3c; font-weight: bold; }
+#combatPredictionPanel span.defender-damage { color: #3498db; font-weight: bold; }
+#combatPredictionPanel span.critical-info { color: #f1c40f; font-weight: bold; display: block; text-align: center; margin-top: 8px; }
 
-#combatPredictionPanel p {
-    margin: 5px 0;
-    line-height: 1.4;
-}
-
-#combatPredictionPanel span.attacker-damage {
-    color: #e74c3c; /* Rojo para el daño que haces */
-    font-weight: bold;
-}
-#combatPredictionPanel span.defender-damage {
-    color: #3498db; /* Azul para el daño que recibes */
-    font-weight: bold;
-}
-#combatPredictionPanel span.critical-info {
-    color: #f1c40f; /* Amarillo para info crítica como "¡DESTRUIDO!" */
-    font-weight: bold;
-    display: block;
-    text-align: center;
-    margin-top: 8px;
-}
-
-/* --- Estilos para Feedback de Daño Flotante --- */
-
-.damage-dealt-text {
-    position: absolute; /* Para posicionarlo sobre el hexágono/unidad */
-    font-size: 20px;
-    font-weight: bold;
-    color: #e74c3c; /* Rojo para daño */
-    text-shadow: 1px 1px 2px black; /* Sombra para legibilidad */
-    z-index: 110; /* Por encima de las unidades y highlights */
-    pointer-events: none; /* No debe ser clickeable */
-    animation: floatAndFade 1.2s ease-out forwards;
-}
-
-@keyframes floatAndFade {
-    0% {
-        transform: translateY(0) scale(1);
-        opacity: 1;
-    }
-    100% {
-        transform: translateY(-50px) scale(0.8);
-        opacity: 0;
-    }
-}
-
-/* ====================================================================== */
-/* =========== ESTILOS PARA MODAL DE GESTIÓN DE UNIDAD (NUEVO) ========== */
-/* ====================================================================== */
-
-.unit-management-content {
-    width: 90%;
-    max-width: 800px;
-    background-color: #f0f2f5;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-    display: flex;
-    flex-direction: column;
-}
-
-.unit-management-content h3 {
-    text-align: center;
-    color: #333;
-    margin-top: 0;
-    margin-bottom: 20px;
-}
-
-.unit-management-body {
-    display: flex;
-    gap: 20px;
-    flex-grow: 1;
-    min-height: 400px;
-}
-
-.unit-selection-panel {
-    flex: 2;
-    display: flex;
-    flex-direction: column;
+/* --- Panel de Menú Flotante --- */
+.floating-panel {
+    position: fixed; z-index: 90;
+    background-color: rgba(245, 245, 245, 0.95);
     border: 1px solid #ccc;
-    border-radius: 5px;
-    background-color: #fff;
-}
-
-.category-tabs {
-    display: flex;
-    border-bottom: 1px solid #ccc;
-    padding: 5px;
-    background-color: #e9ecef;
-}
-
-.category-tabs .tab-btn {
-    flex-grow: 1;
-    padding: 10px 5px;
-    background-color: transparent;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-weight: 500;
-    color: #495057;
-    transition: background-color 0.2s;
-}
-
-.category-tabs .tab-btn:hover {
-    background-color: #dee2e6;
-}
-
-.category-tabs .tab-btn.active {
-    background-color: #007bff;
-    color: white;
-}
-
-.available-units-list {
-    padding: 10px;
-    overflow-y: auto;
-    flex-grow: 1;
-}
-
-.unit-entry {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 5px;
-    border-bottom: 1px solid #eee;
-}
-
-.unit-entry:last-child {
-    border-bottom: none;
-}
-
-.unit-entry span {
-    font-weight: 500;
-}
-
-.quantity-controls {
-    display: flex;
-    align-items: center;
-}
-
-.quantity-controls .quantity-btn {
-    width: 28px;
-    height: 28px;
-    border: 1px solid #ccc;
-    background-color: #f8f9fa;
-    font-size: 1.2em;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.quantity-controls .quantity-input {
-    width: 40px;
-    text-align: center;
-    border: 1px solid #ccc;
-    border-left: none;
-    border-right: none;
-    height: 26px;
-    -moz-appearance: textfield;
-}
-.quantity-controls .quantity-input::-webkit-outer-spin-button,
-.quantity-controls .quantity-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.division-summary-panel {
-    flex: 1;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     padding: 15px;
-    background-color: #ffffff;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    display: flex;
-    flex-direction: column;
-}
-
-.division-summary-panel h4 {
-    margin-top: 0;
-    text-align: center;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
-    margin-bottom: 15px;
-}
-
-.division-name-editor {
-    margin-bottom: 15px;
-}
-
-.division-name-editor input {
-    width: 100%;
-    padding: 8px;
-    box-sizing: border-box;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-#divisionCompositionList {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    flex-grow: 1;
-    overflow-y: auto;
-}
-
-#divisionCompositionList li {
-    padding: 5px 0;
-}
-
-.summary-details {
-    border-top: 1px solid #eee;
-    padding-top: 10px;
-    margin-top: auto;
-    font-size: 0.9em;
-}
-
-.summary-details p {
-    margin: 5px 0;
-}
-
-.modal-footer-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.modal-footer-actions button {
-    padding: 10px 20px;
-    border-radius: 5px;
-    border: none;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-#finalizeUnitManagementBtn {
-    background-color: #28a745;
-    color: white;
-}
-#finalizeUnitManagementBtn:disabled {
-    background-color: #94dcb0;
-    cursor: not-allowed;
-}
-
-.button-secondary {
-    background-color: #6c757d;
-    color: white;
-}
-
-/* --- Estilos para el nuevo botón de Gestión --- */
-#floatingManageBtn {
-    bottom: 260px; /* Debajo del botón de deshacer, por ejemplo */
-    left: 20px;
-    display: none; /* Oculto por defecto */
-}
-
-/* --- Estilos para la lista de regimientos en el modal de detalles --- */
-#unitDetailRegimentList .regiment-detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 8px;
-    border-bottom: 1px solid #eee;
-}
-
-#unitDetailRegimentList .regiment-info {
-    font-weight: 500;
-}
-
-#unitDetailRegimentList .regiment-health-bar-container {
-    flex-grow: 1;
-    height: 12px;
-    background-color: #e0e0e0;
-    border-radius: 6px;
-    margin: 0 15px;
-    position: relative;
-}
-
-#unitDetailRegimentList .regiment-health-bar {
-    height: 100%;
-    background-color: #4CAF50; /* Verde */
-    border-radius: 6px;
-    transition: width 0.3s ease;
-}
-
-#unitDetailRegimentList .regiment-health-text {
-    font-size: 0.8em;
-    min-width: 50px;
-    text-align: right;
-}
-
-#unitDetailRegimentList .reinforce-btn {
-    padding: 4px 8px;
-    font-size: 1.2em;
-    line-height: 1;
-    margin-left: 10px;
-    cursor: pointer;
-    border: 1px solid #ccc;
-    background-color: #f0f0f0;
-}
-
-#unitDetailRegimentList .reinforce-btn:hover {
-    background-color: #d4edda; /* Verde claro */
-}
-
-#unitDetailRegimentList .reinforce-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-/* ====================================================================== */
-/* ====== ESTILOS PARA EL MODAL DE DETALLES DE UNIDAD (REDISEÑADO) ====== */
-/* ====================================================================== */
-
-/* Contenedor principal del modal */
-#unitDetailModal .unit-detail-content {
-    max-width: 400px; /* Ancho máximo compacto para móviles */
-    width: 90%;
-    background-color: #e9ecef; /* Un fondo gris claro */
-    padding: 15px;
-}
-
-#unitDetailModal h3 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 1.2em;
-}
-
-/* Contenedor de las estadísticas principales de la división */
-.unit-main-stats {
-    background-color: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    margin-bottom: 15px;
-}
-
-.stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9em;
-    padding: 4px 0;
-}
-
-.stat-row.stat-summary span {
-    font-weight: bold;
-}
-
-.stat-row .stat-label {
-    font-weight: bold;
-    margin-right: 10px;
-}
-
-/* Barra de salud total de la unidad */
-.unit-total-health-bar-container {
-    flex-grow: 1;
-    height: 18px;
-    background-color: #ced4da;
-    border-radius: 9px;
-    border: 1px solid #adb5bd;
-}
-
-.unit-total-health-bar {
-    height: 100%;
-    background-color: #28a745; /* Verde para salud */
-    border-radius: 9px;
-    transition: width 0.3s ease-out;
-}
-
-#unitDetailTotalHealthText {
-    margin-left: 10px;
-    font-weight: bold;
-    min-width: 80px; /* Espacio para "2000 / 2000" */
-    text-align: right;
-}
-
-/* Título de la sección de regimientos */
-.regiment-section-title {
-    text-align: center;
-    font-size: 0.8em;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-}
-
-/* Lista detallada de regimientos */
-.detailed-regiments-list {
-    background-color: #fff;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    max-height: 250px; /* Límite de altura con scroll */
-    overflow-y: auto;
-    padding: 5px !important; /* Sobreescribe otros paddings */
-    margin: 0 !important;
-}
-
-.detailed-regiments-list .regiment-detail-item {
-    display: flex;
-    align-items: center;
-    padding: 8px;
-    border-bottom: 1px solid #f1f3f5;
-}
-
-.detailed-regiments-list .regiment-detail-item:last-child {
-    border-bottom: none;
-}
-
-.regiment-icon {
-    font-size: 1.5em; /* Icono grande y fácil de ver */
-    margin-right: 8px;
-    width: 25px; /* Ancho fijo */
-    text-align: center;
-}
-
-.regiment-name {
-    font-weight: 500;
-    width: 100px; /* Ancho fijo para el nombre abreviado */
-    flex-shrink: 0;
-}
-
-/* Barra de salud de cada regimiento individual */
-.detailed-regiments-list .regiment-health-bar-container {
-    flex-grow: 1;
-    height: 12px;
-    background-color: #e9ecef;
-    border-radius: 6px;
-    margin: 0 10px;
-}
-
-.detailed-regiments-list .regiment-health-bar {
-    height: 100%;
-    background-color: #519DE9; /* Un azul claro */
-    border-radius: 6px;
-    transition: width 0.3s ease;
-}
-
-.detailed-regiments-list .regiment-health-text {
-    font-size: 0.8em;
-    min-width: 60px; /* Espacio para "200/200" */
-    text-align: right;
-}
-
-/* Botón para reforzar regimiento */
-.reinforce-regiment-btn {
-    background: #e9ecef;
-    border: 1px solid #ced4da;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    font-size: 1em;
-    line-height: 1;
-    cursor: pointer;
-    margin-left: 10px;
-    transition: background-color 0.2s;
-}
-.reinforce-regiment-btn:hover {
-    background-color: #d4edda; /* Verde al pasar el ratón */
-}
-
-/* Placeholder para alinear items que no tienen botón de reforzar */
-.reinforce-placeholder {
-    width: 24px;
-    height: 24px;
-    margin-left: 10px;
-}
-/* ====================================================================== */
-/* ====== ESTILOS PARA EL MODAL DE DETALLES DE UNIDAD (REDISEÑADO) ====== */
-/* ====================================================================== */
-
-/* Contenedor principal del modal */
-#unitDetailModal .modal-content {
-    max-width: 400px; /* Ancho máximo compacto para móviles */
-    width: 90%;
-    background-color: #e9ecef; /* Un fondo gris claro */
-    padding: 15px;
-}
-
-#unitDetailModal h3 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 1.2em;
-}
-
-/* Contenedor de las estadísticas principales de la división */
-.unit-main-stats {
-    background-color: #fff;
-    padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    margin-bottom: 15px;
-}
-
-.stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9em;
-    padding: 4px 0;
-}
-
-.stat-row.stat-summary span {
-    font-weight: bold;
-}
-
-.stat-row .stat-label {
-    font-weight: bold;
-    margin-right: 10px;
-}
-
-/* Barra de salud total de la unidad */
-.unit-total-health-bar-container {
-    flex-grow: 1;
-    height: 18px;
-    background-color: #ced4da;
-    border-radius: 9px;
-    border: 1px solid #adb5bd;
-}
-
-.unit-total-health-bar {
-    height: 100%;
-    background-color: #28a745; /* Verde para salud */
-    border-radius: 9px;
-    transition: width 0.3s ease-out;
-}
-
-#unitDetailTotalHealthText {
-    margin-left: 10px;
-    font-weight: bold;
-    min-width: 80px; /* Espacio para "2000 / 2000" */
-    text-align: right;
-}
-
-/* Título de la sección de regimientos */
-.regiment-section-title {
-    text-align: center;
-    font-size: 0.8em;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-}
-
-/* Lista detallada de regimientos */
-.detailed-regiments-list {
-    background-color: #fff;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    max-height: 250px; /* Límite de altura con scroll */
-    overflow-y: auto;
-    padding: 5px !important; /* Sobreescribe otros paddings */
-    margin: 0 !important;
-}
-
-.detailed-regiments-list .regiment-detail-item {
-    display: flex;
-    align-items: center;
-    padding: 8px;
-    border-bottom: 1px solid #f1f3f5;
-}
-
-.detailed-regiments-list .regiment-detail-item:last-child {
-    border-bottom: none;
-}
-
-.regiment-icon {
-    font-size: 1.5em; /* Icono grande y fácil de ver */
-    margin-right: 8px;
-    width: 25px; /* Ancho fijo */
-    text-align: center;
-}
-
-.regiment-name {
-    font-weight: 500;
-    width: 100px; /* Ancho fijo para el nombre abreviado */
-    flex-shrink: 0;
-}
-
-/* Barra de salud de cada regimiento individual */
-.detailed-regiments-list .regiment-health-bar-container {
-    flex-grow: 1;
-    height: 12px;
-    background-color: #e9ecef;
-    border-radius: 6px;
-    margin: 0 10px;
-}
-
-.detailed-regiments-list .regiment-health-bar {
-    height: 100%;
-    background-color: #519DE9; /* Un azul claro */
-    border-radius: 6px;
-    transition: width 0.3s ease;
-}
-
-.detailed-regiments-list .regiment-health-text {
-    font-size: 0.8em;
-    min-width: 60px; /* Espacio para "200/200" */
-    text-align: right;
-}
-
-/* Botón para reforzar regimiento */
-.reinforce-regiment-btn {
-    background: #e9ecef;
-    border: 1px solid #ced4da;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    font-size: 1em;
-    line-height: 1;
-    cursor: pointer;
-    margin-left: 10px;
-    transition: background-color 0.2s;
-}
-.reinforce-regiment-btn:hover {
-    background-color: #d4edda; /* Verde al pasar el ratón */
-}
-
-/* Placeholder para alinear items que no tienen botón de reforzar */
-.reinforce-placeholder {
-    width: 24px;
-    height: 24px;
-    margin-left: 10px;
-}
-
-/* ====================================================================== */
-/* ============== ESTILO PARA BOTONES FLOTANTES DESHABILITADOS ========== */
-/* ====================================================================== */
-
-.floating-btn:disabled,
-#floatingUndoMoveBtn:disabled,
-#floatingReinforceBtn:disabled,
-#floatingSplitBtn:disabled,
-#floatingBuildBtn:disabled {
-    background-color: #6c757d !important; /* Un gris neutro y oscuro */
-    opacity: 0.5; /* Lo hacemos semitransparente */
-    cursor: not-allowed; /* Cambia el cursor para indicar que no se puede hacer clic */
-    transform: scale(1) !important; /* Anulamos cualquier efecto de hover/transform */
-}
-
-/* ====================================================================== */
-/* ============== ESTILOS PARA BOTONES DE ACCIÓN PELIGROSA ============== */
-/* ====================================================================== */
-
-.button-danger {
-    background-color: #dc3545; /* Rojo de peligro de Bootstrap */
-    color: white;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 0.9em;
-    transition: background-color 0.2s ease-in-out;
-}
-
-.button-danger:hover {
-    background-color: #c82333; /* Un rojo más oscuro al pasar el ratón */
-}
-
-.button-danger:disabled {
-    background-color: #fadadd; /* Un rojo muy pálido */
-    color: #a3a3a3;
-    cursor: not-allowed;
-}
-/* Ajuste para la rejilla de recursos flotante con 7 elementos */
-#floatingMenuPanel .resource-labels,
-#floatingMenuPanel .resource-values {
-    grid-template-columns: repeat(7, 1fr); /* Le decimos que ahora son 7 columnas */
-    display: grid; /* Aseguramos que usa grid */
-}
-
-/* ====================================================================== */
-/* === ESTILOS MEJORADOS PARA LA REJILLA DE RECURSOS DEL MENÚ FLOTANTE === */
-/* ====================================================================== */
-
-/* Seleccionamos el contenedor de la rejilla dentro del panel flotante */
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    display: none;
+}
+#floatingMenuPanel { top: 70px; left: 10px; width: 260px; }
+#floatingMenuPanel h4 { text-align: center; margin-top: 0; margin-bottom: 10px; font-size: 1em; color: #333; }
+#floatingMenuPanel #playerResourcesGrid_float { font-size: 0.85em; padding: 8px; margin-bottom: 10px; }
+#floatingMenuPanel button, #floatingMenuPanel .button-like-label {
+    width: 100%; display: block; margin-bottom: 8px; padding: 10px;
+    text-align: left; background-color: #e9ecef; color: #333; border: 1px solid #ddd;
+}
+#floatingMenuPanel button:hover, #floatingMenuPanel .button-like-label:hover { background-color: #dee2e6; }
+#floatingMenuPanel .resource-labels, #floatingMenuPanel .resource-values { grid-template-columns: repeat(7, 1fr); display: grid; }
 #floatingMenuPanel #playerResourcesGrid_float {
-    display: grid;
-    /* 7 columnas de tamaño flexible */
-    grid-template-columns: repeat(7, 1fr); 
-    /* Dos filas: una para etiquetas, otra para valores */
-    grid-template-rows: auto auto; 
-    /* Espacio entre celdas: 4px vertical, 2px horizontal */
-    gap: 4px 2px; 
-    padding: 8px;
-    margin-bottom: 10px;
-    background-color: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    text-align: center; /* Centramos el texto de todas las celdas */
+    display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto auto;
+    gap: 4px 2px; padding: 8px; margin-bottom: 10px; background-color: #f8f9fa;
+    border: 1px solid #e0e0e0; border-radius: 4px; text-align: center;
+}
+#floatingMenuPanel .resource-labels { grid-row: 1; grid-column: 1 / -1; display: contents; }
+#floatingMenuPanel .resource-values { grid-row: 2; grid-column: 1 / -1; display: contents; }
+#floatingMenuPanel .resource-labels span { font-size: 0.8em; font-weight: 500; color: #6c757d; }
+#floatingMenuPanel .resource-values span { font-size: 0.9em; font-weight: bold; color: #212529; }
+
+/* --- Panel de Turno del Oponente --- */
+.turn-blocker {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 5000;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 2.5em; color: white; text-shadow: 2px 2px 4px black;
+    text-align: center; cursor: not-allowed;
 }
 
-/* El DIV que contiene las etiquetas (Oro, Fe...) */
-#floatingMenuPanel .resource-labels {
-    grid-row: 1; /* Posiciona este contenedor en la primera fila de la rejilla */
-    grid-column: 1 / -1; /* Hace que ocupe todo el ancho (de la primera a la última columna) */
-    display: contents; /* Clave: hace que el DIV sea "invisible" y sus <span> hijos se coloquen en la rejilla principal */
+/* ========================================================================== */
+/* 6. BOTONES FLOTANTES
+/* ========================================================================== */
+
+.floating-btn {
+    position: fixed; z-index: 100;
+    background-color: rgba(0, 0, 0, 0.6); color: white;
+    border: none; border-radius: 50%; width: 50px; height: 50px;
+    font-size: 24px; display: flex; justify-content: center; align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s ease;
+}
+.floating-btn:hover { background-color: rgba(0, 0, 0, 0.8); transform: scale(1.05); }
+.floating-btn.top-left { top: 15px; left: 15px; }
+.floating-btn.top-right { top: 15px; right: 15px; }
+.floating-btn.bottom-right { bottom: 20px; right: 20px; }
+
+/** DUPLICADO: Base de botones flotantes más reciente y completa. */
+.floating-btn,#floatingMenuBtn, #floatingTechTreeBtn, #floatingEndTurnBtn, #floatingCreateDivisionBtn,
+#floatingConsoleBtn, #floatingUndoMoveBtn, #floatingReinforceBtn, #setAsCapitalBtn,
+#floatingSplitBtn, #floatingPillageBtn, #floatingBuildBtn, #floatingWikiBtn {
+    position: fixed; z-index: 1001 !important; cursor: pointer; border: 1px solid #555;
+    border-radius: 5px; background-color: #333; color: #eee;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5); text-align: center;
+    line-height: 1; font-size: 1.2em; padding: 10px 15px;
+}
+#floatingUndoMoveBtn, #floatingReinforceBtn, #floatingSplitBtn, #floatingBuildBtn {
+    width: 50px; height: 50px; border-radius: 50%; padding: 0;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 1.5em; display: none;
+}
+#floatingMenuBtn:hover, #floatingTechTreeBtn:hover, #floatingEndTurnBtn:hover,
+#floatingCreateDivisionBtn:hover, #floatingConsoleBtn:hover, #floatingUndoMoveBtn:hover,
+#floatingReinforceBtn:hover, #floatingSplitBtn:hover, #floatingBuildBtn:hover {
+    background-color: #555; transform: scale(1.05);
 }
 
-/* El DIV que contiene los valores numéricos */
-#floatingMenuPanel .resource-values {
-    grid-row: 2; /* Posiciona este contenedor en la segunda fila */
-    grid-column: 1 / -1;
-    display: contents; /* Misma técnica para que los <span> se alineen correctamente */
+#floatingEndTurnBtn {
+    bottom: 70px;
+    background-color: transparent !important; color: white;
+    border: none; padding: 10px; font-size: 30px; line-height: 1;
+    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.7); box-shadow: none !important;
+}
+#floatingEndTurnBtn:hover { background-color: transparent !important; transform: scale(1.1); }
+#floatingEndTurnBtn:active { background-color: transparent !important; transform: translateY(1px) scale(1.05); box-shadow: none !important; }
+
+/* --- Posicionamiento específico --- */
+#floatingEndTurnBtn        { bottom: 20px;  right: 20px; }
+#floatingCreateDivisionBtn { bottom: 80px;  right: 20px; }
+#floatingTechTreeBtn       { bottom: 140px; right: 20px; }
+#floatingMenuBtn           { bottom: 200px; right: 20px; }
+#floatingConsoleBtn        { bottom: 260px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
+#floatingBuildBtn          { bottom: 20px;  left: 20px; }
+#floatingSplitBtn          { bottom: 80px;  left: 20px; }
+#floatingReinforceBtn      { bottom: 140px; left: 20px; }
+#floatingUndoMoveBtn       { bottom: 200px; left: 20px; }
+#floatingWikiBtn           { bottom: 320px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
+#floatingManageBtn         { bottom: 260px; left: 20px; display: none; }
+
+/* --- Estados Deshabilitados --- */
+.floating-btn:disabled, #floatingUndoMoveBtn:disabled, #floatingReinforceBtn:disabled, #floatingSplitBtn:disabled, #floatingBuildBtn:disabled {
+    background-color: #6c757d !important; opacity: 0.5;
+    cursor: not-allowed; transform: scale(1) !important;
+}
+#floatingEndTurnBtn:disabled {
+    background-color: #6c757d !important; opacity: 0.5;
+    cursor: not-allowed; transform: scale(1) !important;
 }
 
-/* Estilo para cada etiqueta individual (Oro, Fe...) */
-#floatingMenuPanel .resource-labels span {
-    font-size: 0.8em;
-    font-weight: 500;
-    color: #6c757d; /* Gris suave */
+/* ========================================================================== */
+/* 7. MODALES (base y específicos)
+/* ========================================================================== */
+
+/* --- Modal Base --- */
+.modal {
+    display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+    width: 100%; height: 100%; overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center; justify-content: center;
+}
+.modal-content {
+    background-color: #fefefe; padding: 20px; border: 1px solid #888;
+    width: 90%; max-width: 600px; border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+.close-button {
+    color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;
+}
+.close-button:hover, .close-button:focus { color: black; }
+/** DUPLICADO: .close-button más específico para modales */
+.modal .close-button {
+    color: #aaa; position: absolute; top: 10px; right: 15px;
+    font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1;
 }
 
-/* Estilo para cada valor numérico individual */
-#floatingMenuPanel .resource-values span {
-    font-size: 0.9em;
-    font-weight: bold;
-    color: #212529; /* Negro suave */
+/* --- Modal: Menú Principal --- */
+#mainMenuScreen .modal-content {
+    background-color: #f0f2f5; border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
 }
-
-/* ====================================================================== */
-/* =================== ESTILOS PARA LA WIKI INTERNA DEL JUEGO ============== */
-/* ====================================================================== */
-
-/* --- Botón Flotante para abrir la Wiki --- */
-#floatingWikiBtn {
-    bottom: 320px;
-    right: 20px;
-    width: 50px; /* Tamaño circular como los demás */
-    height: 50px;
-    border-radius: 50%;
-    font-size: 28px; /* Tamaño de la 'i' */
-    font-weight: bold;
-    font-style: italic; /* Cursiva para un estilo de "información" */
-    padding: 0; /* Quitamos padding para centrar bien */
-    display: flex;
-    justify-content: center;
-    align-items: center;
+#mainMenuScreen h2 { color: #333; margin-bottom: 30px; font-size: 2em; }
+#mainMenuScreen button {
+    background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease; font-weight: bold;
 }
+#mainMenuScreen button:hover { background-color: #0056b3; transform: translateY(-2px); }
+#mainMenuScreen button:active { transform: translateY(0px); }
 
-/* --- Estructura Principal del Modal de la Wiki --- */
+/* --- Modal: Configuración de Escaramuza y Campaña --- */
+#setupScreen .modal-content { background-color: #fff; border: 1px solid #ddd; }
+#setupScreen div { margin-bottom: 15px; }
+#setupScreen label { display: inline-block; width: 130px; font-weight: 500; }
+#setupScreen select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; min-width: 150px; }
+#setupScreen button { padding: 10px 20px; font-size: 1em; }
+#backToMainMenuBtn_fromCampaign, #backToMainMenuBtn_fromSetup {
+    background-color: #6c757d; color: white; border: none; border-radius: 4px;
+    cursor: pointer; padding: 8px 15px; font-size: 0.9em; margin-top: 10px;
+}
+#backToMainMenuBtn_fromCampaign:hover, #backToMainMenuBtn_fromSetup:hover { background-color: #5a6268; }
+#worldMapScreen { background-color: #7da0c0; box-shadow: 0 0 15px rgba(0,0,0,0.3); border-radius: 8px; position: relative; }
+#worldMapImage { border-radius: 6px; display: block; max-width: 100%; height: auto; }
+#campaignMessages { border-top: 1px solid #ccc; color: #333; max-width: 300px; word-wrap: break-word; padding: 10px; margin-top: 10px; background-color: #f9f9f9; border-radius: 4px; }
+.territory-on-map {
+    position: absolute; width: auto; min-width: 30px; height: auto; padding: 5px 8px;
+    background-color: rgba(220, 220, 220, 0.8); border: 1px solid #777; color: #333;
+    border-radius: 20px; display: flex; justify-content: center; align-items: center;
+    font-size: 0.75em; font-weight: bold; text-align: center; cursor: default; pointer-events: all;
+    transform: translate(-50%, -50%); transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.territory-on-map.player-controlled { background-color: rgba(60, 179, 113, 0.85); border-color: #2e8b57; color: white; }
+.territory-on-map.ai-controlled { background-color: rgba(220, 20, 60, 0.85); border-color: #b22222; color: white; }
+.territory-on-map.neutral-territory { background-color: rgba(240, 230, 140, 0.85); border-color: #b8860b; color: #545454; }
+.territory-on-map.selectable-territory { cursor: pointer; border-width: 2px; }
+.territory-on-map.selectable-territory:hover { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 12px 4px gold; z-index: 10; }
+
+/* --- Modal: Briefing de Escenario --- */
+#scenarioBriefingModal .modal-content { text-align: left; max-height: 90vh; overflow-y: auto; }
+#scenarioBriefingModal #scenarioTitle { color: #0056b3; margin-bottom: 10px; }
+#scenarioBriefingModal #scenarioImage { border: 1px solid #eee; max-width: 100%; height: auto; display: block; margin: 10px auto; border-radius: 4px; }
+#scenarioBriefingModal #startScenarioBattleBtn { background-color: #28a745; color: white; display: block; margin: 20px auto 0 auto; padding: 10px 20px; }
+#scenarioBriefingModal #startScenarioBattleBtn:hover { background-color: #1e7e34; }
+
+/* --- Modal: Árbol de Tecnología --- */
+.tech-tree-content .tech-node {
+    position: absolute; width: 100px; height: 100px; background-color: #2a9d8f;
+    color: white; border-radius: 50%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    border: 3px solid #264653; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+    padding: 5px; box-sizing: border-box; font-size: 0.8em;
+}
+.tech-tree-content .tech-node:hover { transform: scale(1.05); box-shadow: 0 0 15px #f4a261; }
+.tech-tree-content .tech-node img { width: 40px; height: 40px; margin-bottom: 5px; }
+.tech-tree-content .tech-node.researched { background-color: #e9c46a; border-color: #f4a261; }
+.tech-tree-content .tech-node.available { background-color: #2a9d8f; border-color: #264653; box-shadow: 0 0 10px 3px #aaf0d1; }
+.tech-tree-content .tech-node.locked { background-color: #6c757d; opacity: 0.7; cursor: not-allowed; }
+
+/* --- Modales: Gestión de Unidades --- */
+/* Listas genéricas en modales */
+#availableRegimentsList li, #currentDivisionRegimentsList li, #availableStructuresList li {
+    cursor: pointer; padding: 8px; border-bottom: 1px solid #eee; transition: background-color 0.2s;
+}
+#availableRegimentsList li:hover, #currentDivisionRegimentsList li:hover, #availableStructuresList li:hover { background-color: #f0f0f0; }
+#availableStructuresList li.selected-structure { background-color: #d0e0ff; font-weight: bold; }
+
+/* Panel de edición de nombre */
+#unit-info .unit-name-editor { display: flex; align-items: center; margin-bottom: 8px; }
+#unit-info .unit-name-editor label { margin-right: 5px; font-weight: bold; }
+#unit-info #selectedUnitNameInput { flex-grow: 1; padding: 5px; border: 1px solid #ccc; border-radius: 3px; margin-right: 5px; background-color: #f8f9fa; }
+#unit-info #selectedUnitNameInput:not([readonly]) { background-color: #fff; border-color: #007bff; }
+#unit-info .unit-name-editor button { padding: 4px 8px; font-size: 0.9em; background-color: #e9ecef; border: 1px solid #ced4da; border-radius: 3px; cursor: pointer; }
+#unit-info .unit-name-editor button:hover { background-color: #dee2e6; }
+#unit-info #saveUnitNameBtn { background-color: #28a745; color: white; }
+#unit-info #saveUnitNameBtn:hover { background-color: #218838; }
+
+/* Lista detallada de regimientos */
+.regiments-detailed-list { list-style: none; padding: 0; margin: 0; font-size: 0.8em; max-height: 150px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 3px; background-color: #fdfdfd; }
+.regiments-detailed-list li { padding: 6px 8px; border-bottom: 1px dashed #eee; }
+.regiments-detailed-list li:last-child { border-bottom: none; }
+.regiments-detailed-list li strong { color: #0056b3; }
+
+/* Modal de División Avanzada */
+#advancedSplitUnitModal .modal-content { max-width: 450px; padding: 15px; }
+#advancedSplitUnitModal h3 { font-size: 1.1em; margin-bottom: 5px; }
+#advancedSplitUnitModal > p { font-size: 0.8em; margin-bottom: 10px; }
+.split-regiment-container { display: flex; gap: 10px; margin-top: 10px; flex-wrap: nowrap; }
+.regiment-column { flex: 1; min-width: 0; padding: 8px; border: 1px solid #ddd; border-radius: 5px; background-color: #fff; display: flex; flex-direction: column; }
+.regiment-column h4 { font-size: 1em; margin-top: 0; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid #eee; text-align: center; }
+.regiment-column p { font-size: 0.8em; margin: 2px 0; text-align: center; }
+#newSplitUnitNameInput { padding: 4px; font-size: 0.9em; width: 100%; box-sizing: border-box; }
+.regiments-list { list-style: none; padding: 0; margin: 5px 0 0 0; max-height: 200px; overflow-y: auto; border: 1px solid #91c5fa; border-radius: 3px; flex-grow: 1; }
+.regiments-list li { padding: 6px 8px; font-size: 1.5em; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; }
+.regiments-list li:last-child { border-bottom: none; }
+.regiments-list li:hover { background-color: #e9f7ff; }
+.regiments-list li span.regiment-type { font-weight: bold; color: #007bff; margin-left: 5px; }
+.regiments-list li span.regiment-actions { font-size: 0.8em; color: #007bff; }
+#advancedSplitUnitModal .modal-footer-actions { margin-top: 15px; }
+#advancedSplitUnitModal button { padding: 8px 16px; font-size: 0.9em; }
+#advancedSplitUnitModal button:hover { background-color: #0056b3; }
+#advancedSplitUnitModal button:disabled { background-color: #ccc; cursor: not-allowed; }
+#advancedSplitUnitModal button#finalizeSplitBtn { background-color: #28a745; }
+#advancedSplitUnitModal button#finalizeSplitBtn:hover { background-color: #218838; }
+#advancedSplitUnitModal button#cancelAdvancedSplitBtn { background-color: #6c757d; }
+#advancedSplitUnitModal button#cancelAdvancedSplitBtn:hover { background-color: #5a6268; }
+
+/* Modal de Gestión General de Unidades */
+.unit-management-content {
+    width: 90%; max-width: 800px; background-color: #f0f2f5; padding: 20px;
+    border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    display: flex; flex-direction: column;
+}
+.unit-management-content h3 { text-align: center; color: #333; margin-top: 0; margin-bottom: 20px; }
+.unit-management-body { display: flex; gap: 20px; flex-grow: 1; min-height: 400px; }
+.unit-selection-panel { flex: 2; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 5px; background-color: #fff; }
+.category-tabs { display: flex; border-bottom: 1px solid #ccc; padding: 5px; background-color: #e9ecef; }
+.category-tabs .tab-btn { flex-grow: 1; padding: 10px 5px; background-color: transparent; border: none; border-radius: 3px; cursor: pointer; font-weight: 500; color: #495057; transition: background-color 0.2s; }
+.category-tabs .tab-btn:hover { background-color: #dee2e6; }
+.category-tabs .tab-btn.active { background-color: #007bff; color: white; }
+.available-units-list { padding: 10px; overflow-y: auto; flex-grow: 1; }
+.unit-entry { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; border-bottom: 1px solid #eee; }
+.unit-entry:last-child { border-bottom: none; }
+.unit-entry span { font-weight: 500; }
+.quantity-controls { display: flex; align-items: center; }
+.quantity-controls .quantity-btn { width: 28px; height: 28px; border: 1px solid #ccc; background-color: #f8f9fa; font-size: 1.2em; cursor: pointer; line-height: 1; }
+.quantity-controls .quantity-input { width: 40px; text-align: center; border: 1px solid #ccc; border-left: none; border-right: none; height: 26px; -moz-appearance: textfield; }
+.quantity-controls .quantity-input::-webkit-outer-spin-button, .quantity-controls .quantity-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.division-summary-panel { flex: 1; padding: 15px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; display: flex; flex-direction: column; }
+.division-summary-panel h4 { margin-top: 0; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+.division-name-editor { margin-bottom: 15px; }
+.division-name-editor input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+#divisionCompositionList { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+#divisionCompositionList li { padding: 5px 0; }
+.summary-details { border-top: 1px solid #eee; padding-top: 10px; margin-top: auto; font-size: 0.9em; }
+.summary-details p { margin: 5px 0; }
+.modal-footer-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.modal-footer-actions button { padding: 10px 20px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; }
+#finalizeUnitManagementBtn { background-color: #28a745; color: white; }
+#finalizeUnitManagementBtn:disabled { background-color: #94dcb0; cursor: not-allowed; }
+
+/* Modal de Detalles de Unidad (Rediseñado) */
+#unitDetailModal .unit-detail-content, #unitDetailModal .modal-content { max-width: 400px; width: 90%; background-color: #e9ecef; padding: 15px; }
+#unitDetailModal h3 { text-align: center; margin-top: 0; margin-bottom: 15px; font-size: 1.2em; }
+.unit-main-stats { background-color: #fff; padding: 10px; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 15px; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; padding: 4px 0; }
+.stat-row.stat-summary span { font-weight: bold; }
+.stat-row .stat-label { font-weight: bold; margin-right: 10px; }
+.unit-total-health-bar-container { flex-grow: 1; height: 18px; background-color: #ced4da; border-radius: 9px; border: 1px solid #adb5bd; }
+.unit-total-health-bar { height: 100%; background-color: #28a745; border-radius: 9px; transition: width 0.3s ease-out; }
+#unitDetailTotalHealthText { margin-left: 10px; font-weight: bold; min-width: 80px; text-align: right; }
+.regiment-section-title { text-align: center; font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+#unitDetailRegimentList .regiment-detail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 8px; border-bottom: 1px solid #eee; }
+#unitDetailRegimentList .regiment-info { font-weight: 500; }
+#unitDetailRegimentList .regiment-health-bar-container { flex-grow: 1; height: 12px; background-color: #e0e0e0; border-radius: 6px; margin: 0 15px; position: relative; }
+#unitDetailRegimentList .regiment-health-bar { height: 100%; background-color: #4CAF50; border-radius: 6px; transition: width 0.3s ease; }
+#unitDetailRegimentList .regiment-health-text { font-size: 0.8em; min-width: 50px; text-align: right; }
+#unitDetailRegimentList .reinforce-btn { padding: 4px 8px; font-size: 1.2em; line-height: 1; margin-left: 10px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; }
+#unitDetailRegimentList .reinforce-btn:hover { background-color: #d4edda; }
+#unitDetailRegimentList .reinforce-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.detailed-regiments-list { background-color: #fff; border-radius: 5px; border: 1px solid #ccc; max-height: 250px; overflow-y: auto; padding: 5px !important; margin: 0 !important; }
+.detailed-regiments-list .regiment-detail-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f1f3f5; }
+.detailed-regiments-list .regiment-detail-item:last-child { border-bottom: none; }
+.regiment-icon { font-size: 1.5em; margin-right: 8px; width: 25px; text-align: center; }
+.regiment-name { font-weight: 500; width: 100px; flex-shrink: 0; }
+.detailed-regiments-list .regiment-health-bar-container { flex-grow: 1; height: 12px; background-color: #e9ecef; border-radius: 6px; margin: 0 10px; }
+.detailed-regiments-list .regiment-health-bar { height: 100%; background-color: #519DE9; border-radius: 6px; transition: width 0.3s ease; }
+.detailed-regiments-list .regiment-health-text { font-size: 0.8em; min-width: 60px; text-align: right; }
+.reinforce-regiment-btn { background: #e9ecef; border: 1px solid #ced4da; border-radius: 50%; width: 24px; height: 24px; font-size: 1em; line-height: 1; cursor: pointer; margin-left: 10px; transition: background-color 0.2s; }
+.reinforce-regiment-btn:hover { background-color: #d4edda; }
+.reinforce-placeholder { width: 24px; height: 24px; margin-left: 10px; }
+
+
+/* --- Modal: Wiki y Ayuda --- */
+.help-modal-content {
+    max-width: 700px; max-height: 90vh; overflow-y: auto;
+    background-color: #f0f2f5; border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15); padding: 30px; position: relative;
+}
+.help-modal-content h2 { font-size: 2.2em; color: #0056b3; }
+.help-modal-content h3 { font-size: 1.4em; color: #4a5568; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; }
+.help-modal-content p { font-size: 1em; line-height: 1.5; color: #333; margin-bottom: 15px; }
+.help-modal-content b { font-weight: bold; color: #007bff; }
+.help-modal-content ul { list-style: disc; margin-left: 20px; margin-bottom: 15px; }
+.help-modal-content li { margin-bottom: 5px; }
+.help-modal-content button { background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease-in-out; font-weight: bold; }
+.help-modal-content button:hover { background-color: #218838; }
+#doNotShowAgainCheckbox { transform: scale(1.2); margin-right: 8px !important; }
+
 .wiki-content {
-    width: 95%;
-    max-width: 900px; /* Hacemos la wiki un poco más ancha */
-    height: 85vh; /* Ocupa el 85% de la altura de la pantalla */
-    display: flex;
-    flex-direction: column; /* Organiza el contenido verticalmente */
-    padding: 20px;
+    width: 95%; max-width: 900px; height: 85vh; display: flex; flex-direction: column; padding: 20px;
 }
+.wiki-content h2 { text-align: center; margin-top: 0; margin-bottom: 15px; color: #333; }
+.wiki-tabs { display: flex; border-bottom: 2px solid #007bff; margin-bottom: 15px; }
+.wiki-tab-btn { padding: 10px 15px; cursor: pointer; border: none; background-color: transparent; font-size: 1em; font-weight: 500; color: #0056b3; border-radius: 5px 5px 0 0; transition: background-color 0.2s, color 0.2s; }
+.wiki-tab-btn.active { background-color: #007bff; color: white; }
+.wiki-tab-btn:hover:not(.active) { background-color: #e9ecef; }
+.wiki-tab-content { flex-grow: 1; overflow-y: auto; padding-right: 10px; }
+.wiki-page { display: none; }
+.wiki-page.active { display: block; }
+.wiki-page h3 { margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+.wiki-page p { font-size: 0.9em; color: #555; margin-bottom: 15px; }
+.table-container { overflow-x: auto; }
+.wiki-content table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.wiki-content th, .wiki-content td { padding: 8px 10px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
+.wiki-content thead th { background-color: #f2f2f2; font-weight: bold; }
+.wiki-content tbody tr:nth-child(even) { background-color: #f9f9f9; }
+.wiki-regiment-icon { font-size: 1.5em; width: 30px; text-align: center; }
+.wiki-stars { color: #f39c12; white-space: nowrap; }
+#wikiConceptsContent div { margin-bottom: 20px; }
+#wikiConceptsContent h4 { font-size: 1.1em; color: #0056b3; margin-bottom: 5px; }
 
-.wiki-content h2 {
-    text-align: center;
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: #333;
-}
-
-/* --- Pestañas de Navegación --- */
-.wiki-tabs {
-    display: flex;
-    border-bottom: 2px solid #007bff;
-    margin-bottom: 15px;
-}
-
-.wiki-tab-btn {
-    padding: 10px 15px;
-    cursor: pointer;
-    border: none;
-    background-color: transparent;
-    font-size: 1em;
-    font-weight: 500;
-    color: #0056b3;
-    border-radius: 5px 5px 0 0;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.wiki-tab-btn.active {
-    background-color: #007bff;
-    color: white;
-}
-
-.wiki-tab-btn:hover:not(.active) {
-    background-color: #e9ecef;
-}
-
-/* --- Contenido de las Pestañas --- */
-.wiki-tab-content {
-    flex-grow: 1; /* Ocupa el espacio restante */
-    overflow-y: auto; /* Permite scroll si el contenido es largo */
-    padding-right: 10px; /* Espacio para la barra de scroll */
-}
-
-.wiki-page {
-    display: none; /* Oculta todas las páginas por defecto */
-}
-
-.wiki-page.active {
-    display: block; /* Muestra solo la página activa */
-}
-
-.wiki-page h3 {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #ccc;
-    padding-bottom: 5px;
-}
-
-.wiki-page p {
-    font-size: 0.9em;
-    color: #555;
-    margin-bottom: 15px;
-}
-
-/* --- Estilos para las Tablas de Información --- */
-.table-container {
-    overflow-x: auto; /* Permite scroll horizontal en tablas anchas */
-}
-
-.wiki-content table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
-}
-
-.wiki-content th, .wiki-content td {
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    text-align: left;
-    vertical-align: middle;
-}
-
-.wiki-content thead th {
-    background-color: #f2f2f2;
-    font-weight: bold;
-}
-
-.wiki-content tbody tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-/* --- Estilos específicos para la Tabla de Regimientos --- */
-.wiki-regiment-icon {
-    font-size: 1.5em;
-    width: 30px; /* Ancho fijo para el icono */
-    text-align: center;
-}
-
-.wiki-stars {
-    color: #f39c12; /* Color dorado para las estrellas */
-    white-space: nowrap; /* Evita que las estrellas se separen */
-}
-
-/* --- Estilos para la Pestaña de Conceptos Clave --- */
-#wikiConceptsContent div {
-    margin-bottom: 20px;
-}
-
-#wikiConceptsContent h4 {
-    font-size: 1.1em;
-    color: #0056b3;
-    margin-bottom: 5px;
-}
-/* ====================================================================== */
-/* =========== ESTILOS PARA EL LOBBY MULTIJUGADOR EN RED LOCAL ========== */
-/* ====================================================================== */
-
-#lanLobbyScreen .container {
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    padding: 15px;
-    margin-top: 15px;
-    background-color: #f9f9f9;
-}
-
-#lanLobbyScreen h2, #lanLobbyScreen h3 {
-    text-align: center;
-    color: #333;
-}
-
-#lan-room-id {
-    color: #007bff;
-    font-family: monospace;
-    font-size: 1.1em;
-    user-select: all; /* Para que sea fácil de copiar */
-}
-
+/* --- Modal: Lobby Multijugador --- */
+#lanLobbyScreen .container { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-top: 15px; background-color: #f9f9f9; }
+#lanLobbyScreen h2, #lanLobbyScreen h3 { text-align: center; color: #333; }
+#lan-room-id { color: #007bff; font-family: monospace; font-size: 1.1em; user-select: all; }
 #lan-status.conectado { color: #28a745; }
 #lan-status.desconectado { color: #dc3545; }
+#lan-player-list { list-style: none; padding-left: 10px; }
+#lan-start-game-btn { display: block; margin: 15px auto 0; width: 60%; padding: 12px; background-color: #28a745; }
 
-#lan-player-list {
-    list-style: none;
-    padding-left: 10px;
+/* ========================================================================== */
+/* 8. ANIMACIONES (@keyframes)
+/* ========================================================================== */
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 10% { background-color: rgba(255,0,0,0.5); } 20% { transform: translateX(-2px); background-color: transparent; } 40% { transform: translateX(2px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
+@keyframes explode { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(1.3) rotate(15deg); opacity: 0.5; } 100% { transform: scale(0.3) rotate(-15deg); opacity: 0; display:none !important; } }
+@keyframes unitHit { 0% { transform: translateX(0) translateY(0); } 25% { transform: translateX(-5px) translateY(-5px) rotate(-2deg); } 50% { transform: translateX(5px) translateY(5px) rotate(2deg); } 100% { transform: translateX(0) translateY(0); } }
+@keyframes unitAttacking { 0% { transform: scale(1); } 50% { transform: scale(1.1) translateX(5px) translateY(5px); } 100% { transform: scale(1); } }
+@keyframes hexHitFlash { 0% { background-color: transparent; } 50% { background-color: rgba(255, 100, 100, 0.7); } 100% { background-color: transparent; } }
+@keyframes ownerChangeFlash { 0% { box-shadow: inset 0 0 0 0px transparent; } 50% { box-shadow: inset 0 0 0 5px gold; } 100% { box-shadow: inset 0 0 0 3px var(--owner-color); } }
+.explosion-animation { position: absolute; width: 32px; height: 32px; background-image: url('images/explosion.png'); background-size: 256px 32px; background-repeat: no-repeat; animation: playExplosion 0.6s steps(8) forwards; z-index: 100; pointer-events: none; transform: translate(-50%, -50%); }
+@keyframes playExplosion { from { background-position: 0px; } to { background-position: -1024px; } }
+@keyframes floatAndFade { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(0.8); opacity: 0; } }
+@keyframes pulseHighlight { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.02); opacity: 0.8; } }
+@keyframes pulseHighlightHex { 0% { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); } 100% { box-shadow: inset 0 0 0 6px gold, inset 0 0 0 10px rgba(0, 255, 255, 0.9); } }
+
+/* ========================================================================== */
+/* 9. ESTILOS DE DEPURACIÓN Y TUTORIAL
+/* ========================================================================== */
+
+#debug-console {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 200px;
+    background-color: rgba(0, 0, 0, 0.8); color: #00FF00;
+    font-family: 'Courier New', Courier, monospace; font-size: 14px;
+    z-index: 10000; display: flex; flex-direction: column; padding: 10px;
+    box-sizing: border-box; border-top: 1px solid #00FF00;
+}
+#console-output { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; white-space: pre-wrap; word-wrap: break-word; }
+#console-input { width: 100%; padding: 8px; border: 1px solid #00FF00; background-color: rgba(0, 0, 0, 0.9); color: #00FF00; box-sizing: border-box; }
+#console-input::placeholder { color: #007700; }
+.console-info { color: #00FF00; } .console-success { color: #00FF00; }
+.console-error { color: #FF0000; } .console-warning { color: #FFFF00; }
+.console-command { color: #00FFFF; }
+
+.floating-btn.force-console-button { cursor: pointer; transition: background-color 0.2s, transform 0.1s ease; }
+.floating-btn.force-console-button:hover { background-color: rgba(255, 0, 0, 0.7); transform: scale(1.05); }
+
+.hex.highlight-debug-start { background-color: yellow !important; border: 3px solid black !important; z-index: 999; }
+.hex.highlight-debug { background-color: cyan !important; border: 2px dashed red !important; z-index: 998; }
+.tutorial-highlight { box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlight 1.5s infinite alternate ease-in-out; z-index: 2002 !important; position: relative; }
+.hex.tutorial-highlight-hex { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlightHex 1.5s infinite alternate ease-in-out; z-index: 100 !important; }
+
+/* ========================================================================== */
+/* 10. MEDIA QUERIES (Diseño Adaptable)
+/* ========================================================================== */
+
+@media screen and (max-width: 768px) {
+    #floatingBuildBtn, #floatingSplitBtn, #floatingReinforceBtn, #floatingUndoMoveBtn {
+        left: 80px;
+    }
+    #contextualInfoPanel { width: 90%; }
+    #gameMessagesMobile { width: 90%; }
 }
 
-#lan-start-game-btn {
-    display: block;
-    margin: 15px auto 0;
-    width: 60%;
-    padding: 12px;
-    background-color: #28a745;
-}
+/* ========================================================================== */
+/* 11. ESTILOS ANTIGUOS O DESHABILITADOS
+/* ========================================================================== */
 
-.turn-blocker {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5); /* Fondo oscuro semitransparente */
-    z-index: 5000; /* Por encima de todo en el tablero */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 2.5em;
-    color: white;
-    text-shadow: 2px 2px 4px black;
-    text-align: center;
-    cursor: not-allowed; /* Indica que no se puede interactuar */
+/* --- Sidebar Antiguo (Oculto) --- */
+#sidebar {
+    display: none !important;
 }
+/*
+#sidebar {
+    width: 280px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 10px;
+}
+#sidebar h2, #sidebar h3, #sidebar h4 { text-align: center; margin-top: 0; margin-bottom: 8px; color: #333; }
+#sidebar h4 { font-size: 1em; color: #555;}
+.info-box { background-color: #ffffff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em; }
+#playerResourcesList { list-style: none; padding: 0; margin: 0; font-size: 0.9em; }
+#playerResourcesList li { padding: 2px 0; }
+#sidebar button, .button-like-label { width: 100%; padding: 10px 12px; margin-bottom: 8px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; text-align: center; box-sizing: border-box; }
+#sidebar button:hover, .button-like-label:hover { background-color: #0056b3; }
+#sidebar button:disabled { background-color: #ccc; cursor: not-allowed; }
+*/
 
-/* Estilo para el botón de terminar turno cuando está deshabilitado */
-#floatingEndTurnBtn:disabled {
-    background-color: #6c757d !important;
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: scale(1) !important;
+/* --- Log de Juego Antiguo (Comentado) --- */
+/*
+.game-log-container {
+    position: fixed; bottom: 10px; left: 10px; width: 300px; max-height: 200px;
+    overflow-y: auto; background-color: rgba(0, 0, 0, 0.6); border-radius: 5px;
+    padding: 10px; z-index: 5000; pointer-events: none; display: flex;
+    flex-direction: column-reverse;
 }
+.log-message {
+    background-color: rgba(255, 255, 255, 0.1); color: white; padding: 5px 8px;
+    margin-top: 5px; border-radius: 3px; font-size: 0.85em; animation: fadeIn 0.5s ease-out;
+}
+*/

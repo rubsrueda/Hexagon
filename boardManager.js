@@ -20,7 +20,6 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
     if (domElements.gameBoard) {
         domElements.gameBoard.style.transform = `translate(0px, 0px)`;
     }
-    // --- FIN CORRECCIÓN CLAVE ---
 
     if (!domElements.gameBoard) { console.error("CRITICAL: gameBoard element not found in DOM."); return; } // Usar domElements
     domElements.gameBoard.innerHTML = ''; // Limpiar tablero existente // Usar domElements
@@ -875,23 +874,30 @@ function generateRandomResourceNodes(level) {
     logMessage(`Generación de recursos completada.`);
 }
 
-function addCityToBoardData(r, c, owner, name, isCapital = false) {
+function addCityToBoardData(r, c, owner, name, isCapitalInitial = false) { // Añadir parámetro 'isCapitalInitial'
     if (board[r]?.[c]) {
         board[r][c].isCity = true;
-        board[r][c].isCapital = isCapital;
-        board[r][c].owner = owner;
-        if (!gameState.cities.some(city => city.r === r && city.c === c)) {
-            gameState.cities.push({ r, c, owner, name, isCapital });
+        board[r][c].owner = owner; // 'owner' puede ser el ID del jugador (1, 2) o null/0 para neutral
+        
+        // Asegurar que la propiedad isCapital se maneja
+        board[r][c].isCapital = isCapitalInitial; 
+
+        // Guardar referencia en gameState.cities si no existe o actualizarla
+        let cityEntry = gameState.cities?.find(city => city.r === r && city.c === c);
+        if (cityEntry) {
+            cityEntry.owner = owner;
+            cityEntry.name = name;
+            cityEntry.isCapital = isCapitalInitial;
         } else {
-            const existingCity = gameState.cities.find(city => city.r === r && city.c === c);
-            if (existingCity) {
-                existingCity.owner = owner;
-                existingCity.name = name;
-                existingCity.isCapital = isCapital;
-            }
+            gameState.cities.push({ r, c, owner, name, isCapital: isCapitalInitial });
+        }
+
+        // Si se establece como capital inicial, actualizar también el ID de capital en gameState
+        if (isCapitalInitial && owner !== null && gameState.capitalCityId) {
+            gameState.capitalCityId[owner] = { r: r, c: c }; // Guardamos la coordenada como string o objeto
         }
     } else {
-        console.warn(`Intento de añadir ciudad en hexágono inválido: (${r},${c})`);
+        console.warn(`Intento de añadir ciudad en hexágono inválido o inexistente: (${r},${c})`);
     }
 }
 

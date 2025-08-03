@@ -243,18 +243,23 @@
             <input type="file" id="loadGameInput_float" accept=".json" style="display: none;">
             <button id="backToMainFromBattleBtn" class="panel-button" style="background-color:#6c757d;">Volver al Menú Principal</button>
         </div>
-        <div id="contextualInfoPanel" class="floating-panel bottom-panel">
-            <div id="contextualHeader">
-                <h3 id="contextualTitle">Información</h3>
-                <button id="closeContextualPanelBtn" class="close-panel-btn">×</button>
-            </div>
-            <div id="contextualContent"></div>
-            <div id="contextualActions"></div>
-        </div>
-        <div id="gameMessagesMobile" class="floating-messages bottom-center">
-            <p>Mensajes del juego...</p>
-        </div>
     </div> 
+
+    <!-- ====================================================================== -->
+    <!-- ===================== PANEL INFERIOR               =================== -->
+    <!-- ====================================================================== -->
+    <div id="contextualInfoPanel">
+    <div id="contextualHeader">
+        <!-- BOTÓN NUEVO PARA EXPANDIR/CONTRAER -->
+        <button id="expandPanelBtn" title="Expandir/Contraer Detalles">▲</button>
+        <h3 id="contextualTitle">Información</h3>
+    </div>
+    <div id="contextualContent">
+        <!-- El contenido detallado (unidad, casilla) irá aquí -->
+    </div>
+    <button id="closeContextualPanelBtn">×</button>
+</div>
+
 
     <!-- ====================================================================== -->
     <!-- =================== MODAL DE DETALLES DE DIVISIÓN ==================== -->
