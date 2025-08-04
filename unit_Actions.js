@@ -1864,6 +1864,82 @@ function handlePillageAction() {
     RequestPillageAction();
 }
 
+/**
+ * [Punto de Entrada] Inicia la acción de Saqueo.
+ * Decide si ejecutar localmente o enviar una petición a la red.
+ */
+function RequestPillageAction() {
+    if (!selectedUnit) return; // No hay unidad seleccionada
+
+    if (isNetworkGame()) {
+        const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+        return;
+    }
+    
+    // Para juegos locales, llama directamente a la función de ejecución.
+    _executePillageAction(selectedUnit);
+}
+
+/**
+ * [Función de Ejecución] Contiene la lógica real del saqueo.
+ * Es llamada por RequestPillageAction (local) o por el receptor de red.
+ * @param {object} pillagerUnit - La unidad que realiza el saqueo.
+ */
+function _executePillageAction(pillagerUnit) {
+    if (!pillagerUnit) return;
+
+    const hex = board[pillagerUnit.r]?.[pillagerUnit.c];
+
+    // --- Validaciones de Lógica ---
+    if (!hex || hex.owner === null || hex.owner === pillagerUnit.player) {
+        logMessage("No se puede saquear un territorio propio o neutral.", "error");
+        return;
+    }
+    if (pillagerUnit.hasAttacked || pillagerUnit.hasMoved) {
+        logMessage("Esta unidad ya ha actuado este turno.", "error");
+        return;
+    }
+
+    let goldGained = 15; // Ganancia base por saquear
+    
+    // Si hay una estructura, se daña y se obtiene más oro.
+    if (hex.structure) {
+        logMessage(`${pillagerUnit.name} está saqueando la estructura ${hex.structure}!`);
+        // Lógica futura: podrías dañar la estructura en lugar de destruirla.
+        // Por ahora, la destruimos.
+        hex.structure = null;
+        goldGained += 50;
+    } else {
+        logMessage(`${pillagerUnit.name} está saqueando el territorio en (${hex.r}, ${hex.c})!`);
+    }
+
+    // El hexágono pierde estabilidad
+    hex.estabilidad = Math.max(0, hex.estabilidad - 2);
+
+    // Añadir el oro al jugador
+    if (gameState.playerResources[pillagerUnit.player]) {
+        gameState.playerResources[pillagerUnit.player].oro += goldGained;
+    }
+
+    // Consumir la acción de la unidad
+    pillagerUnit.hasAttacked = true;
+    pillagerUnit.hasMoved = true; 
+
+    logMessage(`¡Saqueo exitoso! Obtienes ${goldGained} de oro. El territorio pierde estabilidad.`);
+
+    // Actualizar la UI
+    renderSingleHexVisuals(pillagerUnit.r, pillagerUnit.c);
+    if (UIManager) {
+        UIManager.updateAllUIDisplays();
+        UIManager.hideContextualPanel();
+    }
+}
+
 function handleDisbandUnit(unitToDisband) {
     if (!unitToDisband) return;
 
@@ -2059,21 +2135,6 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
         return;
     }
     splitUnit(originalUnit, targetR, targetC);
-}
-
-function RequestPillageAction() {
-    if (!selectedUnit) return;
-    if (isNetworkGame()) {
-        const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-        }
-        return;
-    }
-    // Asumo que tienes una función handlePillageAction que se encarga de la lógica local
-    if (typeof handlePillageAction === "function") handlePillageAction();
 }
 
 function RequestDisbandUnit(unitToDisband) {

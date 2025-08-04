@@ -268,93 +268,99 @@ const UIManager = {
     },
     
     showUnitContextualInfo: function(unit, isOwnUnit = true) {
-        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
-        if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
+        // --- PREPARACIÓN INICIAL ---
         this.hideAllActionButtons();
-        this._domElements.contextualInfoPanel.style.display = 'flex';
+        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.style.display = 'flex';
         hexToBuildOn = null;
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
-        const isPlayerUnit = unit.player === gameState.currentPlayer;
-        this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (ID: ${unit.id})`;
-        
-        let contentHTML = `<p>Salud: ${unit.currentHealth}/${unit.maxHealth}</p>`;
-        contentHTML += `<p>A/D/M: ${unit.attack}/${unit.defense}/${unit.currentMovement || unit.movement}</p>`;
-        let moralStatus = "Normal", moralColor = "#f0f0f0";
-        if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
-        else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
-        else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
-        contentHTML += `<p>Moral: <strong style="color:${moralColor};">${unit.morale}/${unit.maxMorale || 125} (${moralStatus})</strong></p>`;
-        const unitLevel = unit.level ?? 0, unitExperience = unit.experience || 0;
-        const levelData = XP_LEVELS[unitLevel];
-        if (levelData) {
-            const nextLevelXP = levelData.nextLevelXp;
-            let xpText = `Nivel: ${levelData.currentLevelName}`;
-            if (nextLevelXP !== 'Max') { xpText += ` (XP: ${unitExperience} / ${nextLevelXP})`; }
-            contentHTML += `<p>${xpText}</p>`;
-        }
-        const hexData = board[unit.r]?.[unit.c];
-        if (hexData) {
-            contentHTML += `<hr style="border-color: #4a5568; margin: 10px 0;">`;
-            let hexTitle = TERRAIN_TYPES[hexData.terrain]?.name || hexData.terrain;
-            if (hexData.resourceNode) {
-                hexTitle += `, ${RESOURCE_NODES_DATA[hexData.resourceNode]?.name || hexData.resourceNode}`;
-            }
-            contentHTML += `<p><strong>Terreno:</strong> ${hexTitle}</p>`;
-            
-            if (hexData.owner !== null) {
-                contentHTML += `<p><strong>Dueño:</strong> Jugador ${hexData.owner} | <strong>Est:</strong> ${hexData.estabilidad}/${MAX_STABILITY} | <strong>Nac:</strong> ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}</p>`;
-            }
-        }
-        this._domElements.contextualContent.innerHTML = contentHTML;
+        // Guardar la selección actual en el estado del juego
+        gameState.selectedHexR = unit.r;
+        gameState.selectedHexC = unit.c;
 
-        if (this._domElements.floatingReinforceBtn) {
+        // Reinicia el panel a su estado colapsado por defecto
+        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
+        if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
+
+        // --- RELLENAR CONTENIDO DEL PANEL ---
+        const isPlayerUnit = unit.player === gameState.currentPlayer;
+        this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (J${unit.player})`;
+        this._domElements.contextualContent.innerHTML = this._buildUnitDetailsHTML(unit);
+
+        // --- LÓGICA DE VISIBILIDAD DE BOTONES ---
+        if (isPlayerUnit && this._domElements.floatingReinforceBtn) {
             this._domElements.floatingReinforceBtn.style.display = 'flex';
         }
 
         if (isPlayerUnit && gameState.currentPhase === 'play') {
             const canAct = !unit.hasMoved && !unit.hasAttacked;
 
+            // Botón Deshacer
             if (unit.lastMove && !unit.hasAttacked) {
-                this._domElements.floatingUndoMoveBtn.style.display = 'flex';
+                if (this._domElements.floatingUndoMoveBtn) this._domElements.floatingUndoMoveBtn.style.display = 'flex';
             }
+            
+            // Botones que solo aparecen si la unidad aún puede actuar
             if (canAct) {
-                if ((unit.regiments?.length || 0) > 1) {
+                // Botón Dividir
+                if ((unit.regiments?.length || 0) > 1 && this._domElements.floatingSplitBtn) {
                     this._domElements.floatingSplitBtn.style.display = 'flex';
                 }
+                
                 const unitHex = board[unit.r]?.[unit.c];
-                if (unitHex && unitHex.owner !== null && unitHex.owner !== unit.player) {
-                    if (this._domElements.floatingPillageBtn) this._domElements.floatingPillageBtn.style.display = 'flex';
-                }
-                const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
-                if (isBuilderUnit) {
-                    if (this._domElements.floatingBuildBtn) {
+                if (unitHex) {
+                    // *** LÓGICA DE SAQUEO RESTAURADA ***
+                    if (unitHex.owner !== null && unitHex.owner !== unit.player && this._domElements.floatingPillageBtn) {
+                        this._domElements.floatingPillageBtn.style.display = 'flex';
+                    }
+                    
+                    // Lógica de Construcción
+                    const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
+                    if (isBuilderUnit && this._domElements.floatingBuildBtn) {
                         hexToBuildOn = { r: unit.r, c: unit.c };
                         this._domElements.floatingBuildBtn.style.display = 'flex';
                     }
                 }
             }
-        }
-        
-        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
-             this.attachAttackPredictionListener(unit);
-        }
-        else { this.removeAttackPredictionListener(); }
-
-        if (isPlayerUnit && gameState.currentPhase === 'play') {
+            
+            // *** LÓGICA DE CAPITAL CORREGIDA Y FUNCIONAL ***
+            // Esta lógica es independiente de si la unidad ya actuó
             const hexUnderUnit = board[unit.r]?.[unit.c];
             if (hexUnderUnit && this._domElements.setAsCapitalBtn) {
                 const isEligibleCity = hexUnderUnit.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexUnderUnit.structure);
-                const isNotAlreadyCapital = !hexUnderUnit.isCapital;
-                if (isEligibleCity && isNotAlreadyCapital) {
+                if (isEligibleCity && !hexUnderUnit.isCapital) {
                     this._domElements.setAsCapitalBtn.style.display = 'block';
                 }
             }
         }
         
-        this._domElements.contextualInfoPanel.classList.add('visible');
+        // --- FINALIZACIÓN ---
+        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
+            this.attachAttackPredictionListener(unit);
+        } else { 
+            this.removeAttackPredictionListener();
+        }
+        
+        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.add('visible');
+    }, 
+
+    _buildUnitDetailsHTML: function(unit) {
+        // Usamos la versión simplificada que querías
+        const hexData = board[unit.r]?.[unit.c];
+        let terrainInfo = 'Desconocido';
+        if (hexData) {
+            terrainInfo = TERRAIN_TYPES[hexData.terrain]?.name || hexData.terrain;
+        }
+        return `<p>HP: ${unit.currentHealth}/${unit.maxHealth} | Mov: ${unit.currentMovement || unit.movement} | En: ${terrainInfo}</p>`;
     },
 
+    _buildHexDetailsHTML: function(hexData) {
+        // Usamos la versión simplificada
+        const ownerText = hexData.owner !== null ? ` | Dueño: J${hexData.owner}` : ' | Neutral';
+        const structureText = hexData.structure ? ` | ${STRUCTURE_TYPES[hexData.structure]?.name}` : '';
+        return `<p>${TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido'}${ownerText}${structureText}</p>`;
+    },
+    
     showHexContextualInfo: function(r, c, hexData) {
         if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
         if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';

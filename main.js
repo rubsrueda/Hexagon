@@ -418,9 +418,10 @@ function initApp() {
 
     if (domElements.floatingPillageBtn) {
         domElements.floatingPillageBtn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            handlePillageAction();
-        });
+        event.stopPropagation();
+        // Invocamos la función de "petición", que es el punto de entrada correcto.
+        RequestPillageAction(); 
+    });
     } else {
         console.warn("main.js: floatingPillageBtn no encontrado, no se pudo añadir listener.");
     }
@@ -799,6 +800,30 @@ function initApp() {
         });
     } else {
         console.warn("main.js: disbandUnitBtn no encontrado, no se pudo añadir listener.");
+    }
+
+    if (domElements.setAsCapitalBtn) {
+        domElements.setAsCapitalBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            console.log("[Botón Capital] Clic detectado.");
+
+            // Usamos el estado global para saber qué hexágono está seleccionado.
+            const selectedR = gameState.selectedHexR;
+            const selectedC = gameState.selectedHexC;
+
+            if (typeof selectedR !== 'undefined' && selectedR !== -1) {
+                // Llamamos a la función principal que maneja la lógica
+                if (typeof requestChangeCapital === "function") {
+                    requestChangeCapital(selectedR, selectedC);
+                } else {
+                    console.error("Error: La función requestChangeCapital no está definida en gameFlow.js");
+                }
+            } else {
+                console.warn("[Botón Capital] Clic, pero no hay hexágono seleccionado en el gameState.");
+            }
+        });
+    } else {
+        console.warn("main.js: setAsCapitalBtn no encontrado, no se pudo añadir listener.");
     }
     
     console.log("main.js: initApp() FINALIZADO.");
