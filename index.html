@@ -427,9 +427,29 @@
     <script src="state.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>
+
+    <!-- === ARCHIVOS DE JUEGO (Mapas y Escenarios Estándar) === -->
     <script src="maps/tactical_britain_coast_map.js"></script>
     <script src="scenarios/tutorial_scenario.js"></script>
     <script src="scenarios/britain_defense_scenario.js"></script>
+    
+    <!-- === ARCHIVOS DE PRUEBA DE IA (NUESTROS NUEVOS MAPAS) === -->
+    <script src="maps/map_test_A1_SplitExpansion.js"></script>
+    <script src="maps/map_test_A2_SimpleExpansion.js"></script>
+    <script src="maps/map_test_B1_FavorableCombat.js"></script>
+    <script src="maps/map_test_B2_TacticalRetreat.js"></script>
+    <script src="maps/map_test_B3_SplitAndHarass.js"></script>
+    <script src="maps/map_test_C1_MergeToAttack.js"></script>
+    
+    <!-- === ARCHIVOS DE PRUEBA DE IA (NUESTROS NUEVOS ESCENARIOS) === -->
+    <script src="scenarios/test_A1_SplitExpansion_scenario.js"></script>
+    <script src="scenarios/test_A2_SimpleExpansion_scenario.js"></script>
+    <script src="scenarios/test_B1_FavorableCombat_scenario.js"></script>
+    <script src="scenarios/test_B2_TacticalRetreat_scenario.js"></script>
+    <script src="scenarios/test_B3_SplitAndHarass_scenario.js"></script>
+    <script src="scenarios/test_C1_MergeToAttack_scenario.js"></script>
+    
+    <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
     <script src="domElements.js"></script> 
     <script src="utils.js"></script>
     <script src="cheats.js"></script> 
@@ -440,7 +460,9 @@
     <script src="unit_Actions.js"></script>
     <script src="modalLogic.js"></script>
     <script src="networkManager.js"></script> 
-    <script src="aiLogic.js"></script>
+    <!--<script src="aiLogic.js"></script>-->
+    <script src="ai_deploymentLogic.js"></script>
+    <script src="ai_gameplayLogic.js"></script>
     <script src="gameFlow.js"></script>
     <script src="saveLoad.js"></script>
     <script src="campaignManager.js"></script>

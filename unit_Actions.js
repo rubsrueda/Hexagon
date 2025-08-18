@@ -310,8 +310,8 @@ function mergeUnits(mergingUnit, targetUnit) {
         handleUnitDestroyed(mergingUnit, null); 
 
         // 5. Marcar la unidad objetivo como que ha actuado
-        targetUnit.hasMoved = true;
-        targetUnit.hasAttacked = true;
+        //targetUnit.hasMoved = true;
+        //targetUnit.hasAttacked = true;
 
         logMessage(`${mergingUnit.name} se ha integrado en ${targetUnit.name}.`);
         if (UIManager) {
@@ -1318,7 +1318,6 @@ function selectTargetRegiment(opposingDivision) {
     return opposingDivision.regiments.filter(r => r.health > 0);
 }
 
-
 function predictCombatOutcome(attacker, defender) {
     if (!attacker || !defender) {
         console.error("[PredictCombat] Error: Atacante u objetivo nulo para predicción.");
@@ -1343,7 +1342,7 @@ function predictCombatOutcome(attacker, defender) {
 
     // --- Simulación del ataque del 'attacker' al 'defender' ---
     let attackerAttackStat = attacker.attack || 0;
-    let defenderDefenseStat = defender.defense || 0;
+    let defenderDefenseStat = (defender.defense || 0) * (defender.currentHealth / defender.maxHealth);
     let defenderCurrentHealth = defender.currentHealth;
 
     // Considerar bonos de terreno para el defensor (similar a applyDamage)
@@ -1363,7 +1362,7 @@ function predictCombatOutcome(attacker, defender) {
     // Para una predicción precisa, se podría simular si el movimiento del atacante crea una situación de flanqueo,
     // pero por ahora no aplicamos el flanqueo en la predicción a menos que `target.isFlanked` ya sea true en el estado actual.
     // Esto se maneja en `applyDamage` real, pero aquí solo se tiene en cuenta si ya está flanqueada.
-    let effectiveAttackerAttack = attackerAttackStat; 
+    let effectiveAttackerAttack = attackerAttackStat * (attacker.currentHealth / attacker.maxHealth);
     // Para predecir flanqueo, necesitarías una función `predictFlanking(attacker, defender)` que simule si la posición del atacante causaría flanqueo.
     // Por simplicidad, no lo implementamos en la predicción por ahora, solo en el daño real.
 
@@ -1387,8 +1386,8 @@ function predictCombatOutcome(attacker, defender) {
         if (TERRAIN_TYPES[defenderHexData.terrain]?.isImpassableForLand || TERRAIN_TYPES[attackerHexData.terrain]?.isImpassableForLand) {
              prediction.log.push(`Predicción Retaliación: No hay contraataque debido a terreno intransitable.`);
         } else if (isValidAttack({ ...defender, hasAttacked: false }, attacker)) { // Pasar un clon sin hasAttacked para el chequeo de rango
-            let defenderAttackStat = defender.attack || 0;
-            let attackerDefenseStat = attacker.defense || 0;
+            let defenderAttackStat = (defender.attack || 0) * (defender.currentHealth / defender.maxHealth);
+            let attackerDefenseStat = (attacker.defense || 0) * (attacker.currentHealth / attacker.maxHealth);
             let terrainDefenseBonusAttacker = 0;
             let terrainRangedDefenseBonusAttacker = 0;
             
@@ -2259,6 +2258,55 @@ async function _executeMoveUnit(unit, toR, toC) {
 
     if (selectedUnit && selectedUnit.id === unit.id) {
         UIManager.highlightPossibleActions(unit);
+    }
+}
+
+function handleConfirmBuildStructure(actionData = null) {
+    // Si la función se llama SIN datos (desde el botón del modal)
+    // usa las variables globales como antes.
+    const isPlayerAction = !actionData;
+    
+    const structureType = isPlayerAction ? selectedStructureToBuild : actionData.structureType;
+    const r = isPlayerAction ? hexToBuildOn.r : actionData.r;
+    const c = isPlayerAction ? hexToBuildOn.c : actionData.c;
+    const playerId = isPlayerAction ? gameState.currentPlayer : actionData.playerId;
+    const builderUnitId = isPlayerAction ? selectedUnit?.id : actionData.builderUnitId;
+
+    if (!structureType || typeof r === 'undefined') {
+        logMessage("Error: Datos de construcción inválidos.");
+        return;
+    }
+
+    const data = STRUCTURE_TYPES[structureType];
+    const playerRes = gameState.playerResources[playerId];
+    
+    // Validar costes (esto es crucial para la IA)
+    for (const res in data.cost) {
+        if ((playerRes[res] || 0) < data.cost[res]) {
+            if (isPlayerAction) logMessage(`Error: No tienes suficientes ${res}.`);
+            return; // Detiene si no se puede pagar
+        }
+    }
+
+    // Deducir costes
+    for (const res in data.cost) {
+        playerRes[res] -= data.cost[res];
+    }
+    
+    // Construir la estructura
+    board[r][c].structure = structureType;
+    logMessage(`${data.name} construido en (${r},${c}) para el Jugador ${playerId}.`);
+
+    renderSingleHexVisuals(r, c);
+    
+    if (isPlayerAction) {
+        // Lógica de UI solo para el jugador
+        UIManager.updatePlayerAndPhaseInfo();
+        domElements.buildStructureModal.style.display = 'none';
+        UIManager.hideContextualPanel();
+    } else {
+        // La IA también debe actualizar la info global de recursos
+        if (UIManager.updatePlayerAndPhaseInfo) UIManager.updatePlayerAndPhaseInfo();
     }
 }
 
