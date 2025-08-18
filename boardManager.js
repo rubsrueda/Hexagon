@@ -37,6 +37,8 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
             
             const terrainType = getRandomTerrainType(); 
             board[r][c] = {
+                r: r, 
+                c: c, 
                 element: hexElement, 
                 terrain: terrainType, 
                 owner: null, structure: null,

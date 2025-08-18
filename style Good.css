@@ -1,0 +1,872 @@
+/**
+ * style.css - 100% Fiel al Original, Reorganizado Semánticamente
+ *
+ * ESTRUCTURA:
+ * 1.  ESTILOS GENERALES Y GLOBALES (body, helpers)
+ * 2.  CONTENEDORES PRINCIPALES (game-container, gameBoard)
+ * 3.  COMPONENTES DEL TABLERO (hex, niebla, sprites)
+ * 4.  COMPONENTES DE UNIDADES (unit, estados)
+ * 5.  PANELES DE UI (contextual, predicción, flotantes)
+ * 6.  BOTONES FLOTANTES
+ * 7.  MODALES (base y específicos)
+ *       - Modal Base
+ *       - Menú Principal
+ *       - Configuración y Campaña
+ *       - Briefing de Escenario
+ *       - Árbol de Tecnología
+ *       - Gestión de Unidades (varios modales)
+ *       - Wiki y Ayuda
+ *       - Lobby Multijugador
+ * 8.  ANIMACIONES (@keyframes)
+ * 9.  ESTILOS DE DEPURACIÓN Y TUTORIAL
+ * 10. MEDIA QUERIES (Diseño Adaptable)
+ * 11. ESTILOS ANTIGUOS O DESHABILITADOS
+ */
+
+/* ========================================================================== */
+/* 1. ESTILOS GENERALES Y GLOBALES
+/* ========================================================================== */
+
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10px;
+    background-color: #e8e8e8;
+    min-height: 100vh;
+    box-sizing: border-box;
+    overflow-y: hidden;
+}
+
+/** DUPLICADO: Estas reglas para body se repiten y están contenidas en la de arriba.
+body {
+    margin: 0;
+    padding: 10px;
+    background-color: #e8e8e8;
+    min-height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+*/
+
+.button-danger {
+    background-color: #dc3545;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease-in-out;
+}
+.button-danger:hover {
+    background-color: #c82333;
+}
+.button-danger:disabled {
+    background-color: #fadadd;
+    color: #a3a3a3;
+    cursor: not-allowed;
+}
+
+.button-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+
+/* ========================================================================== */
+/* 2. CONTENEDORES PRINCIPALES
+/* ========================================================================== */
+
+.game-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding-bottom: 80px;
+    box-sizing: border-box;
+}
+
+#gameBoard {
+    display: grid;
+    border: 2px solid #6c757d;
+    background-color: #c2b280;
+    position: relative;
+    align-self: flex-start;
+    cursor: grab;
+    transform-origin: 0 0;
+    touch-action: none;
+    flex-shrink: 0;
+}
+#gameBoard.grabbing {
+    cursor: grabbing;
+}
+
+
+/* ========================================================================== */
+/* 3. COMPONENTES DEL TABLERO (hex, niebla, sprites)
+/* ========================================================================== */
+
+.hex {
+    width: 50px;
+    height: 57.73px;
+    background-color: #90ee90;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    position: absolute;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 9px;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    transition: background-color 0.2s;
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
+.hex:hover {
+    border-color: #ffc107;
+}
+
+/* --- Tipos de Terreno --- */
+.hex.plains { background-color:#90EE90; }
+.hex.forest { background-color: #6B8E23; }
+.hex.hills { background-color: #A9A9A9; }
+.hex.water { background-color: #87CEEB; }
+
+/* --- Resaltados de Acción (Highlights) --- */
+.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
+.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4); }
+.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4); }
+
+/** DUPLICADO: Estas reglas de highlight son más específicas y probablemente las que se usan. */
+.hex.highlight-move { background-color: rgba(0, 255, 0, 0.4) !important; border: 2px solid #00FF00; }
+.hex.highlight-attack { background-color: rgba(255, 0, 0, 0.4) !important; border: 2px solid #FF0000; }
+.hex.highlight-build { background-color: rgba(255, 165, 0, 0.4) !important; border: 2px solid #FFA500; }
+.hex.highlight-place { background-color: rgba(0, 162, 255, 0.4) !important; border: 2px solid #00A2FF; }
+
+.hex.highlight-move:hover,
+.hex.highlight-attack:hover,
+.hex.highlight-build:hover,
+.hex.highlight-place:hover {
+    border-color: yellow;
+}
+
+/* --- Propiedad y Estructuras --- */
+.hex.player1-owner {
+    box-shadow: inset 0 0 0 3px rgba(0, 0, 255, 0.6);
+    --owner-color: rgba(0, 0, 255, 0.6);
+}
+.hex.player2-owner {
+    box-shadow: inset 0 0 0 3px rgba(255, 0, 0, 0.6);
+    --owner-color: rgba(255, 0, 0, 0.6);
+}
+
+.hex.city::before { content: '🏠'; font-size: 18px; opacity: 0.7; }
+.hex.capital-city::before { content: '👑'; font-size: 20px; opacity: 0.9; }
+
+/** DUPLICADO: Regla más detallada para capital-city */
+.hex.capital-city::before {
+    content: '👑';
+    font-size: 24px;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(1.2);
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+    pointer-events: none;
+    z-index: 10;
+}
+.hex.capital-city .structure-sprite { z-index: 5; }
+
+/* --- Sprites de Recursos --- */
+.hex.resource-hierro::after { content: 'Fe'; font-size: 10px; color: #663300; position: absolute; top: 2px; right: 2px;}
+.hex.resource-madera::after { content: 'Wd'; font-size: 10px; color: #228B22; position: absolute; top: 2px; right: 2px;}
+
+/** DUPLICADO: Reglas más completas y con emojis para recursos */
+.hex.resource-hierro::after,
+.hex.resource-oro::after,
+.hex.resource-piedra::after,
+.hex.resource-madera::after,
+.hex.resource-comida::after {
+    content: "";
+    position: absolute;
+    top: 3px; right: 3px;
+    font-size: 14px;
+    opacity: 0.7;
+    pointer-events: none;
+}
+.hex.resource-hierro::after { content: "⛏️"; color: #8B4513; }
+.hex.resource-oro::after { content: "💰"; }
+.hex.resource-piedra::after { content: "⛰️"; color: #708090; }
+.hex.resource-madera::after { content: "🌲"; color: #228B22; }
+.hex.resource-comida::after { content: "🌾"; color: #DAA520; }
+
+.hex .structure-sprite {
+    position: absolute;
+    font-size: 18px;
+    bottom: 1px;
+    right: 1px;
+    opacity: 0.9;
+    z-index: 5;
+}
+/** DUPLICADO: Ajuste para que los sprites de estructura no se solapen con los de recursos */
+.hex .structure-sprite {
+    bottom: 3px;
+    left: 3px;
+    right: auto;
+}
+
+/* --- Niebla de Guerra --- */
+.hex.fog-hidden { background-color: #777 !important; background-image: none !important; }
+.hex.fog-hidden::before, .hex.fog-hidden::after, .hex.fog-hidden .structure-sprite { display: none; }
+.hex.fog-partial { filter: grayscale(70%) brightness(0.8); }
+.hex.fog-partial .unit:not(.player-controlled-visible) { display: none !important; }
+
+/* --- Efectos de Estado --- */
+.hex.owner-change-effect { animation: ownerChangeFlash 0.5s forwards; }
+.hex.hit-effect { animation: hexHitFlash 0.3s ease-out; }
+
+/* ========================================================================== */
+/* 4. COMPONENTES DE UNIDADES
+/* ========================================================================== */
+
+.unit {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 0.2s, left 0.3s, top 0.3s;
+    border: 2px solid black;
+    box-sizing: border-box;
+    z-index: 10;
+    pointer-events: none;
+}
+/** DUPLICADO: Transición mejorada para .unit */
+.unit {
+    transition: transform 0.2s, left 0.3s ease-out, top 0.3s ease-out;
+}
+
+.unit-strength {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 0.7em;
+    white-space: nowrap;
+    border: 1px solid #aaa;
+}
+.player1 { background-color: #add8e6; border-color: #0000ff; }
+.player2 { background-color: #f08080; border-color: #ff0000; }
+.unit.player-controlled-visible { display: flex !important; }
+
+.selected-unit {
+    box-shadow: 0 0 12px 4px gold;
+    transform: scale(1.1);
+}
+
+.unit-damaged { animation: shake 0.5s; }
+.unit-destroyed { animation: explode 0.5s forwards; }
+.unit-retreat { opacity: 0.7; }
+.unit.hit { animation: unitHit 0.3s ease-out; }
+.unit.attacking { animation: unitAttacking 0.2s ease-out; }
+/** DUPLICADO: Esta regla hace que la unidad desaparezca suavemente, complementando la animación de explosión. */
+.unit.unit-destroyed {
+    opacity: 0;
+    transition: opacity 0.5s ease-out;
+    pointer-events: none;
+}
+
+.damage-dealt-text {
+    position: absolute;
+    font-size: 20px;
+    font-weight: bold;
+    color: #e74c3c;
+    text-shadow: 1px 1px 2px black;
+    z-index: 110;
+    pointer-events: none;
+    animation: floatAndFade 1.2s ease-out forwards;
+}
+
+/* ========================================================================== */
+/* 5. PANELES DE UI (contextual, predicción, flotantes)
+/* ========================================================================== */
+
+/* --- Panel Contextual Inferior --- */
+#contextualInfoPanel {
+    position: fixed; bottom: 0; left: 0; width: 100%;
+    background-color: rgba(30, 42, 56, 0.98);
+    color: #e2e8f0;
+    border-top: 2px solid #4a5568;
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    z-index: 5000;
+    box-sizing: border-box;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+}
+#contextualInfoPanel.visible {
+    transform: translateY(0%);
+}
+#contextualHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+}
+#contextualTitle { margin: 0; font-size: 1em; }
+#contextualContent { width: 100%; font-size: 0.85em; }
+#contextualContent p { margin: 4px 0; }
+#contextualContent hr { border-color: #4a5568; margin: 8px 0; }
+#closeContextualPanelBtn {
+    background: transparent; border: none; color: #aaa;
+    font-size: 26px; line-height: 1; cursor: pointer; padding: 0 5px;
+}
+/** DUPLICADO: Estilos más recientes para el panel contextual */
+#contextualInfoPanel {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 80%; max-width: 500px; max-height: 40vh;
+    background-color: rgba(30, 42, 56, 0.95);
+    color: #e2e8f0;
+    padding: 15px;
+    border: 1px solid #4a5568; border-bottom: none;
+    border-top-left-radius: 10px; border-top-right-radius: 10px;
+    box-shadow: 0 -5px 10px rgba(0, 0, 0, 0.3);
+    z-index: 90; display: flex; flex-direction: column;
+}
+#contextualActions button { display: none !important; }
+
+/* --- Panel de Predicción de Combate --- */
+#combat-prediction-panel {
+    background-color: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.9em;
+    z-index: 10001;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    display: none;
+}
+#combat-prediction-panel p { margin: 3px 0; }
+#combat-prediction-panel p span { font-weight: bold; }
+/** DUPLICADO: Regla con ID diferente y más detallada */
+#combatPredictionPanel {
+    position: fixed;
+    background-color: rgba(20, 20, 20, 0.9);
+    color: #f0f0f0;
+    padding: 10px 15px;
+    border: 1px solid #555;
+    border-radius: 8px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.9em;
+    z-index: 10001;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    transition: opacity 0.1s linear;
+    opacity: 0;
+}
+#combatPredictionPanel.visible { opacity: 1; }
+#combatPredictionPanel h4 {
+    margin: 0 0 8px 0;
+    color: #f39c12;
+    font-size: 1.1em;
+    text-align: center;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+#combatPredictionPanel p { margin: 5px 0; line-height: 1.4; }
+#combatPredictionPanel span.attacker-damage { color: #e74c3c; font-weight: bold; }
+#combatPredictionPanel span.defender-damage { color: #3498db; font-weight: bold; }
+#combatPredictionPanel span.critical-info { color: #f1c40f; font-weight: bold; display: block; text-align: center; margin-top: 8px; }
+
+/* --- Panel de Menú Flotante --- */
+.floating-panel {
+    position: fixed; z-index: 90;
+    background-color: rgba(245, 245, 245, 0.95);
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 15px;
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    display: none;
+}
+#floatingMenuPanel { top: 70px; left: 10px; width: 260px; }
+#floatingMenuPanel h4 { text-align: center; margin-top: 0; margin-bottom: 10px; font-size: 1em; color: #333; }
+#floatingMenuPanel #playerResourcesGrid_float { font-size: 0.85em; padding: 8px; margin-bottom: 10px; }
+#floatingMenuPanel button, #floatingMenuPanel .button-like-label {
+    width: 100%; display: block; margin-bottom: 8px; padding: 10px;
+    text-align: left; background-color: #e9ecef; color: #333; border: 1px solid #ddd;
+}
+#floatingMenuPanel button:hover, #floatingMenuPanel .button-like-label:hover { background-color: #dee2e6; }
+#floatingMenuPanel .resource-labels, #floatingMenuPanel .resource-values { grid-template-columns: repeat(7, 1fr); display: grid; }
+#floatingMenuPanel #playerResourcesGrid_float {
+    display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto auto;
+    gap: 4px 2px; padding: 8px; margin-bottom: 10px; background-color: #f8f9fa;
+    border: 1px solid #e0e0e0; border-radius: 4px; text-align: center;
+}
+#floatingMenuPanel .resource-labels { grid-row: 1; grid-column: 1 / -1; display: contents; }
+#floatingMenuPanel .resource-values { grid-row: 2; grid-column: 1 / -1; display: contents; }
+#floatingMenuPanel .resource-labels span { font-size: 0.8em; font-weight: 500; color: #6c757d; }
+#floatingMenuPanel .resource-values span { font-size: 0.9em; font-weight: bold; color: #212529; }
+
+/* --- Panel de Turno del Oponente --- */
+.turn-blocker {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 5000;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 2.5em; color: white; text-shadow: 2px 2px 4px black;
+    text-align: center; cursor: not-allowed;
+}
+
+/* ========================================================================== */
+/* 6. BOTONES FLOTANTES
+/* ========================================================================== */
+
+.floating-btn {
+    position: fixed; z-index: 100;
+    background-color: rgba(0, 0, 0, 0.6); color: white;
+    border: none; border-radius: 50%; width: 50px; height: 50px;
+    font-size: 24px; display: flex; justify-content: center; align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s ease;
+}
+.floating-btn:hover { background-color: rgba(0, 0, 0, 0.8); transform: scale(1.05); }
+.floating-btn.top-left { top: 15px; left: 15px; }
+.floating-btn.top-right { top: 15px; right: 15px; }
+.floating-btn.bottom-right { bottom: 20px; right: 20px; }
+
+/** DUPLICADO: Base de botones flotantes más reciente y completa. */
+#floatingMenuBtn, #floatingTechTreeBtn, #floatingEndTurnBtn, #floatingCreateDivisionBtn,
+#floatingConsoleBtn, #floatingUndoMoveBtn, #floatingReinforceBtn, #setAsCapitalBtn,
+#floatingSplitBtn, #floatingPillageBtn, #floatingBuildBtn {
+    position: fixed; z-index: 100; cursor: pointer; border: 1px solid #555;
+    border-radius: 5px; background-color: #333; color: #eee;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5); text-align: center;
+    line-height: 1; font-size: 1.2em; padding: 10px 15px;
+}
+#floatingUndoMoveBtn, #floatingReinforceBtn, #floatingSplitBtn, #floatingBuildBtn {
+    width: 50px; height: 50px; border-radius: 50%; padding: 0;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 1.5em; display: none;
+}
+#floatingMenuBtn:hover, #floatingTechTreeBtn:hover, #floatingEndTurnBtn:hover,
+#floatingCreateDivisionBtn:hover, #floatingConsoleBtn:hover, #floatingUndoMoveBtn:hover,
+#floatingReinforceBtn:hover, #floatingSplitBtn:hover, #floatingBuildBtn:hover {
+    background-color: #555; transform: scale(1.05);
+}
+
+#floatingEndTurnBtn {
+    bottom: 70px;
+    background-color: transparent !important; color: white;
+    border: none; padding: 10px; font-size: 30px; line-height: 1;
+    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.7); box-shadow: none !important;
+}
+#floatingEndTurnBtn:hover { background-color: transparent !important; transform: scale(1.1); }
+#floatingEndTurnBtn:active { background-color: transparent !important; transform: translateY(1px) scale(1.05); box-shadow: none !important; }
+
+/* --- Posicionamiento específico --- */
+#floatingEndTurnBtn        { bottom: 20px;  right: 20px; }
+#floatingCreateDivisionBtn { bottom: 80px;  right: 20px; }
+#floatingTechTreeBtn       { bottom: 140px; right: 20px; }
+#floatingMenuBtn           { bottom: 200px; right: 20px; }
+#floatingConsoleBtn        { bottom: 260px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
+#floatingBuildBtn          { bottom: 20px;  left: 20px; }
+#floatingSplitBtn          { bottom: 80px;  left: 20px; }
+#floatingReinforceBtn      { bottom: 140px; left: 20px; }
+#floatingUndoMoveBtn       { bottom: 200px; left: 20px; }
+#floatingWikiBtn           { bottom: 320px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
+#floatingManageBtn         { bottom: 260px; left: 20px; display: none; }
+
+/* --- Estados Deshabilitados --- */
+.floating-btn:disabled, #floatingUndoMoveBtn:disabled, #floatingReinforceBtn:disabled, #floatingSplitBtn:disabled, #floatingBuildBtn:disabled {
+    background-color: #6c757d !important; opacity: 0.5;
+    cursor: not-allowed; transform: scale(1) !important;
+}
+#floatingEndTurnBtn:disabled {
+    background-color: #6c757d !important; opacity: 0.5;
+    cursor: not-allowed; transform: scale(1) !important;
+}
+
+/* ========================================================================== */
+/* 7. MODALES (base y específicos)
+/* ========================================================================== */
+
+/* --- Modal Base --- */
+.modal {
+    display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+    width: 100%; height: 100%; overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    align-items: center; justify-content: center;
+}
+.modal-content {
+    background-color: #fefefe; padding: 20px; border: 1px solid #888;
+    width: 90%; max-width: 600px; border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+.close-button {
+    color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;
+}
+.close-button:hover, .close-button:focus { color: black; }
+/** DUPLICADO: .close-button más específico para modales */
+.modal .close-button {
+    color: #aaa; position: absolute; top: 10px; right: 15px;
+    font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1;
+}
+
+/* --- Modal: Menú Principal --- */
+#mainMenuScreen .modal-content {
+    background-color: #f0f2f5; border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+}
+#mainMenuScreen h2 { color: #333; margin-bottom: 30px; font-size: 2em; }
+#mainMenuScreen button {
+    background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;
+    transition: background-color 0.2s ease-in-out, transform 0.1s ease; font-weight: bold;
+}
+#mainMenuScreen button:hover { background-color: #0056b3; transform: translateY(-2px); }
+#mainMenuScreen button:active { transform: translateY(0px); }
+
+/* --- Modal: Configuración de Escaramuza y Campaña --- */
+#setupScreen .modal-content { background-color: #fff; border: 1px solid #ddd; }
+#setupScreen div { margin-bottom: 15px; }
+#setupScreen label { display: inline-block; width: 130px; font-weight: 500; }
+#setupScreen select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; min-width: 150px; }
+#setupScreen button { padding: 10px 20px; font-size: 1em; }
+#backToMainMenuBtn_fromCampaign, #backToMainMenuBtn_fromSetup {
+    background-color: #6c757d; color: white; border: none; border-radius: 4px;
+    cursor: pointer; padding: 8px 15px; font-size: 0.9em; margin-top: 10px;
+}
+#backToMainMenuBtn_fromCampaign:hover, #backToMainMenuBtn_fromSetup:hover { background-color: #5a6268; }
+#worldMapScreen { background-color: #7da0c0; box-shadow: 0 0 15px rgba(0,0,0,0.3); border-radius: 8px; position: relative; }
+#worldMapImage { border-radius: 6px; display: block; max-width: 100%; height: auto; }
+#campaignMessages { border-top: 1px solid #ccc; color: #333; max-width: 300px; word-wrap: break-word; padding: 10px; margin-top: 10px; background-color: #f9f9f9; border-radius: 4px; }
+.territory-on-map {
+    position: absolute; width: auto; min-width: 30px; height: auto; padding: 5px 8px;
+    background-color: rgba(220, 220, 220, 0.8); border: 1px solid #777; color: #333;
+    border-radius: 20px; display: flex; justify-content: center; align-items: center;
+    font-size: 0.75em; font-weight: bold; text-align: center; cursor: default; pointer-events: all;
+    transform: translate(-50%, -50%); transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.territory-on-map.player-controlled { background-color: rgba(60, 179, 113, 0.85); border-color: #2e8b57; color: white; }
+.territory-on-map.ai-controlled { background-color: rgba(220, 20, 60, 0.85); border-color: #b22222; color: white; }
+.territory-on-map.neutral-territory { background-color: rgba(240, 230, 140, 0.85); border-color: #b8860b; color: #545454; }
+.territory-on-map.selectable-territory { cursor: pointer; border-width: 2px; }
+.territory-on-map.selectable-territory:hover { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 12px 4px gold; z-index: 10; }
+
+/* --- Modal: Briefing de Escenario --- */
+#scenarioBriefingModal .modal-content { text-align: left; max-height: 90vh; overflow-y: auto; }
+#scenarioBriefingModal #scenarioTitle { color: #0056b3; margin-bottom: 10px; }
+#scenarioBriefingModal #scenarioImage { border: 1px solid #eee; max-width: 100%; height: auto; display: block; margin: 10px auto; border-radius: 4px; }
+#scenarioBriefingModal #startScenarioBattleBtn { background-color: #28a745; color: white; display: block; margin: 20px auto 0 auto; padding: 10px 20px; }
+#scenarioBriefingModal #startScenarioBattleBtn:hover { background-color: #1e7e34; }
+
+/* --- Modal: Árbol de Tecnología --- */
+.tech-tree-content .tech-node {
+    position: absolute; width: 100px; height: 100px; background-color: #2a9d8f;
+    color: white; border-radius: 50%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    border: 3px solid #264653; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+    padding: 5px; box-sizing: border-box; font-size: 0.8em;
+}
+.tech-tree-content .tech-node:hover { transform: scale(1.05); box-shadow: 0 0 15px #f4a261; }
+.tech-tree-content .tech-node img { width: 40px; height: 40px; margin-bottom: 5px; }
+.tech-tree-content .tech-node.researched { background-color: #e9c46a; border-color: #f4a261; }
+.tech-tree-content .tech-node.available { background-color: #2a9d8f; border-color: #264653; box-shadow: 0 0 10px 3px #aaf0d1; }
+.tech-tree-content .tech-node.locked { background-color: #6c757d; opacity: 0.7; cursor: not-allowed; }
+
+/* --- Modales: Gestión de Unidades --- */
+/* Listas genéricas en modales */
+#availableRegimentsList li, #currentDivisionRegimentsList li, #availableStructuresList li {
+    cursor: pointer; padding: 8px; border-bottom: 1px solid #eee; transition: background-color 0.2s;
+}
+#availableRegimentsList li:hover, #currentDivisionRegimentsList li:hover, #availableStructuresList li:hover { background-color: #f0f0f0; }
+#availableStructuresList li.selected-structure { background-color: #d0e0ff; font-weight: bold; }
+
+/* Panel de edición de nombre */
+#unit-info .unit-name-editor { display: flex; align-items: center; margin-bottom: 8px; }
+#unit-info .unit-name-editor label { margin-right: 5px; font-weight: bold; }
+#unit-info #selectedUnitNameInput { flex-grow: 1; padding: 5px; border: 1px solid #ccc; border-radius: 3px; margin-right: 5px; background-color: #f8f9fa; }
+#unit-info #selectedUnitNameInput:not([readonly]) { background-color: #fff; border-color: #007bff; }
+#unit-info .unit-name-editor button { padding: 4px 8px; font-size: 0.9em; background-color: #e9ecef; border: 1px solid #ced4da; border-radius: 3px; cursor: pointer; }
+#unit-info .unit-name-editor button:hover { background-color: #dee2e6; }
+#unit-info #saveUnitNameBtn { background-color: #28a745; color: white; }
+#unit-info #saveUnitNameBtn:hover { background-color: #218838; }
+
+/* Lista detallada de regimientos */
+.regiments-detailed-list { list-style: none; padding: 0; margin: 0; font-size: 0.8em; max-height: 150px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 3px; background-color: #fdfdfd; }
+.regiments-detailed-list li { padding: 6px 8px; border-bottom: 1px dashed #eee; }
+.regiments-detailed-list li:last-child { border-bottom: none; }
+.regiments-detailed-list li strong { color: #0056b3; }
+
+/* Modal de División Avanzada */
+#advancedSplitUnitModal .modal-content { max-width: 450px; padding: 15px; }
+#advancedSplitUnitModal h3 { font-size: 1.1em; margin-bottom: 5px; }
+#advancedSplitUnitModal > p { font-size: 0.8em; margin-bottom: 10px; }
+.split-regiment-container { display: flex; gap: 10px; margin-top: 10px; flex-wrap: nowrap; }
+.regiment-column { flex: 1; min-width: 0; padding: 8px; border: 1px solid #ddd; border-radius: 5px; background-color: #fff; display: flex; flex-direction: column; }
+.regiment-column h4 { font-size: 1em; margin-top: 0; margin-bottom: 5px; padding-bottom: 4px; border-bottom: 1px solid #eee; text-align: center; }
+.regiment-column p { font-size: 0.8em; margin: 2px 0; text-align: center; }
+#newSplitUnitNameInput { padding: 4px; font-size: 0.9em; width: 100%; box-sizing: border-box; }
+.regiments-list { list-style: none; padding: 0; margin: 5px 0 0 0; max-height: 200px; overflow-y: auto; border: 1px solid #91c5fa; border-radius: 3px; flex-grow: 1; }
+.regiments-list li { padding: 6px 8px; font-size: 1.5em; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; }
+.regiments-list li:last-child { border-bottom: none; }
+.regiments-list li:hover { background-color: #e9f7ff; }
+.regiments-list li span.regiment-type { font-weight: bold; color: #007bff; margin-left: 5px; }
+.regiments-list li span.regiment-actions { font-size: 0.8em; color: #007bff; }
+#advancedSplitUnitModal .modal-footer-actions { margin-top: 15px; }
+#advancedSplitUnitModal button { padding: 8px 16px; font-size: 0.9em; }
+#advancedSplitUnitModal button:hover { background-color: #0056b3; }
+#advancedSplitUnitModal button:disabled { background-color: #ccc; cursor: not-allowed; }
+#advancedSplitUnitModal button#finalizeSplitBtn { background-color: #28a745; }
+#advancedSplitUnitModal button#finalizeSplitBtn:hover { background-color: #218838; }
+#advancedSplitUnitModal button#cancelAdvancedSplitBtn { background-color: #6c757d; }
+#advancedSplitUnitModal button#cancelAdvancedSplitBtn:hover { background-color: #5a6268; }
+
+/* Modal de Gestión General de Unidades */
+.unit-management-content {
+    width: 90%; max-width: 800px; background-color: #f0f2f5; padding: 20px;
+    border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    display: flex; flex-direction: column;
+}
+.unit-management-content h3 { text-align: center; color: #333; margin-top: 0; margin-bottom: 20px; }
+.unit-management-body { display: flex; gap: 20px; flex-grow: 1; min-height: 400px; }
+.unit-selection-panel { flex: 2; display: flex; flex-direction: column; border: 1px solid #ccc; border-radius: 5px; background-color: #fff; }
+.category-tabs { display: flex; border-bottom: 1px solid #ccc; padding: 5px; background-color: #e9ecef; }
+.category-tabs .tab-btn { flex-grow: 1; padding: 10px 5px; background-color: transparent; border: none; border-radius: 3px; cursor: pointer; font-weight: 500; color: #495057; transition: background-color 0.2s; }
+.category-tabs .tab-btn:hover { background-color: #dee2e6; }
+.category-tabs .tab-btn.active { background-color: #007bff; color: white; }
+.available-units-list { padding: 10px; overflow-y: auto; flex-grow: 1; }
+.unit-entry { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; border-bottom: 1px solid #eee; }
+.unit-entry:last-child { border-bottom: none; }
+.unit-entry span { font-weight: 500; }
+.quantity-controls { display: flex; align-items: center; }
+.quantity-controls .quantity-btn { width: 28px; height: 28px; border: 1px solid #ccc; background-color: #f8f9fa; font-size: 1.2em; cursor: pointer; line-height: 1; }
+.quantity-controls .quantity-input { width: 40px; text-align: center; border: 1px solid #ccc; border-left: none; border-right: none; height: 26px; -moz-appearance: textfield; }
+.quantity-controls .quantity-input::-webkit-outer-spin-button, .quantity-controls .quantity-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.division-summary-panel { flex: 1; padding: 15px; background-color: #ffffff; border: 1px solid #ddd; border-radius: 5px; display: flex; flex-direction: column; }
+.division-summary-panel h4 { margin-top: 0; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+.division-name-editor { margin-bottom: 15px; }
+.division-name-editor input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+#divisionCompositionList { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+#divisionCompositionList li { padding: 5px 0; }
+.summary-details { border-top: 1px solid #eee; padding-top: 10px; margin-top: auto; font-size: 0.9em; }
+.summary-details p { margin: 5px 0; }
+.modal-footer-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.modal-footer-actions button { padding: 10px 20px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; }
+#finalizeUnitManagementBtn { background-color: #28a745; color: white; }
+#finalizeUnitManagementBtn:disabled { background-color: #94dcb0; cursor: not-allowed; }
+
+/* Modal de Detalles de Unidad (Rediseñado) */
+#unitDetailModal .unit-detail-content, #unitDetailModal .modal-content { max-width: 400px; width: 90%; background-color: #e9ecef; padding: 15px; }
+#unitDetailModal h3 { text-align: center; margin-top: 0; margin-bottom: 15px; font-size: 1.2em; }
+.unit-main-stats { background-color: #fff; padding: 10px; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 15px; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; padding: 4px 0; }
+.stat-row.stat-summary span { font-weight: bold; }
+.stat-row .stat-label { font-weight: bold; margin-right: 10px; }
+.unit-total-health-bar-container { flex-grow: 1; height: 18px; background-color: #ced4da; border-radius: 9px; border: 1px solid #adb5bd; }
+.unit-total-health-bar { height: 100%; background-color: #28a745; border-radius: 9px; transition: width 0.3s ease-out; }
+#unitDetailTotalHealthText { margin-left: 10px; font-weight: bold; min-width: 80px; text-align: right; }
+.regiment-section-title { text-align: center; font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+#unitDetailRegimentList .regiment-detail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 8px; border-bottom: 1px solid #eee; }
+#unitDetailRegimentList .regiment-info { font-weight: 500; }
+#unitDetailRegimentList .regiment-health-bar-container { flex-grow: 1; height: 12px; background-color: #e0e0e0; border-radius: 6px; margin: 0 15px; position: relative; }
+#unitDetailRegimentList .regiment-health-bar { height: 100%; background-color: #4CAF50; border-radius: 6px; transition: width 0.3s ease; }
+#unitDetailRegimentList .regiment-health-text { font-size: 0.8em; min-width: 50px; text-align: right; }
+#unitDetailRegimentList .reinforce-btn { padding: 4px 8px; font-size: 1.2em; line-height: 1; margin-left: 10px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; }
+#unitDetailRegimentList .reinforce-btn:hover { background-color: #d4edda; }
+#unitDetailRegimentList .reinforce-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.detailed-regiments-list { background-color: #fff; border-radius: 5px; border: 1px solid #ccc; max-height: 250px; overflow-y: auto; padding: 5px !important; margin: 0 !important; }
+.detailed-regiments-list .regiment-detail-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f1f3f5; }
+.detailed-regiments-list .regiment-detail-item:last-child { border-bottom: none; }
+.regiment-icon { font-size: 1.5em; margin-right: 8px; width: 25px; text-align: center; }
+.regiment-name { font-weight: 500; width: 100px; flex-shrink: 0; }
+.detailed-regiments-list .regiment-health-bar-container { flex-grow: 1; height: 12px; background-color: #e9ecef; border-radius: 6px; margin: 0 10px; }
+.detailed-regiments-list .regiment-health-bar { height: 100%; background-color: #519DE9; border-radius: 6px; transition: width 0.3s ease; }
+.detailed-regiments-list .regiment-health-text { font-size: 0.8em; min-width: 60px; text-align: right; }
+.reinforce-regiment-btn { background: #e9ecef; border: 1px solid #ced4da; border-radius: 50%; width: 24px; height: 24px; font-size: 1em; line-height: 1; cursor: pointer; margin-left: 10px; transition: background-color 0.2s; }
+.reinforce-regiment-btn:hover { background-color: #d4edda; }
+.reinforce-placeholder { width: 24px; height: 24px; margin-left: 10px; }
+
+
+/* --- Modal: Wiki y Ayuda --- */
+.help-modal-content {
+    max-width: 700px; max-height: 90vh; overflow-y: auto;
+    background-color: #f0f2f5; border: 1px solid #ccc;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15); padding: 30px; position: relative;
+}
+.help-modal-content h2 { font-size: 2.2em; color: #0056b3; }
+.help-modal-content h3 { font-size: 1.4em; color: #4a5568; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; }
+.help-modal-content p { font-size: 1em; line-height: 1.5; color: #333; margin-bottom: 15px; }
+.help-modal-content b { font-weight: bold; color: #007bff; }
+.help-modal-content ul { list-style: disc; margin-left: 20px; margin-bottom: 15px; }
+.help-modal-content li { margin-bottom: 5px; }
+.help-modal-content button { background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease-in-out; font-weight: bold; }
+.help-modal-content button:hover { background-color: #218838; }
+#doNotShowAgainCheckbox { transform: scale(1.2); margin-right: 8px !important; }
+
+.wiki-content {
+    width: 95%; max-width: 900px; height: 85vh; display: flex; flex-direction: column; padding: 20px;
+}
+.wiki-content h2 { text-align: center; margin-top: 0; margin-bottom: 15px; color: #333; }
+.wiki-tabs { display: flex; border-bottom: 2px solid #007bff; margin-bottom: 15px; }
+.wiki-tab-btn { padding: 10px 15px; cursor: pointer; border: none; background-color: transparent; font-size: 1em; font-weight: 500; color: #0056b3; border-radius: 5px 5px 0 0; transition: background-color 0.2s, color 0.2s; }
+.wiki-tab-btn.active { background-color: #007bff; color: white; }
+.wiki-tab-btn:hover:not(.active) { background-color: #e9ecef; }
+.wiki-tab-content { flex-grow: 1; overflow-y: auto; padding-right: 10px; }
+.wiki-page { display: none; }
+.wiki-page.active { display: block; }
+.wiki-page h3 { margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+.wiki-page p { font-size: 0.9em; color: #555; margin-bottom: 15px; }
+.table-container { overflow-x: auto; }
+.wiki-content table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.wiki-content th, .wiki-content td { padding: 8px 10px; border: 1px solid #ddd; text-align: left; vertical-align: middle; }
+.wiki-content thead th { background-color: #f2f2f2; font-weight: bold; }
+.wiki-content tbody tr:nth-child(even) { background-color: #f9f9f9; }
+.wiki-regiment-icon { font-size: 1.5em; width: 30px; text-align: center; }
+.wiki-stars { color: #f39c12; white-space: nowrap; }
+#wikiConceptsContent div { margin-bottom: 20px; }
+#wikiConceptsContent h4 { font-size: 1.1em; color: #0056b3; margin-bottom: 5px; }
+
+/* --- Modal: Lobby Multijugador --- */
+#lanLobbyScreen .container { border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-top: 15px; background-color: #f9f9f9; }
+#lanLobbyScreen h2, #lanLobbyScreen h3 { text-align: center; color: #333; }
+#lan-room-id { color: #007bff; font-family: monospace; font-size: 1.1em; user-select: all; }
+#lan-status.conectado { color: #28a745; }
+#lan-status.desconectado { color: #dc3545; }
+#lan-player-list { list-style: none; padding-left: 10px; }
+#lan-start-game-btn { display: block; margin: 15px auto 0; width: 60%; padding: 12px; background-color: #28a745; }
+
+/* ========================================================================== */
+/* 8. ANIMACIONES (@keyframes)
+/* ========================================================================== */
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 10% { background-color: rgba(255,0,0,0.5); } 20% { transform: translateX(-2px); background-color: transparent; } 40% { transform: translateX(2px); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
+@keyframes explode { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 50% { transform: scale(1.3) rotate(15deg); opacity: 0.5; } 100% { transform: scale(0.3) rotate(-15deg); opacity: 0; display:none !important; } }
+@keyframes unitHit { 0% { transform: translateX(0) translateY(0); } 25% { transform: translateX(-5px) translateY(-5px) rotate(-2deg); } 50% { transform: translateX(5px) translateY(5px) rotate(2deg); } 100% { transform: translateX(0) translateY(0); } }
+@keyframes unitAttacking { 0% { transform: scale(1); } 50% { transform: scale(1.1) translateX(5px) translateY(5px); } 100% { transform: scale(1); } }
+@keyframes hexHitFlash { 0% { background-color: transparent; } 50% { background-color: rgba(255, 100, 100, 0.7); } 100% { background-color: transparent; } }
+@keyframes ownerChangeFlash { 0% { box-shadow: inset 0 0 0 0px transparent; } 50% { box-shadow: inset 0 0 0 5px gold; } 100% { box-shadow: inset 0 0 0 3px var(--owner-color); } }
+.explosion-animation { position: absolute; width: 32px; height: 32px; background-image: url('images/explosion.png'); background-size: 256px 32px; background-repeat: no-repeat; animation: playExplosion 0.6s steps(8) forwards; z-index: 100; pointer-events: none; transform: translate(-50%, -50%); }
+@keyframes playExplosion { from { background-position: 0px; } to { background-position: -1024px; } }
+@keyframes floatAndFade { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(0.8); opacity: 0; } }
+@keyframes pulseHighlight { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.02); opacity: 0.8; } }
+@keyframes pulseHighlightHex { 0% { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); } 100% { box-shadow: inset 0 0 0 6px gold, inset 0 0 0 10px rgba(0, 255, 255, 0.9); } }
+
+/* ========================================================================== */
+/* 9. ESTILOS DE DEPURACIÓN Y TUTORIAL
+/* ========================================================================== */
+
+#debug-console {
+    position: fixed; bottom: 0; left: 0; width: 100%; height: 200px;
+    background-color: rgba(0, 0, 0, 0.8); color: #00FF00;
+    font-family: 'Courier New', Courier, monospace; font-size: 14px;
+    z-index: 10000; display: flex; flex-direction: column; padding: 10px;
+    box-sizing: border-box; border-top: 1px solid #00FF00;
+}
+#console-output { flex-grow: 1; overflow-y: auto; margin-bottom: 10px; white-space: pre-wrap; word-wrap: break-word; }
+#console-input { width: 100%; padding: 8px; border: 1px solid #00FF00; background-color: rgba(0, 0, 0, 0.9); color: #00FF00; box-sizing: border-box; }
+#console-input::placeholder { color: #007700; }
+.console-info { color: #00FF00; } .console-success { color: #00FF00; }
+.console-error { color: #FF0000; } .console-warning { color: #FFFF00; }
+.console-command { color: #00FFFF; }
+
+.floating-btn.force-console-button { cursor: pointer; transition: background-color 0.2s, transform 0.1s ease; }
+.floating-btn.force-console-button:hover { background-color: rgba(255, 0, 0, 0.7); transform: scale(1.05); }
+
+.hex.highlight-debug-start { background-color: yellow !important; border: 3px solid black !important; z-index: 999; }
+.hex.highlight-debug { background-color: cyan !important; border: 2px dashed red !important; z-index: 998; }
+.tutorial-highlight { box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlight 1.5s infinite alternate ease-in-out; z-index: 2002 !important; position: relative; }
+.hex.tutorial-highlight-hex { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlightHex 1.5s infinite alternate ease-in-out; z-index: 100 !important; }
+
+/* ========================================================================== */
+/* 10. MEDIA QUERIES (Diseño Adaptable)
+/* ========================================================================== */
+
+@media (min-width: 768px) {
+    #contextualInfoPanel {
+        flex-direction: row; align-items: center; padding: 10px 20px;
+    }
+    #contextualHeader {
+        flex-grow: 0; flex-direction: row; margin-bottom: 0; min-width: 300px;
+    }
+    #contextualContent {
+        width: auto; flex-grow: 1; margin: 0 20px; border-left: 1px solid #4a5568; padding-left: 20px;
+    }
+    #contextualTitle { font-size: 1.1em; }
+    #setAsCapitalBtn { width: auto; padding: 8px 15px; margin-top: 0; }
+    #closeContextualPanelBtn { margin-left: 15px; }
+}
+
+@media screen and (max-width: 768px) {
+    #floatingBuildBtn, #floatingSplitBtn, #floatingReinforceBtn, #floatingUndoMoveBtn {
+        left: 80px;
+    }
+    #contextualInfoPanel { width: 95%; }
+    #gameMessagesMobile { width: 95%; }
+}
+
+/* ========================================================================== */
+/* 11. ESTILOS ANTIGUOS O DESHABILITADOS
+/* ========================================================================== */
+
+/* --- Sidebar Antiguo (Oculto) --- */
+#sidebar {
+    display: none !important;
+}
+/*
+#sidebar {
+    width: 280px; padding: 15px; background-color: #f8f9fa; border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 10px;
+}
+#sidebar h2, #sidebar h3, #sidebar h4 { text-align: center; margin-top: 0; margin-bottom: 8px; color: #333; }
+#sidebar h4 { font-size: 1em; color: #555;}
+.info-box { background-color: #ffffff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em; }
+#playerResourcesList { list-style: none; padding: 0; margin: 0; font-size: 0.9em; }
+#playerResourcesList li { padding: 2px 0; }
+#sidebar button, .button-like-label { width: 100%; padding: 10px 12px; margin-bottom: 8px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; text-align: center; box-sizing: border-box; }
+#sidebar button:hover, .button-like-label:hover { background-color: #0056b3; }
+#sidebar button:disabled { background-color: #ccc; cursor: not-allowed; }
+*/
+
+/* --- Log de Juego Antiguo (Comentado) --- */
+/*
+.game-log-container {
+    position: fixed; bottom: 10px; left: 10px; width: 300px; max-height: 200px;
+    overflow-y: auto; background-color: rgba(0, 0, 0, 0.6); border-radius: 5px;
+    padding: 10px; z-index: 5000; pointer-events: none; display: flex;
+    flex-direction: column-reverse;
+}
+.log-message {
+    background-color: rgba(255, 255, 255, 0.1); color: white; padding: 5px 8px;
+    margin-top: 5px; border-radius: 3px; font-size: 0.85em; animation: fadeIn 0.5s ease-out;
+}
+*/

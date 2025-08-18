@@ -287,10 +287,14 @@ const UIManager = {
         this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (J${unit.player})`;
         this._domElements.contextualContent.innerHTML = this._buildUnitDetailsHTML(unit);
 
+
+
         // --- LÓGICA DE VISIBILIDAD DE BOTONES ---
         if (isPlayerUnit && this._domElements.floatingReinforceBtn) {
             this._domElements.floatingReinforceBtn.style.display = 'flex';
         }
+
+
 
         if (isPlayerUnit && gameState.currentPhase === 'play') {
             const canAct = !unit.hasMoved && !unit.hasAttacked;
@@ -299,7 +303,7 @@ const UIManager = {
             if (unit.lastMove && !unit.hasAttacked) {
                 if (this._domElements.floatingUndoMoveBtn) this._domElements.floatingUndoMoveBtn.style.display = 'flex';
             }
-            
+
             // Botones que solo aparecen si la unidad aún puede actuar
             if (canAct) {
                 // Botón Dividir
@@ -343,22 +347,57 @@ const UIManager = {
         
         if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.add('visible');
     }, 
-
+    
     _buildUnitDetailsHTML: function(unit) {
-        // Usamos la versión simplificada que querías
-        const hexData = board[unit.r]?.[unit.c];
-        let terrainInfo = 'Desconocido';
-        if (hexData) {
-            terrainInfo = TERRAIN_TYPES[hexData.terrain]?.name || hexData.terrain;
-        }
-        return `<p>HP: ${unit.currentHealth}/${unit.maxHealth} | Mov: ${unit.currentMovement || unit.movement} | En: ${terrainInfo}</p>`;
-    },
+        let html = `<p>Salud: ${unit.currentHealth}/${unit.maxHealth} | Mov: ${unit.currentMovement || unit.movement}</p>`;
+        
+        // Añadir Moral
+        let moralStatus = "Normal", moralColor = "#f0f0f0";
+        if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
+        else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
+        else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
+        html += `<p>Moral: <strong style="color:${moralColor};">${unit.morale || 50}/${unit.maxMorale || 125} (${moralStatus})</strong></p>`;
 
+        // Añadir Experiencia
+        const levelData = XP_LEVELS[unit.level || 0];
+        if (levelData) {
+            let xpText = `Nivel: ${levelData.currentLevelName}`;
+            if (levelData.nextLevelXp !== 'Max') {
+                xpText += ` (XP: ${unit.experience || 0} / ${levelData.nextLevelXp})`;
+            }
+            html += `<p>${xpText}</p>`;
+        }
+
+        // Añadir Terreno
+        const hexData = board[unit.r]?.[unit.c];
+        if (hexData) {
+            html += `<hr style="margin: 4px 0; border-color: #4a5568;" />`;
+            html += `<p>En Terreno: ${TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido'}</p>`;
+            html += `<p>J${hexData.owner} Est: ${hexData.estabilidad}/${MAX_STABILITY} Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}</p>`;
+        }
+        return html;
+    },
+    
     _buildHexDetailsHTML: function(hexData) {
-        // Usamos la versión simplificada
-        const ownerText = hexData.owner !== null ? ` | Dueño: J${hexData.owner}` : ' | Neutral';
-        const structureText = hexData.structure ? ` | ${STRUCTURE_TYPES[hexData.structure]?.name}` : '';
-        return `<p>${TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido'}${ownerText}${structureText}</p>`;
+        let contentParts = [];
+        
+        // Parte 1: Dueño y Territorio
+        if (hexData.owner !== null) {
+            contentParts.push(`Dueño: J${hexData.owner}`);
+            contentParts.push(`Est: ${hexData.estabilidad}/${MAX_STABILITY}`);
+            contentParts.push(`Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}`);
+        } else {
+            contentParts.push("Territorio Neutral");
+        }
+
+        // Parte 2: Estructura
+        if (hexData.structure) {
+            contentParts.push(`Estructura: ${STRUCTURE_TYPES[hexData.structure]?.name || hexData.structure}`);
+        } else if (hexData.isCity) {
+            contentParts.push(hexData.isCapital ? 'Capital' : 'Ciudad');
+        }
+        
+        return `<p>${contentParts.join(' | ')}</p>`;
     },
     
     showHexContextualInfo: function(r, c, hexData) {
@@ -397,6 +436,9 @@ const UIManager = {
         }
         
         this._domElements.contextualContent.innerHTML = contentHTML;
+
+        this._domElements.contextualInfoPanel.classList.add('is-expanded');
+        if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▼';
         
         const isPlayerTerritory = hexData.owner === gameState.currentPlayer;
         const isUnitPresent = getUnitOnHex(r, c);
@@ -411,7 +453,14 @@ const UIManager = {
             
             const currentStructureInfo = hexData.structure ? STRUCTURE_TYPES[hexData.structure] : null;
             const isRecruitmentPoint = hexData.isCity || hexData.isCapital || (currentStructureInfo && currentStructureInfo.allowsRecruitment);
-                
+            
+            // Botón Crear División
+            if (isRecruitmentPoint && this._domElements.floatingCreateDivisionBtn) {
+                this._domElements.floatingCreateDivisionBtn.style.display = 'flex';
+                // Puede que esta línea de abajo ya esté o no. La añadiremos/aseguraremos.
+                hexToBuildOn = {r, c}; 
+            }
+
             if (isRecruitmentPoint) {
                 if (this._domElements.floatingCreateDivisionBtn) {
                     this._domElements.floatingCreateDivisionBtn.textContent = '➕';

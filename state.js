@@ -126,8 +126,8 @@ function resetGameStateVariables() {
     placementMode = { active: false, unitData: null, unitType: null };
     
     // Limpiar roles de la IA
-    if (typeof AiManager !== 'undefined' && AiManager.unitRoles) {
-        AiManager.unitRoles.clear();
+    if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.unitRoles) {
+        AiGameplayManager.unitRoles.clear();
     }
     
     // Limpiar variables de construcción/división de modales si existen (guardas de seguridad)
