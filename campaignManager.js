@@ -1,4 +1,4 @@
-// campaignManager.js
+// campaignManager.js (20250827)
 
 // Se asume que las variables de elementos DOM como mainMenuScreenEl, worldMapScreenEl, etc.,
 // y GAME_DATA_REGISTRY, WORLD_MAP_DATA son globales y definidas en otros archivos

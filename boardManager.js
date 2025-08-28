@@ -1,4 +1,4 @@
-// boardManager.js
+// boardManager.js (20250827)
 // Funciones para crear, gestionar y renderizar el tablero y sus hexágonos.
 
 let panStartTimestamp = 0;

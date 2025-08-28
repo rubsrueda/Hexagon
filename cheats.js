@@ -1,4 +1,4 @@
-// cheats.js
+// cheats.js(20250827)
 // Funciones de trucos y depuración para el juego.
 // Este archivo ahora define un objeto 'Cheats' en el ámbito global.
 

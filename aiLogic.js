@@ -1,4 +1,4 @@
-// aiLogic.js (VERSIÓN FINAL - Lógica de Despliegue y Turno Unificada)
+// aiLogic.js (20250827 - Lógica de Despliegue y Turno Unificada)
 console.log("aiLogic.js CARGADO - Módulo de IA Estratégica v5.0 (Diseño Final)");
 
 const AiManager = {
