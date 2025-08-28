@@ -68,8 +68,75 @@ function checkAndProcessBrokenUnit(unit) {
 }
 
 function handleBrokenUnits(playerNum) {
-    const unitsToCheck = [...units.filter(u => u.player === playerNum)];
-    unitsToCheck.forEach(unit => checkAndProcessBrokenUnit(unit));
+    // Obtenemos una copia para iterar de forma segura, ya que handleUnitDestroyed puede modificar 'units'.
+    const unitsToCheck = [...units.filter(u => u.player === playerNum && u.morale <= 0 && u.currentHealth > 0)];
+
+    if (unitsToCheck.length > 0) {
+        logMessage(`¡Tropas del Jugador ${playerNum} están desmoralizadas y huyen!`, "warning");
+    }
+
+    unitsToCheck.forEach(unit => {
+        const originalUnit = units.find(u => u.id === unit.id);
+        if (!originalUnit) return; // Si ya fue destruida o eliminada por otra causa, no hacer nada
+
+        // Marcamos la unidad para que el jugador no pueda usarla este turno.
+        originalUnit.hasMoved = true;
+        originalUnit.hasAttacked = true;
+
+        // Buscar el refugio más cercano (capital/ciudad propia)
+        const safeHavens = gameState.cities
+            .filter(c => c.owner === playerNum)
+            .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
+        
+        const nearestSafeHaven = safeHavens.length > 0 ? safeHavens[0] : null;
+
+        let retreatHex = null;
+        if (nearestSafeHaven) {
+            const neighbors = getHexNeighbors(originalUnit.r, originalUnit.c);
+            let bestNeighbor = null;
+            let minDistance = hexDistance(originalUnit.r, originalUnit.c, nearestSafeHaven.r, nearestSafeHaven.c);
+
+            for (const n of neighbors) {
+                const neighborHexData = board[n.r]?.[n.c];
+                // Puede huir a una casilla vacía, transitable y que lo acerque al refugio.
+                if (neighborHexData && !neighborHexData.unit && !TERRAIN_TYPES[neighborHexData.terrain]?.isImpassableForLand) {
+                    const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        bestNeighbor = n;
+                    }
+                }
+            }
+            retreatHex = bestNeighbor;
+        }
+
+        if (retreatHex) {
+            logMessage(`¡${originalUnit.name} rompe filas y huye hacia (${retreatHex.r}, ${retreatHex.c})!`);
+            
+            // --- LA CORRECCIÓN CLAVE ESTÁ AQUÍ ---
+            // Creamos un objeto temporal para los parámetros de la función de movimiento, pero _executeMoveUnit
+            // modificará la unidad real (`originalUnit`) gracias a que se le pasa la referencia.
+            const moveData = {
+                fromR: originalUnit.r,
+                fromC: originalUnit.c,
+                toR: retreatHex.r,
+                toC: retreatHex.c,
+                unit: originalUnit,
+                isRetreat: true // Flag para que la función de movimiento sepa que es una huida
+            };
+            
+            // La función _executeMoveUnit será la que realmente mueva la unidad en los datos.
+            _executeMoveUnit(originalUnit, retreatHex.r, retreatHex.c);
+            
+            // Después del movimiento, el estado de 'hasMoved' de la unidad original SÍ habrá cambiado a 'true'
+            // pero `resetUnitsForNewTurn` lo pondrá a 'false' al inicio del siguiente turno, permitiendo
+            // que la unidad vuelva a huir si sigue desmoralizada.
+
+        } else {
+            logMessage(`¡${originalUnit.name} está rodeada y sin moral! ¡La unidad se rinde!`, "error");
+            handleUnitDestroyed(originalUnit, null); // El atacante es nulo porque se rinde
+        }
+    });
 }
 
 function handleUnitUpkeep(playerNum) {
@@ -129,66 +196,6 @@ function handleUnitUpkeep(playerNum) {
             }
         });
     }
-}
-
-function handleBrokenUnits(playerNum) {
-    // Obtenemos una copia del array para iterar de forma segura,
-    // ya que handleUnitDestroyed puede modificar el array original 'units'.
-    const unitsToCheck = [...units.filter(u => u.player === playerNum && u.morale <= 0 && u.currentHealth > 0)];
-
-    if (unitsToCheck.length > 0) {
-        logMessage(`¡Las tropas del Jugador ${playerNum} están desmoralizadas y huyen!`, "error");
-    }
-
-    unitsToCheck.forEach(unit => {
-        // Encontramos la referencia a la unidad original en el array 'units' para poder modificarla
-        const originalUnit = units.find(u => u.id === unit.id);
-        if(!originalUnit) return;
-        
-        // Marcamos la unidad para que no pueda realizar otras acciones este turno
-        originalUnit.hasMoved = true;
-        originalUnit.hasAttacked = true;
-
-        // Buscar el refugio más cercano (capital/ciudad propia)
-        const safeHavens = gameState.cities
-            .filter(c => c.owner === playerNum)
-            .sort((a, b) => hexDistance(originalUnit.r, originalUnit.c, a.r, a.c) - hexDistance(originalUnit.r, originalUnit.c, b.r, b.c));
-        
-        const nearestSafeHaven = safeHavens.length > 0 ? safeHavens[0] : null;
-
-        let retreatHex = null;
-        if (nearestSafeHaven) {
-            const neighbors = getHexNeighbors(originalUnit.r, originalUnit.c);
-            let bestNeighbor = null;
-            let minDistance = hexDistance(originalUnit.r, originalUnit.c, nearestSafeHaven.r, nearestSafeHaven.c);
-
-            for (const n of neighbors) {
-                // Solo puede huir a un hexágono vacío y transitable
-                if (!getUnitOnHex(n.r, n.c) && !TERRAIN_TYPES[board[n.r]?.[n.c]?.terrain]?.isImpassableForLand) {
-                    const dist = hexDistance(n.r, n.c, nearestSafeHaven.r, nearestSafeHaven.c);
-                    // Importante: El movimiento debe acercarnos, no alejarnos
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        bestNeighbor = n;
-                    }
-                }
-            }
-            retreatHex = bestNeighbor;
-        }
-
-        if (retreatHex) {
-            logMessage(`¡${originalUnit.name} rompe filas y huye hacia (${retreatHex.r}, ${retreatHex.c})!`);
-            // moveUnit se encarga de la lógica de mover y actualizar el tablero.
-            // Le pasamos un clon temporal con 1 de movimiento y hasMoved:false para que la función acepte el movimiento
-            moveUnit({ ...originalUnit, currentMovement: 1, hasMoved: false }, retreatHex.r, retreatHex.c);
-            
-            // moveUnit ya debería haber actualizado la posición de la unidad en el array 'units'
-            // si está bien implementado. No es necesario re-asignar aquí r y c.
-        } else {
-            logMessage(`¡${originalUnit.name} está rodeada y sin moral! ¡La unidad se rinde!`, "error");
-            handleUnitDestroyed(originalUnit, null); // El atacante es nulo porque se rinde
-        }
-    });
 }
 
 function handleHealingPhase(playerNum) {
@@ -392,92 +399,108 @@ function collectPlayerResources(playerNum) {
 }
 
 function updateFogOfWar() {
-    if (!board || board.length === 0) return; // board de state.js
+        if (!board || board.length === 0) return;
 
-    // Usar las dimensiones del tablero actual
-    const currentRows = board.length;
-    const currentCol = board[0] ? board[0].length : 0;
-
-    const isDeploymentOrSetup = gameState.currentPhase === "deployment" || gameState.currentPhase === "setup";
-
-    for (let r = 0; r < currentRows; r++) {
-        for (let c = 0; c < currentCol; c++) {
-            const hexData = board[r]?.[c];
-            if (!hexData || !hexData.element) continue;
-            const hexElement = hexData.element;
-            const unitOnThisHex = getUnitOnHex(r, c); // getUnitOnHex de utils.js
-
-            hexElement.classList.remove('fog-hidden', 'fog-partial');
-            if (unitOnThisHex && unitOnThisHex.element) {
-                unitOnThisHex.element.style.display = 'none';
-                unitOnThisHex.element.classList.remove('player-controlled-visible');
-            }
-
-            if (isDeploymentOrSetup) {
-                hexData.visibility.player1 = 'visible';
-                hexData.visibility.player2 = 'visible';
-                if (unitOnThisHex && unitOnThisHex.element) unitOnThisHex.element.style.display = 'flex';
-            } else if (gameState.currentPhase === "play") {
-                const playerKey = `player${gameState.currentPlayer}`;
-                if (hexData.visibility[playerKey] === 'visible') {
-                    hexData.visibility[playerKey] = 'partial';
-                }
-            }
-        }
-    }
-
-    if (gameState.currentPhase === "play") {
+        // Usar las dimensiones del tablero actual
+        const currentRows = board.length;
+        const currentCol = board[0] ? board[0].length : 0;
         const playerKey = `player${gameState.currentPlayer}`;
-        const visionSources = [];
-        units.forEach(unit => { // units de state.js
-            if (unit.player === gameState.currentPlayer && unit.currentHealth > 0 && unit.r !== -1) {
-                visionSources.push({r: unit.r, c: unit.c, range: unit.visionRange});
-            }
-        });
-        gameState.cities.forEach(city => { // gameState.cities de state.js
-            if (city.owner === gameState.currentPlayer && board[city.r]?.[city.c]) {
-                let range = board[city.r][city.c].isCapital ? 2 : 1;
-                if (board[city.r][city.c].structure === 'Fortaleza') range = Math.max(range, 3);
-                visionSources.push({r: city.r, c: city.c, range: range });
-            }
-        });
-
-        visionSources.forEach(source => {
-            for (let r_scan = 0; r_scan < currentRows; r_scan++) {
-                for (let c_scan = 0; c_scan < currentCol; c_scan++) {
-                    if (hexDistance(source.r, source.c, r_scan, c_scan) <= source.range) { // hexDistance de utils.js
-                        if(board[r_scan]?.[c_scan]) board[r_scan][c_scan].visibility[playerKey] = 'visible';
-                    }
-                }
-            }
-        });
 
         for (let r = 0; r < currentRows; r++) {
             for (let c = 0; c < currentCol; c++) {
                 const hexData = board[r]?.[c];
                 if (!hexData || !hexData.element) continue;
-                const hexVisStatus = hexData.visibility[playerKey];
-                const unitOnThisHex = getUnitOnHex(r,c);
+                
+                const hexElement = hexData.element;
+                const unitOnThisHex = getUnitOnHex(r, c);
 
-                if (hexVisStatus === 'hidden') {
-                    hexData.element.classList.add('fog-hidden');
-                } else if (hexVisStatus === 'partial') {
-                    hexData.element.classList.add('fog-partial');
-                    if (unitOnThisHex && unitOnThisHex.player === gameState.currentPlayer && unitOnThisHex.element) {
+                // Reseteo visual básico
+                hexElement.classList.remove('fog-hidden', 'fog-partial');
+                if (unitOnThisHex?.element) {
+                    unitOnThisHex.element.style.display = 'none';
+                    unitOnThisHex.element.classList.remove('player-controlled-visible');
+                }
+                
+                // ==========================================================
+                // === CAMBIO CLAVE: Lógica para el mapa revelado ========
+                // ==========================================================
+                if (gameState.isMapRevealed) {
+                    // Si el mapa está revelado, forzamos todo a ser visible y saltamos el resto.
+                    hexData.visibility[playerKey] = 'visible';
+                    if (unitOnThisHex?.element) {
                         unitOnThisHex.element.style.display = 'flex';
-                        unitOnThisHex.element.classList.add('player-controlled-visible');
                     }
-                } else { // 'visible'
-                    if (unitOnThisHex && unitOnThisHex.element) {
-                        unitOnThisHex.element.style.display = 'flex';
-                        if (unitOnThisHex.player === gameState.currentPlayer) {
+                    continue; // <-- Saltamos al siguiente hexágono del bucle.
+                }
+                // ==========================================================
+
+                // El resto de la lógica de Niebla de Guerra normal
+                if (gameState.currentPhase === "deployment" || gameState.currentPhase === "setup") {
+                    hexData.visibility.player1 = 'visible';
+                    hexData.visibility.player2 = 'visible';
+                } else if (gameState.currentPhase === "play") {
+                    if (hexData.visibility[playerKey] === 'visible') {
+                        hexData.visibility[playerKey] = 'partial';
+                    }
+                }
+            }
+        }
+
+        // Si el mapa está revelado, ya hemos hecho todo lo necesario, así que salimos.
+        if (gameState.isMapRevealed) return;
+
+        // Lógica normal de cálculo de visión
+        if (gameState.currentPhase === "play") {
+            const visionSources = [];
+            units.forEach(unit => {
+                if (unit.player === gameState.currentPlayer && unit.currentHealth > 0 && unit.r !== -1) {
+                    visionSources.push({r: unit.r, c: unit.c, range: unit.visionRange});
+                }
+            });
+            gameState.cities.forEach(city => {
+                if (city.owner === gameState.currentPlayer && board[city.r]?.[city.c]) {
+                    let range = board[city.r][city.c].isCapital ? 2 : 1;
+                    if (board[city.r][city.c].structure === 'Fortaleza') range = Math.max(range, 3);
+                    visionSources.push({r: city.r, c: city.c, range: range });
+                }
+            });
+
+            visionSources.forEach(source => {
+                for (let r_scan = 0; r_scan < currentRows; r_scan++) {
+                    for (let c_scan = 0; c_scan < currentCol; c_scan++) {
+                        if (hexDistance(source.r, source.c, r_scan, c_scan) <= source.range) {
+                            if(board[r_scan]?.[c_scan]) board[r_scan][c_scan].visibility[playerKey] = 'visible';
+                        }
+                    }
+                }
+            });
+
+            for (let r = 0; r < currentRows; r++) {
+                for (let c = 0; c < currentCol; c++) {
+                    const hexData = board[r]?.[c];
+                    if (!hexData || !hexData.element) continue;
+                    const hexVisStatus = hexData.visibility[playerKey];
+                    const unitOnThisHex = getUnitOnHex(r,c);
+
+                    if (hexVisStatus === 'hidden') {
+                        hexData.element.classList.add('fog-hidden');
+                    } else if (hexVisStatus === 'partial') {
+                        hexData.element.classList.add('fog-partial');
+                        if (unitOnThisHex?.player === gameState.currentPlayer && unitOnThisHex.element) {
+                            unitOnThisHex.element.style.display = 'flex';
                             unitOnThisHex.element.classList.add('player-controlled-visible');
+                        }
+                    } else { // 'visible'
+                        if (unitOnThisHex?.element) {
+                            unitOnThisHex.element.style.display = 'flex';
+                            if (unitOnThisHex.player === gameState.currentPlayer) {
+                                unitOnThisHex.element.classList.add('player-controlled-visible');
+                            }
                         }
                     }
                 }
             }
         }
-    }
 }
 
 function checkVictory() {

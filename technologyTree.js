@@ -168,6 +168,19 @@ const TECHNOLOGY_TREE_DATA = {
         tier: 1
     },
 
+    "RECONNAISSANCE": {
+        id: "RECONNAISSANCE",
+        name: "Reconocimiento",
+        description: "Tácticas de exploración para obtener información del campo de batalla. Desbloquea la unidad Explorador.",
+        sprite: "🗺️", // Emoji de mapa
+        cost: { researchPoints: 25 },
+        unlocksUnits: ["Explorador"],
+        unlocksStructures: [],
+        prerequisites: ["ORGANIZATION"],
+        position: { x: 400, y: -120 }, // Lo ponemos a la derecha de ANIMAL_HUSBANDRY
+        tier: 1
+    },
+
     // TIER 2 - Unidades avanzadas
     "SIEGE_CRAFT": {
         id: "SIEGE_CRAFT",

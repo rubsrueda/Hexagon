@@ -295,17 +295,55 @@ const Cheats = { // ¡Reemplaza el objeto Cheats completo con esto!
             if (typeof logToConsole === "function") logToConsole("Error: No se puede revelar el mapa (tablero no inicializado).", 'error');
             return;
         }
+
+        // --- CAMBIO CLAVE ---
+        // Añadimos una bandera al estado del juego.
+        gameState.isMapRevealed = true;
+        
+        // El resto de la lógica para cambiar la visibilidad se elimina
+        // porque ahora lo hará la función updateFogOfWar.
+        
+        if (typeof updateFogOfWar === "function") {
+            updateFogOfWar();
+        }
+        
+        const message = "Niebla de guerra desactivada permanentemente para esta partida.";
+        if (typeof logToConsole === "function") logToConsole(message, 'info');
+        if (typeof logMessage === "function") logMessage(message);
+    },
+
+    hide_map: () => {
+        if (!gameState) {
+            if (typeof logToConsole === "function") logToConsole("Error: El estado del juego no está disponible.", 'error');
+            return;
+        }
+
+        // --- CAMBIO CLAVE ---
+        // Simplemente ponemos la bandera en false.
+        gameState.isMapRevealed = false;
+
+        // Limpiamos los estados de visibilidad para que se recalculen correctamente.
         const playerKey = `player${gameState.currentPlayer}`;
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[0].length; c++) {
                 if (board[r][c]) {
-                    board[r][c].visibility[playerKey] = 'visible';
+                    // Si nunca se ha visto, se mantiene 'hidden'.
+                    // Si ya se vio ('partial' o 'visible'), lo dejamos en 'partial'.
+                    if (board[r][c].visibility[playerKey] === 'visible') {
+                        board[r][c].visibility[playerKey] = 'partial';
+                    }
                 }
             }
         }
-        if (typeof updateFogOfWar === "function") updateFogOfWar();
-        const message = "Niebla de guerra desactivada para el jugador actual.";
+        
+        // Llamamos a updateFogOfWar para que recalcule todo con la niebla activada.
+        if (typeof updateFogOfWar === "function") {
+            updateFogOfWar();
+        }
+
+        const message = "Niebla de guerra reactivada para el jugador actual.";
         if (typeof logToConsole === "function") logToConsole(message, 'info');
+        if (typeof logMessage === "function") logMessage(message);
     },
 
     create_unit: (unitTypeKey, rStr, cStr, playerIdStr = null) => {

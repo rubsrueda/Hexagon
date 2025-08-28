@@ -1,1134 +1,738 @@
-// Archivo: ai_gameplayLogic.js (VERSIÓN CON ESQUEMA SECUENCIAL Y LOGS COMPLETOS)
-
-console.log("ai_gameplayLogic.js CARGADO - Módulo IA v6.0 (Diseño Secuencial)");
+// ======================================================================================
+// ===                IA v17.0 - Estrategia de "Gran Apertura" en Turno 1               ===
+// ======================================================================================
+console.log("ai_gameplayLogic.js v17.0 CARGADO");
 
 const AiGameplayManager = {
     unitRoles: new Map(),
+    turn_targets: new Set(),
 
-    // =============================================================
-    // === NIVEL 1: DIRECTOR DE ORQUESTA ============================
-    // =============================================================
-    executeTurn: async function(aiPlayerNumber, aiLevel) {
-        try {
-            console.group(`%c[IA Turn] INICIO para Jugador IA ${aiPlayerNumber}`, "background: #333; color: #98fb98; font-size: 1.1em;");
-            
-            this.manageEmpire(aiPlayerNumber);
-
-            const activeAiUnits = units.filter(u => u.player === aiPlayerNumber && u.currentHealth > 0);
-            
-            // --- Lógica de Orden de Activación (ya la tenías) ---
-            const enemyPlayer = aiPlayerNumber === 1 ? 2 : 1;
-            const enemyCapital = gameState.cities.find(c => c.isCapital && c.owner === enemyPlayer);
-            if (enemyCapital) {
-                activeAiUnits.sort((a, b) => hexDistance(a.r, a.c, enemyCapital.r, enemyCapital.c) - hexDistance(b.r, b.c, enemyCapital.r, enemyCapital.c));
-            }
-            console.log(`-> ${activeAiUnits.length} unidades actuarán en este orden:`, activeAiUnits.map(u => `${u.name}(${u.id.slice(-4)})`).join(', '));
-            
-            // --- BUCLE SECUENCIAL Y ROBUSTO con for...of y await ---
-            for (const unit of activeAiUnits) {
-                if (gameState.currentPhase === "gameOver") break;
-                
-                if (unit && unit.currentHealth > 0 && (!unit.hasMoved || !unit.hasAttacked)) {
-                    await this.decideAndExecuteUnitAction(unit);
-                    // Pausa controlada entre acciones de unidad
-                    await new Promise(resolve => setTimeout(resolve, 350));
-                }
-            }
-
-            this.endAiTurn(aiPlayerNumber);
-
-        } catch (error) {
-            console.error(`ERROR CRÍTICO en AiGameplayManager.executeTurn:`, error);
-            this.endAiTurn(aiPlayerNumber);
-        } finally {
-            console.groupEnd();
+    executeTurn: async function(aiPlayerNumber) {
+        console.group(`%c[IA Turn] INICIO para Jugador IA ${aiPlayerNumber}`, "background: #333; color: #98fb98; font-size: 1.1em;");
+        
+        if (gameState.turnNumber === 1 && this.ownedHexPercentage(aiPlayerNumber) < 0.2) {
+            await this._executeGrandOpening_v20(aiPlayerNumber);
+        } else {
+            await this._executeNormalTurn(aiPlayerNumber);
         }
+        
+        this.endAiTurn(aiPlayerNumber);
+        console.groupEnd();
     },
     
-    // =============================================================
-    // === NIVEL 2: GESTIÓN IMPERIAL ===============================
-    // =============================================================
-    manageEmpire: function(playerNumber) {
-        console.groupCollapsed(`%c[IA Empire] Fase de Gestión Imperial`, "color: #4CAF50");
-        try {
+    _executeGrandOpening_v20: async function(playerNumber) {
+        console.log(`%c[IA STRATEGY] Ejecutando Gran Apertura (Plan v22.0 - Objetivo-Primero).`, "color: #FFA500; font-weight: bold;");
+        const capital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
+        if (!capital) return;
 
-            this.handleStrategicReinforcements(playerNumber);   // Creación de Unidades para frentes
-            this.handleExpansionProduction(playerNumber);       //Creación de unidades de exploración
-            this.handleReinforcements(playerNumber);            // Refuerzo de unidades existentes
-            this.handleResearch(playerNumber);                  // Investigación de tecnología
-            this.handleConstruction(playerNumber);              // Construcciones
-            this.handleCapitalChange(playerNumber);             // Cambio de capital amenazada
+        // --- Función de apoyo interna para una oleada ---
+        const executeWave = async (unitType, moveCost, maxUnitsToCreate) => {
+            let createdInWave = 0;
+            
+            while(createdInWave < maxUnitsToCreate) {
+                // 1. Encontrar todos los puntos de creación disponibles AHORA MISMO
+                const creationSpots = getHexNeighbors(capital.r, capital.c)
+                    .filter(n => board[n.r]?.[n.c] && !board[n.r][n.c].unit);
 
-        } finally {
-            console.groupEnd();
-        }
-    },
-
-    handleStrategicReinforcements: function(playerNumber) {
-        console.log("-> 1. Evaluando refuerzos estratégicos...");
-        const enemyPlayer = playerNumber === 1 ? 2 : 1;
-        const playerRes = gameState.playerResources[playerNumber];
-
-        const { frentes, necesitaRefuerzos } = this.analyzeFrontera(playerNumber);
-
-        if (necesitaRefuerzos) {
-            for (const zona in frentes) {
-                const frente = frentes[zona];
-                if (frente.aiPower < frente.enemyPower) {
-                    console.log(`   - Inferioridad detectada en el frente '${zona}'.`);
-
-                    if (!gameState.ai_reaction_forces) gameState.ai_reaction_forces = {};
-                    const fuerzaAsignadaId = gameState.ai_reaction_forces[zona];
-                    const fuerzaAsignada = fuerzaAsignadaId ? units.find(u => u.id === fuerzaAsignadaId) : null;
-
-                    if (fuerzaAsignada && fuerzaAsignada.currentHealth > 0) {
-                        console.log(`   -> Fuerza de Reacción ya asignada. No se crea una nueva.`);
-                    } else {
-                        const neededRegs = frente.enemyPower - frente.aiPower + 1;
-                        console.log(`   - Creando nueva Fuerza de Reacción de ${neededRegs} regimientos.`);
-                        
-                        let composition = [];
-                        for (let i=0; i<neededRegs; i++) {
-                            composition.push(['Infantería Pesada', 'Arqueros', 'Infantería Ligera'][i % 3]);
-                        }
-
-                        const newUnit = this.produceUnit(playerNumber, composition, 'defender', `Reacción-${zona}`);
-                        if (newUnit) {
-                            gameState.ai_reaction_forces[zona] = newUnit.id; // Guardar en memoria
-                            console.log(`   -> ¡Unidad de reacción creada!`);
+                // 2. Para CADA punto de creación, encontrar todos los destinos válidos
+                let allPossibleManiobras = [];
+                for (const spot of creationSpots) {
+                    // El `findPathToTarget` ya calcula la ruta con coste de terreno
+                    const pathOptions = this._findAllPathsWithCost(spot, moveCost, unitType, playerNumber);
+                    for (const path of pathOptions) {
+                        const destination = path[path.length-1];
+                        // El objetivo debe ser neutral
+                        if(board[destination.r][destination.c].owner === null) {
+                            allPossibleManiobras.push({ inicio: spot, fin: destination, path: path });
                         }
                     }
                 }
+
+                if (allPossibleManiobras.length === 0) {
+                    console.log(`   -> No se encontraron más maniobras válidas para esta oleada.`);
+                    return false; // Termina esta oleada
+                }
+
+                // 3. Elegir la MEJOR maniobra de todas las posibles (la que llega más lejos)
+                allPossibleManiobras.sort((a,b) => hexDistance(capital.r, capital.c, b.fin.r, b.fin.c) - hexDistance(capital.r, capital.c, a.fin.r, a.fin.c));
+                const bestManiobra = allPossibleManiobras[0];
+
+                //console.log(`   [ANÁLISIS] Objetivo elegido: (${bestManiobra.fin.r}, ${bestManiobra.fin.c}). Se puede llegar desde el punto de creación (${bestManiobra.inicio.r}, ${bestManiobra.inicio.c})`);
+
+                // 4. Ejecutar la mejor maniobra
+                const newUnit = this.produceUnit(playerNumber, [unitType], 'explorer', `Incursor`, bestManiobra.inicio);
+                if (newUnit) {
+                    //console.log(`%c     PASO 1: Creada ${newUnit.name} en (${bestManiobra.inicio.r}, ${bestManiobra.inicio.c})`, 'color: lightgreen');
+                    await _executeMoveUnit(newUnit, bestManiobra.fin.r, bestManiobra.fin.c);
+                    //console.log(`%c     PASO 2: Movida ${newUnit.name} a su objetivo (${bestManiobra.fin.r}, ${bestManiobra.fin.c})`, 'color: cyan');
+                    createdInWave++;
+                    await new Promise(resolve => setTimeout(resolve, 100)); // Pausa
+                } else {
+                    console.log(`   -> Fin de oleada por falta de recursos.`);
+                    return false; // Termina TODA la apertura
+                }
+            }
+            return true; // Oleada completada con éxito
+        };
+
+        // --- Ejecución de las Oleadas según tus especificaciones ---
+        let canContinue = true;
+        console.log("--- OLEADA 1: Infantería (Anillo Exterior, coste 2) ---");
+        canContinue = await executeWave('Infantería Ligera', 2, 18);
+        canContinue = true;
+        if (canContinue) {
+            console.log("--- OLEADA 2: Infantería (Anillo Interior, coste 1) ---");
+            // Contar unidades de infantería actuales para saber cuántas faltan
+            const infantryCount = units.filter(u=>u.player === playerNumber && u.regiments.some(r => r.type === 'Infantería Ligera')).length;
+            canContinue = await executeWave('Infantería Ligera', 1, 24 - infantryCount);
+        }
+        canContinue = true;
+        if (canContinue) {
+            console.log("--- OLEADA 3: Caballería de Salto ---");
+            const cavalryMove = REGIMENT_TYPES['Caballería Ligera'].movement;
+            canContinue = await executeWave('Caballería Ligera', REGIMENT_TYPES['Caballería Ligera'].movement, 6);
+        }
+
+        console.log(`[IA STRATEGY] Gran Apertura finalizada.`);
+    },
+    
+    _findAllPathsWithCost: function(startCoords, maxCost, unitType, playerNumber) {
+        const unitForPathing = {
+            player: playerNumber,
+            regiments: [{ type: unitType, ...REGIMENT_TYPES[unitType] }]
+        };
+        const hasJumpAbility = REGIMENT_TYPES[unitType]?.abilities?.includes("Jump");
+
+        let validPaths = [];
+        let queue = [{ r: startCoords.r, c: startCoords.c, path: [startCoords], cost: 0 }];
+        let visited = new Map();
+        visited.set(`${startCoords.r},${startCoords.c}`, 0);
+
+        while (queue.length > 0) {
+            let current = queue.shift();
+            
+            if (current.cost >= maxCost) continue;
+
+            for (const neighbor of getHexNeighbors(current.r, current.c)) {
+                const key = `${neighbor.r},${neighbor.c}`;
+                const hex = board[neighbor.r]?.[neighbor.c];
+                if (!hex || TERRAIN_TYPES[hex.terrain].isImpassableForLand) continue;
+                
+                const moveCost = TERRAIN_TYPES[hex.terrain]?.movementCostMultiplier || 1;
+                const newCost = current.cost + moveCost;
+                
+                if (newCost > maxCost || (visited.has(key) && visited.get(key) <= newCost)) continue;
+                
+                const unitOnNeighbor = hex.unit;
+                let canPassThrough = false;
+                if (!unitOnNeighbor) { canPassThrough = true; }
+                else if (unitOnNeighbor.player === playerNumber && hasJumpAbility) { canPassThrough = true; }
+
+                if (canPassThrough) {
+                    visited.set(key, newCost);
+                    let newPath = [...current.path, neighbor];
+                    // Solo nos interesan los destinos finales
+                    if (newCost <= maxCost && !unitOnNeighbor) {
+                        validPaths.push(newPath);
+                    }
+                    queue.push({ ...neighbor, path: newPath, cost: newCost });
+                }
+            }
+        }
+        // Devolvemos solo los caminos que terminan exactamente en el coste de movimiento o menos
+        return validPaths.filter(path => {
+            let totalCost = 0;
+            for(let i=0; i<path.length-1; i++){
+                totalCost += TERRAIN_TYPES[board[path[i+1].r][path[i+1].c].terrain]?.movementCostMultiplier || 1;
+            }
+            return totalCost <= maxCost;
+        });
+    },    
+
+    _moveUnitOutward: async function(unit, distance) {
+        const capital = gameState.cities.find(c => c.isCapital && c.owner === unit.player);
+        if (!capital) return;
+        
+        const potentialTargets = this.findBestStrategicObjective({ ...unit, r: capital.r, c: capital.c });
+        if (potentialTargets.length === 0) return;
+        
+        const targetHex = potentialTargets[0];
+        const path = this.findPathToTarget(unit, targetHex.r, targetHex.c);
+
+        if (path && path.length > 1) {
+            const targetIndex = Math.min(path.length - 1, distance);
+            const moveHex = path[targetIndex];
+            if(!getUnitOnHex(moveHex.r, moveHex.c)) {
+                console.log(`%c   [LOG] PASO 2: Moviendo ${unit.name} a (${moveHex.r}, ${moveHex.c}).`, 'color: cyan;');
+                await _executeMoveUnit(unit, moveHex.r, moveHex.c);
+            } else {
+                console.log(`%c   [LOG] PASO 2 FALLIDO: El destino de ${unit.name} en (${moveHex.r}, ${moveHex.c}) está ocupado.`, 'color: orange;');
             }
         } else {
-             console.log("   - Frentes estables. No se necesitan refuerzos estratégicos.");
+            console.warn(`   [LOG] PASO 2 FALLIDO: No se encontró ruta para ${unit.name}`);
+        }
+    },
+
+    _executeNormalTurn: async function(playerNumber) {
+        this.turn_targets.clear();
+        this.assessThreatLevel(playerNumber);
+        this.manageEmpire(playerNumber);
+        const activeAiUnits = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
+        activeAiUnits.sort((a, b) => (b.currentMovement || b.movement) - (a.currentMovement || a.movement));
+        for (const unit of activeAiUnits) {
+            const unitInMemory = units.find(u => u.id === unit.id);
+            if (unitInMemory?.currentHealth > 0 && !unitInMemory.hasMoved && !unitInMemory.hasAttacked) {
+                await this.decideAndExecuteUnitAction(unitInMemory);
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+        }
+    },
+    
+    decideAndExecuteUnitAction: async function(unit) {
+        console.groupCollapsed(`Decidiendo para ${unit.name} (${unit.regiments.length} regs)`);
+        try {
+            if (this.codeRed_rallyPoint && unit.id !== this.codeRed_rallyPoint.anchorId) {
+                await this.moveToRallyPoint(unit); return;
+            }
+            
+            if (unit.regiments.length < 5 && await this.findAndExecuteMerge_Proactive(unit)) { return; }
+            
+            const enemyPlayer = unit.player === 1 ? 2 : 1;
+            const enemies = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
+
+            if (enemies.length > 0) {
+                await this._executeCombatLogic(unit, enemies);
+            } else {
+                await this._executeExpansionLogic(unit);
+            }
+        } catch(e) { console.error(`Error procesando ${unit.name}:`, e); } 
+        finally { console.groupEnd(); }
+    },
+
+    _executeCombatLogic: async function(unit, enemies) {
+        const healthPercentage = unit.currentHealth / unit.maxHealth;
+        if (healthPercentage < 0.35) {
+            await this.executeRetreat(unit, enemies); return;
+        }
+        const bestAttack = this.findBestOverallAttack(unit, enemies);
+        if (!bestAttack) {
+            await this._executeExpansionLogic(unit); return;
+        }
+        if (bestAttack.isFavorable) {
+            await this._executeMoveAndAttack(unit, bestAttack.moveHex, bestAttack.target);
+        } else {
+            const merged = await this.findAndExecuteMerge_Reactive(unit, bestAttack.target);
+            if (merged) {
+                const unitAfterMerge = units.find(u => u.id === unit.id || u.id === merged.allyId);
+                if (unitAfterMerge) await this._executeMoveAndAttack(unitAfterMerge, null, bestAttack.target);
+            } else {
+                if (bestAttack.isSuicidal) { await this.executeRetreat(unit, enemies); } 
+                else { await this._executeMoveAndAttack(unit, bestAttack.moveHex, bestAttack.target); }
+            }
+        }
+    },
+
+    _executeRangedTactic: async function(unit, enemies) {
+        const reachableHexes = this.getReachableHexes(unit);
+        reachableHexes.push({r: unit.r, c: unit.c, cost: 0});
+        let safeAttacks = []; let calculatedRiskAttacks = [];
+
+        for (const movePos of reachableHexes) {
+            for (const enemy of enemies) {
+                if (isValidAttack({ ...unit, r: movePos.r, c: movePos.c }, enemy)) {
+                    const isSafe = hexDistance(movePos.r, movePos.c, enemy.r, enemy.c) > enemy.movement;
+                    const isDefensivePos = ['forest', 'hills'].includes(board[movePos.r]?.[movePos.c]?.terrain);
+                    if (isSafe) { safeAttacks.push({ moveHex: movePos, target: enemy }); } 
+                    else if (isDefensivePos) { calculatedRiskAttacks.push({ moveHex: movePos, target: enemy });}
+                }
+            }
+        }
+        if (safeAttacks.length > 0) {
+            await this._executeMoveAndAttack(unit, safeAttacks[0].moveHex, safeAttacks[0].target); return true;
+        }
+        if (calculatedRiskAttacks.length > 0) {
+            await this._executeMoveAndAttack(unit, calculatedRiskAttacks[0].moveHex, calculatedRiskAttacks[0].target); return true;
+        }
+        return false;
+    },
+
+    _executeExpansionLogic: async function(unit) {
+        if (await this.executeGeneralMovement(unit)) {
+            return;
+        }
+        console.log(`-> ${unit.name} no encontró movimiento de expansión viable. Esperando.`);
+    },
+
+    handleHordeProduction: function(playerNumber) {
+        if (this.ownedHexPercentage(playerNumber) < 0.5 || units.filter(u => u.player === playerNumber).length < 15) {
+            console.log(`%c-> MODO HORDA. Analizando oleadas de producción.`, "color: #ff4500;");
+
+            const unitsOfType = (type) => units.filter(u => u.player === playerNumber && u.regiments.some(r => r.type === type)).length;
+            const cavalryCount = unitsOfType('Caballería Ligera');
+            
+            let unitsCreatedThisTurn = 0;
+            const PRODUCTION_LIMIT_PER_TURN = 18; // Producirá hasta 6 unidades en total en este turno de horda.
+
+            // Bucle para intentar producir varias unidades en el mismo turno
+            while (unitsCreatedThisTurn < PRODUCTION_LIMIT_PER_TURN) {
+                
+                // --- NUEVA LÓGICA DE DECISIÓN DE OLEADA ---
+                let typeToProduce = null;
+
+                // Prioridad 1: ¿Necesito Caballería?
+                if (cavalryCount + unitsCreatedThisTurn < 6) {
+                    typeToProduce = 'Caballería Ligera';
+                } else {
+                    // Si la cuota de caballería está llena, PASAMOS a infantería.
+                    typeToProduce = 'Infantería Ligera';
+                }
+                // --- FIN NUEVA LÓGICA ---
+
+                // Intentamos producir la unidad decidida
+                const success = this.produceUnit(playerNumber, [typeToProduce], 'explorer', 'Incursor');
+                
+                if (success) {
+                    unitsCreatedThisTurn++;
+                } else {
+                    // Si produceUnit falla (por espacio O recursos), terminamos la producción de este turno.
+                    console.log("-> Fin de producción para este turno (fallo al crear).");
+                    break;
+                }
+            }
+            
+            if (unitsCreatedThisTurn > 0) {
+                console.log(`%c   -> ${unitsCreatedThisTurn} unidades de incursión creadas este turno.`, "color: #ff4500;");
+            }
+        }
+    },
+    
+    findPathToTarget: function(unit, targetR, targetC) {
+        console.log(`[findPathToTarget DEBUG] Buscando ruta para ${unit.regiments[0].type} desde (${unit.r},${unit.c}) hasta (${targetR},${targetC})`);
+        
+        if (!unit || typeof targetR === 'undefined' || typeof targetC === 'undefined') return null;
+        if (unit.r === targetR && unit.c === targetC) return [{ r: unit.r, c: unit.c }];
+        const hasJumpAbility = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.abilities?.includes("Jump"));
+
+        const startNode = { r: unit.r, c: unit.c, path: [{ r: unit.r, c: unit.c }] };
+        let queue = [startNode];
+        let visited = new Set([`${unit.r},${unit.c}`]);
+
+        while (queue.length > 0) {
+            let current = queue.shift();
+
+            for (const neighbor of getHexNeighbors(current.r, current.c)) {
+                const key = `${neighbor.r},${neighbor.c}`;
+                if (visited.has(key)) continue;
+
+                const hex = board[neighbor.r]?.[neighbor.c];
+                if (!hex) continue; // Si el hex no existe, ignorar
+                if (TERRAIN_TYPES[hex.terrain].isImpassableForLand) {
+                    // IGNORAR - Es intransitable
+                    continue; 
+                }
+
+                const unitOnNeighbor = hex.unit;
+                let canPassThrough = false;
+                
+                // ================== LOG DE DIAGNÓSTICO ==================
+                let reason = `Evaluando vecino (${neighbor.r},${neighbor.c}): `;
+                // =======================================================
+
+                if (!unitOnNeighbor) {
+                    canPassThrough = true;
+                    reason += "Está vacío. SE PUEDE PASAR.";
+                } 
+                else if (unitOnNeighbor.player === unit.player && hasJumpAbility) {
+                    canPassThrough = true;
+                    reason += `Ocupado por aliado, pero ${unit.regiments[0].type} tiene 'Jump'. SE PUEDE PASAR.`;
+                } else {
+                    reason += `Ocupado por ${unitOnNeighbor.name}. NO SE PUEDE PASAR.`;
+                }
+
+                // Un movimiento NUNCA puede terminar en una casilla ocupada.
+                if (neighbor.r === targetR && neighbor.c === targetC && unitOnNeighbor) {
+                    canPassThrough = false; 
+                    reason += ` (Es el destino final, NO SE PUEDE TERMINAR AQUÍ).`;
+                }
+
+                console.log(reason); // <--- LA LÍNEA MÁS IMPORTANTE
+                
+                if (canPassThrough) {
+                    visited.add(key);
+                    let newPath = [...current.path, neighbor];
+                    if (neighbor.r === targetR && neighbor.c === targetC) {
+                        console.log(`[findPathToTarget DEBUG] ¡RUTA ENCONTRADA! Longitud: ${newPath.length}`);
+                        return newPath;
+                    }
+                    queue.push({ ...neighbor, path: newPath });
+                }
+            }
+        }
+
+        console.log(`[findPathToTarget DEBUG] RUTA NO ENCONTRADA.`);
+        return null;
+    },
+
+    planUnitAction: async function(unit) {
+        let plan = { unit: unit, type: 'wait', target_hex: null, path: null, distance_to_target: 0 };
+
+        // Lógica de "Código Rojo" sigue teniendo prioridad máxima.
+        if (this.codeRed_rallyPoint && unit.id !== this.codeRed_rallyPoint.anchorId) {
+            const path_to_rally = this.findPathToTarget(unit, this.codeRed_rallyPoint.r, this.codeRed_rallyPoint.c);
+            if(path_to_rally) {
+                plan.type = 'rally';
+                plan.target_hex = this.codeRed_rallyPoint;
+                plan.path = path_to_rally;
+                plan.distance_to_target = path_to_rally.length;
+                return plan;
+            }
+        }
+        
+        const isHordeMode = this.ownedHexPercentage(unit.player) < 0.4;
+        // La fusión solo ocurre si no estamos en modo horda de expansión masiva
+        if (!isHordeMode && unit.regiments.length < 5) {
+             const mergeTarget = this.findBestMergeTarget(unit);
+             if (mergeTarget) {
+                 const path_to_merge = this.findPathToTarget(unit, mergeTarget.r, mergeTarget.c);
+                 if (path_to_merge) {
+                     plan.type = 'merge';
+                     plan.target_hex = mergeTarget;
+                     plan.path = path_to_merge;
+                     plan.distance_to_target = path_to_merge.length;
+                     return plan;
+                 }
+             }
+        }
+        
+        // Lógica de expansión: siempre se calcula
+        const potentialTargets = this.findBestStrategicObjective(unit, 'expansion');
+        const availableTargets = potentialTargets.filter(hex => !this.turn_targets.has(`${hex.r},${hex.c}`));
+        if (availableTargets.length > 0) {
+            const targetHex = availableTargets[0];
+            const pathToTarget = this.findPathToTarget(unit, targetHex.r, targetHex.c);
+            if (pathToTarget) {
+                plan.type = 'expand';
+                plan.target_hex = targetHex;
+                plan.path = pathToTarget;
+                plan.distance_to_target = pathToTarget.length;
+                // No retornar aquí para que pueda ser sobreescrito por un plan de ataque si existe.
+            }
+        }
+
+        // Lógica de combate (sobrescribe el plan de expansión si es posible)
+        const enemyPlayer = unit.player === 1 ? 2 : 1;
+        const enemies = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
+        if(enemies.length > 0) {
+            const bestAttack = this.findBestOverallAttack(unit, enemies);
+            if (bestAttack) {
+                plan.type = 'attack';
+                plan.details = bestAttack;
+                plan.target_hex = bestAttack.target; // El objetivo es la unidad enemiga
+                plan.path = this.findPathToTarget(unit, bestAttack.moveHex ? bestAttack.moveHex.r : unit.r, bestAttack.moveHex ? bestAttack.moveHex.c : unit.c);
+                plan.distance_to_target = plan.path ? plan.path.length : 0;
+            }
+        }
+
+        return plan;
+    },
+
+    executePlan: async function(plan) {
+        switch(plan.type) {
+            case 'rally':
+            case 'merge':
+                if (plan.path && (plan.path.length - 1) <= plan.unit.currentMovement) {
+                    await _executeMoveUnit(plan.unit, plan.target_hex.r, plan.target_hex.c, true);
+                    const remainingAlly = units.find(u => u.id === plan.target_hex.id);
+                    const movedUnit = units.find(u => u.id === plan.unit.id);
+                    if (remainingAlly && movedUnit) mergeUnits(movedUnit, remainingAlly);
+                } else if(plan.path) {
+                    const moveHex = plan.path[Math.min(plan.path.length - 1, plan.unit.currentMovement || plan.unit.movement)];
+                    await _executeMoveUnit(plan.unit, moveHex.r, moveHex.c);
+                }
+                break;
+            
+            case 'expand':
+                if (plan.path && plan.path.length > 1) {
+                    const moveHex = plan.path[Math.min(plan.path.length - 1, plan.unit.currentMovement || plan.unit.movement)];
+                    this.turn_targets.add(`${plan.target_hex.r},${plan.target_hex.c}`);
+                    await _executeMoveUnit(plan.unit, moveHex.r, moveHex.c);
+                }
+                break;
+                
+            case 'attack':
+                const bestAttack = plan.details;
+                if (bestAttack.isFavorable) {
+                    await this._executeMoveAndAttack(plan.unit, bestAttack.moveHex, bestAttack.target);
+                } else {
+                    const merged = await this.findAndExecuteMerge_Reactive(plan.unit, bestAttack.target);
+                    if(merged) {
+                        const unitAfterMerge = units.find(u => u.id === plan.unit.id || u.id === merged.allyId);
+                        if (unitAfterMerge) await this._executeMoveAndAttack(unitAfterMerge, null, bestAttack.target);
+                    } else {
+                        if (bestAttack.isSuicidal) await this.executeRetreat(plan.unit);
+                        else await this._executeMoveAndAttack(plan.unit, bestAttack.moveHex, bestAttack.target);
+                    }
+                }
+                break;
+                
+            case 'wait':
+                console.log(`-> ${plan.unit.name} no encontró acciones y espera.`);
+                break;
         }
     },
     
     handleExpansionProduction: function(playerNumber) {
-        console.log("-> 2. Evaluando producción de expansión...");
-        const ownedHexes = board.flat().filter(h => h && h.owner === playerNumber).length;
-        const totalHexes = board.flat().length;
-
-        if ((ownedHexes / totalHexes) < 0.7) {
-            console.log("   - Expansión necesaria. Iniciando enjambre...");
+        if(this.ownedHexPercentage(playerNumber) < 0.40) { // Modo "Gran Horda"
+            console.log(`%c-> MODO GRAN HORDA activado (Control del mapa < 40%).`, "color: #ff4500; font-weight: bold;");
             
-            const ciudadesPropias = gameState.cities.filter(c => c.owner === playerNumber);
-            let totalCreados = 0;
+            const cavalryCount = units.filter(u => u.player === playerNumber && u.regiments.some(r => r.type === 'Caballería Ligera')).length;
+            const infantryCount = units.filter(u => u.player === playerNumber && u.regiments.some(r => r.type === 'Infantería Ligera')).length;
 
-            for (const ciudad of ciudadesPropias) {
-                console.log(`   - Produciendo enjambre desde la ciudad en (${ciudad.r}, ${ciudad.c})...`);
-                let creadosEnCiudad = 0;
-                // Cada ciudad puede producir hasta 5 divisiones (si hay espacio y dinero)
-                for (let i = 0; i < 5; i++) {
-                    const spot = getHexNeighbors(ciudad.r, ciudad.c).find(n => board[n.r]?.[n.c] && !board[n.r][n.c].unit && board[n.r][n.c].terrain !== 'water');
-                    if (spot) {
-                        if (this.produceUnit(playerNumber, ['Infantería Ligera'], 'explorer', `Explorador-${ciudad.r}${ciudad.c}`, spot)) {
-                            creadosEnCiudad++;
-                        } else {
-                            // Si falla (probablemente por falta de oro), dejamos de producir en esta ciudad
-                            console.log(`   - Fondos insuficientes. Se detiene producción en esta ciudad.`);
-                            break; 
-                        }
-                    } else {
-                        // Si no hay más espacio alrededor de la ciudad
-                        console.log(`   - No hay más espacio adyacente a la ciudad en (${ciudad.r},${ciudad.c}).`);
-                        break;
-                    }
-                }
-                 if(creadosEnCiudad > 0) console.log(`   -> ${creadosEnCiudad} unidades de expansión creadas desde esta ciudad.`);
-                 totalCreados += creadosEnCiudad;
+            let unitsToProduce = 0;
+            let typeToProduce = '';
+
+            // Oleada 1: Caballería
+            if (cavalryCount < 6) {
+                unitsToProduce = 6 - cavalryCount;
+                typeToProduce = 'Caballería Ligera';
+                console.log(`   -> Oleada 1: Produciendo hasta ${unitsToProduce} de Caballería.`);
+            } 
+            // Oleada 2 y 3: Infantería
+            else if (cavalryCount + infantryCount < 18) {
+                unitsToProduce = 18 - (cavalryCount + infantryCount);
+                typeToProduce = 'Infantería Ligera';
+                 console.log(`   -> Oleada 2: Produciendo hasta ${unitsToProduce} de Infantería.`);
             }
-            if (totalCreados > 0) console.log(`   - Total de unidades de expansión creadas este turno: ${totalCreados}`);
 
-        } else {
-             console.log("   - Expansión suficiente.");
+            for (let i = 0; i < unitsToProduce; i++) {
+                if(!this.produceUnit(playerNumber, [typeToProduce], 'explorer', 'Incursor')) {
+                    console.log("-> Fin de la producción en oleada (sin recursos/espacio).");
+                    break;
+                }
+            }
+
+        } else { // Producción normal post-expansión
+             const playerUnitsCount = units.filter(u => u.player === playerNumber).length;
+             if (playerUnitsCount < 15) this.produceUnit(playerNumber, ['Infantería Ligera'], 'explorer', `Explorador`);
+        }
+    },
+
+    assessThreatLevel: function(playerNumber) {
+        const enemyPlayer = playerNumber === 1 ? 2 : 1;
+        const aiUnits = units.filter(u => u.player === playerNumber);
+        const enemyUnits = units.filter(u => u.player === enemyPlayer);
+        if(enemyUnits.length === 0 || aiUnits.length === 0) return;
+        
+        const biggestEnemyFormation = enemyUnits.reduce((max, unit) => (unit.regiments.length > max ? unit.regiments.length : max), 0);
+        
+        if (biggestEnemyFormation > 10) { // Si hay una unidad enemiga con más de 10 regimientos
+            // Designar la unidad IA más fuerte como el núcleo del nuevo "super ejército"
+            aiUnits.sort((a,b) => b.regiments.length - a.regiments.length);
+            const anchorUnit = aiUnits[0];
+            this.codeRed_rallyPoint = { r: anchorUnit.r, c: anchorUnit.c, anchorId: anchorUnit.id };
+            console.log(`%c[IA] CÓDIGO ROJO! Amenaza masiva detectada (${biggestEnemyFormation} reg.). Estableciendo punto de reunión en la unidad ${anchorUnit.name} en (${anchorUnit.r},${anchorUnit.c})`, "color: red; font-weight: bold;");
         }
     },
     
-    handleConstruction: function(playerNumber) {
-        console.log("-> 3. Evaluando construcción...");
-        const playerRes = gameState.playerResources[playerNumber];
+    findBestMergeTarget: function(unit) {
+        const potentialAllies = units.filter(u => u.player === unit.player && u.id !== unit.id && !u.hasMoved && (unit.regiments.length + u.regiments.length) <= MAX_REGIMENTS_PER_DIVISION);
+        if (potentialAllies.length === 0) return null;
 
-        // LÓGICA 1: FORTALEZAS (Planificación y Ejecución)
-        const strategicHex = this.findBestFortressLocation(playerNumber);
-        if (strategicHex) {
-            console.log(`   - Punto estratégico para fortaleza identificado en (${strategicHex.r}, ${strategicHex.c}).`);
-            
-            // Si el hexágono YA es nuestro
-            if (strategicHex.owner === playerNumber) {
-                // Y está vacío o tiene una estructura mejorable (Camino)
-                if (!strategicHex.structure || strategicHex.structure === 'Camino') {
-                    // La siguiente estructura a construir sería 'Fortaleza'
-                    const structureToBuild = 'Fortaleza';
-                    const structureInfo = STRUCTURE_TYPES[structureToBuild];
-
-                    // Comprobación de tecnología y recursos
-                    if (playerRes.researchedTechnologies.includes(structureInfo.requiredTech)) {
-                        let canAfford = true;
-                        for (const res in structureInfo.cost) {
-                            if ((playerRes[res] || 0) < structureInfo.cost[res]) canAfford = false;
-                        }
-                        if (canAfford) {
-                             console.log(`%c   -> ¡Construyendo ${structureToBuild} en punto estratégico!`, "color: #ff8c00");
-                             handleConfirmBuildStructure({
-                                 playerId: playerNumber,
-                                 r: strategicHex.r,
-                                 c: strategicHex.c,
-                                 structureType: structureToBuild,
-                                 builderUnitId: null // La IA construye sin unidad de colonos
-                             });
-                        }
-                    }
-                }
-            } else {
-                // Si el hexágono NO es nuestro, lo marcamos como objetivo prioritario.
-                console.log(`   -> Hexágono hostil. Creando misión de captura prioritaria.`);
-                if (!gameState.ai_construction_goals) gameState.ai_construction_goals = [];
-                // Evita duplicados
-                if (!gameState.ai_construction_goals.some(g => g.r === strategicHex.r && g.c === strategicHex.c)) {
-                    gameState.ai_construction_goals.push({ r: strategicHex.r, c: strategicHex.c });
-                }
-            }
-        } else {
-             console.log("   - No se encontraron puntos estratégicos para construir fortalezas este turno.");
-        }
-
-        // LÓGICA 2: CAMINOS (Ejecución) - Aún no implementada, para el siguiente paso.
-    },
-
-    findBestFortressLocation: function(playerNumber){
-        const enemyPlayer = playerNumber === 1 ? 2 : 1;
-        let candidates = [];
-        board.flat().forEach(hex => {
-            // Un buen punto es un cuello de botella: Colina/Bosque adyacente a Llanura
-            if((hex.terrain === 'hills' || hex.terrain === 'forest') && getHexNeighbors(hex.r, hex.c).some(n => board[n.r]?.[n.c]?.terrain === 'plains')) {
-                let score = 50;
-                // Más puntos si está cerca de la frontera
-                score += (15 - Math.abs(hex.r - Math.floor(board.length / 2)));
-                // Más puntos si no es nuestro (objetivo de conquista)
-                if(hex.owner !== playerNumber) score += 20;
-                // Menos puntos si está muy lejos
-                const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
-                if(aiCapital) score -= hexDistance(hex.r, hex.c, aiCapital.r, aiCapital.c);
-                candidates.push({hex, score});
-            }
+        potentialAllies.sort((a, b) => {
+            const strengthDiff = b.regiments.length - a.regiments.length;
+            if (strengthDiff !== 0) return strengthDiff;
+            return hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c);
         });
         
-        if (candidates.length === 0) return null;
-        
-        candidates.sort((a,b) => b.score - a.score);
-        return candidates[0].hex;
+        return potentialAllies[0];
     },
 
-    handleResearch: function(playerNumber){
-        const playerState = gameState.playerResources[playerNumber];
-        if(!playerState) return;
-        const availableTechs = getAvailableTechnologies(playerState.researchedTechnologies || []);
-        if (availableTechs.length > 0) {
-            const chosenTech = availableTechs.find(tech => playerState.researchPoints >= (tech.cost?.researchPoints || 0));
-            if (chosenTech) {
-                console.log(`-> 4. Investigando: ${chosenTech.name}`);
-                attemptToResearch(chosenTech.id);
+    _findBestDefensiveRetreatHex: function(unit, enemies) {
+        const reachableHexes = this.getReachableHexes(unit);
+        let bestHex = null;
+        let bestScore = -Infinity;
+
+        for (const hex of reachableHexes) {
+            let score = 0;
+            const hexData = board[hex.r][hex.c];
+            if (!hexData) continue;
+            
+            // Puntos por terreno defensivo
+            if (hexData.terrain === 'forest') score += 20;
+            if (hexData.terrain === 'hills') score += 15;
+            
+            // Puntos por alejarse de los enemigos
+            const closestEnemyDist = enemies.reduce((min, e) => Math.min(min, hexDistance(hex.r, hex.c, e.r, e.c)), Infinity);
+            if(closestEnemyDist !== Infinity) score += closestEnemyDist * 5;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestHex = hex;
             }
         }
+        return bestHex;
     },
 
-    handleReinforcements: function(playerNumber) {
-        console.log("-> 1. Evaluando refuerzos...");
-        const damagedUnitsInBase = units.filter(u => 
-            u.player === playerNumber && 
-            u.currentHealth < u.maxHealth && 
-            isHexSuppliedForReinforce(u.r, u.c, playerNumber)
+    executeDefenderMovement: async function(unit) {
+        let targetCoords=null;
+        for(const zona in gameState.ai_reaction_forces){
+            if(gameState.ai_reaction_forces[zona].unitId===unit.id){
+                targetCoords=gameState.ai_reaction_forces[zona].targetCoords; break;
+            }
+        }
+        if(targetCoords){
+            const path=this.findPathToTarget(unit,targetCoords.r,targetCoords.c);
+            if(path&&path.length>1){
+                const moveHex=path[Math.min(path.length-1,unit.currentMovement||unit.movement)];
+                await _executeMoveUnit(unit,moveHex.r,moveHex.c); return true;
+            }
+        }
+        this.unitRoles.set(unit.id,'explorer');
+        return await this.executeGeneralMovement(unit);
+    },
+    
+    executeGeneralMovement: async function(unit) {
+        const potentialTargets = this.findBestStrategicObjective(unit, 'expansion');
+        const availableTargets = potentialTargets.filter(hex => !this.turn_targets.has(`${hex.r},${hex.c}`));
+        if (availableTargets.length === 0) return false;
+        const targetHex = availableTargets[0];
+        const path = this.findPathToTarget(unit, targetHex.r, targetHex.c);
+        if (path && path.length > 1) {
+            const moveHex = path[Math.min(path.length-1,unit.currentMovement||unit.movement)];
+            this.turn_targets.add(`${targetHex.r},${targetHex.c}`);
+            await _executeMoveUnit(unit,moveHex.r,moveHex.c); return true;
+        }
+        return false;
+    },
+
+    ownedHexPercentage: function(playerNumber) {
+        const allHexes = board.flat().filter(h => h);
+        if(allHexes.length === 0) return 0;
+        const ownedHexes = allHexes.filter(h => h.owner === playerNumber).length;
+        return ownedHexes / allHexes.length;    
+    },
+
+    findBestStrategicObjective: function(unit, objectiveType = 'expansion') {
+        const objectives = [];
+        const playerNumber = unit ? unit.player : gameState.currentPlayer;
+        const enemyPlayer = playerNumber === 1 ? 2 : 1;
+        const allEnemyUnits = units.filter(u => u.player === enemyPlayer);
+        const allAllyUnits = units.filter(u => u.player === playerNumber);
+        const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
+        
+        // Obtener el rol de la unidad si existe
+        const role = unit ? (this.unitRoles.get(unit.id) || 'explorer') : null;
+
+        board.flat().forEach(hex => {
+            if(!hex) return;
+            let score = 0;
+            
+            // --- LÓGICA ESTRATÉGICA PARA UNIDADES DE EXPANSIÓN (EXPLORERS) ---
+            if (role === 'explorer') {
+                // Solo considerar casillas neutrales y transitables
+                if (!hex.unit && hex.owner === null && !TERRAIN_TYPES[hex.terrain].isImpassableForLand) {
+                    // Puntuación Base por ser un objetivo válido
+                    score = 100;
+                    
+                    // 1. BONUS POR PROFUNDIDAD: Más puntos si está lejos de nuestra propia capital.
+                    if (aiCapital) {
+                        score += hexDistance(aiCapital.r, aiCapital.c, hex.r, hex.c) * 10;
+                    }
+
+                    // 2. BONUS POR SEPARACIÓN: Más puntos si está lejos de otros aliados.
+                    let closestAllyDist = Infinity;
+                    allAllyUnits.forEach(ally => {
+                        if (ally.id !== unit.id) {
+                            closestAllyDist = Math.min(closestAllyDist, hexDistance(hex.r, hex.c, ally.r, ally.c));
+                        }
+                    });
+                    if (closestAllyDist !== Infinity) {
+                        score += closestAllyDist * 5;
+                    }
+
+                    // 3. BONUS POR RECURSOS (como desempate)
+                    if (hex.resourceNode) score += 30;
+                    
+                    // 4. PENALIZACIÓN POR DISTANCIA (para que no intente cruzar todo el mapa)
+                    score -= hexDistance(unit.r, unit.c, hex.r, hex.c) * 5;
+                }
+            }
+            // --- LÓGICA GENERAL PARA OTRAS UNIDADES O TIPOS DE OBJETIVO ---
+            else {
+                // ... (La lógica anterior para combate, fortalezas, etc., se mantiene)
+                if (objectiveType === 'fortress_spot') { /*...*/ } 
+                else if (objectiveType === 'expansion' && unit && !hex.unit && hex.owner !== unit.player && !TERRAIN_TYPES[hex.terrain].isImpassableForLand) {
+                    const closestEnemyDist = allEnemyUnits.reduce((min, e) => Math.min(min, hexDistance(hex.r, hex.c, e.r, e.c)), Infinity);
+                    if (closestEnemyDist !== Infinity) score += 50 - closestEnemyDist * 5;
+                    if (hex.resourceNode) score += 50;
+                    if (hex.isCity) score += 200;
+                    if (unit) score -= hexDistance(unit.r, unit.c, hex.r, hex.c);
+                }
+            }
+
+            if(score > 0) objectives.push({ hex, score });
+        }
         );
         
-        if(damagedUnitsInBase.length > 0) {
-            console.log(`   - Unidades dañadas en base encontradas: ${damagedUnitsInBase.length}`);
-            // Por ahora, reforzamos solo la más dañada para no gastar todo el oro.
-            const mostDamagedUnit = damagedUnitsInBase.sort((a,b) => (a.currentHealth/a.maxHealth) - (b.currentHealth/b.maxHealth))[0];
-            const mostDamagedRegiment = mostDamagedUnit.regiments.sort((a,b) => a.health - b.health)[0];
-            
-            // La función 'handleReinforceRegiment' necesita confirmación, la IA debe "aceptar"
-            const originalConfirm = window.confirm;
-            window.confirm = () => true; // Simula que la IA siempre dice "sí"
-            console.log(`   - Intentando reforzar regimiento en ${mostDamagedUnit.name}`);
-            handleReinforceRegiment(mostDamagedUnit, mostDamagedRegiment);
-            window.confirm = originalConfirm; // Restaura la función original
-        } else {
-             console.log("   - No hay unidades que necesiten refuerzos en una base.");
-        }
+        objectives.sort((a, b) => b.score - a.score); 
+        return objectives.map(o => o.hex);
     },
-
-    analyzeFrontera: function(playerNumber) {
-        const enemyPlayer = playerNumber === 1 ? 2 : 1;
-        const cols = board[0].length;
-        const
- 
-        zonaWidth = Math.floor(cols / 3);
-
-        const zonas = {
-            'Flanco-Izquierdo': { minCol: 0, maxCol: zonaWidth, aiPower: 0, enemyPower: 0 },
-            'Centro': { minCol: zonaWidth + 1, maxCol: zonaWidth * 2, aiPower: 0, enemyPower: 0 },
-            'Flanco-Derecho': { minCol: (zonaWidth * 2) + 1, maxCol: cols, aiPower: 0, enemyPower: 0 }
-        };
-
-        const getZona = (c) => {
-            if (c <= zonas['Flanco-Izquierdo'].maxCol) return 'Flanco-Izquierdo';
-            if (c <= zonas['Centro'].maxCol) return 'Centro';
-            return 'Flanco-Derecho';
-        }
-
-        units.forEach(unit => {
-            if (unit.currentHealth > 0) {
-                const zona = getZona(unit.c);
-                if (unit.player === playerNumber) {
-                    zonas[zona].aiPower += unit.regiments.length;
-                } else if (unit.player === enemyPlayer) {
-                    zonas[zona].enemyPower += unit.regiments.length;
-                }
-            }
-        });
-        
-        console.log(`   - Análisis de Zonas: Izquierdo(IA:${zonas['Flanco-Izquierdo'].aiPower} vs Hum:${zonas['Flanco-Izquierdo'].enemyPower}) / Centro(IA:${zonas['Centro'].aiPower} vs Hum:${zonas['Centro'].enemyPower}) / Derecho(IA:${zonas['Flanco-Derecho'].aiPower} vs Hum:${zonas['Flanco-Derecho'].enemyPower})`);
-        return zonas;
-    },
-
+    
     produceUnit: function(playerNumber, compositionTypes, role, name, specificSpot = null) {
         const playerRes = gameState.playerResources[playerNumber];
         const fullRegiments = compositionTypes.map(type => ({...REGIMENT_TYPES[type], type}));
-        const totalCost = fullRegiments.reduce((sum, reg) => sum + (reg.cost?.oro || 0), 0);
+        const totalCost={oro:0,puntosReclutamiento:0}; 
+        fullRegiments.forEach(reg=>{totalCost.oro+=reg.cost.oro||0;totalCost.puntosReclutamiento+=reg.cost.puntosReclutamiento||0;});
         
-        if (playerRes.oro < totalCost) {
-            return false; // Falla si no hay oro
+        if (playerRes.oro < totalCost.oro || playerRes.puntosReclutamiento < totalCost.puntosReclutamiento) {
+            console.log(`   -> DIAGNÓSTICO PRODUCCIÓN: FALLO por recursos. Necesita ${totalCost.oro} Oro/${totalCost.puntosReclutamiento} PR. Tiene ${playerRes.oro}/${playerRes.puntosReclutamiento}.`); // <--- LOG 1
+            return null;
         }
-        
-        let spot = specificSpot;
 
-        // Si no nos dieron un spot específico, buscamos uno (comportamiento anterior)
+        let spot = specificSpot; 
         if (!spot) {
-            const validHexes = gameState.cities.filter(c => c.owner === playerNumber && !getUnitOnHex(c.r, c.c));
-            if (validHexes.length === 0) return false; // Falla si no hay espacio
-            spot = validHexes[0];
+            const capital = gameState.cities.find(c=>c.isCapital&&c.owner===playerNumber);
+            if(!capital) return null;
+            spot = getHexNeighbors(capital.r,capital.c).find(n=>board[n.r]?.[n.c]&&!board[n.r][n.c].unit&&!TERRAIN_TYPES[board[n.r][n.c].terrain].isImpassableForLand);
         }
         
-        playerRes.oro -= totalCost;
-        const unitDef = { regiments: fullRegiments, cost: totalCost, role, name };
-        const newUnit = this.createUnitObject(unitDef, playerNumber, spot);
-        placeFinalizedDivision(newUnit, spot.r, spot.c);
-        this.unitRoles.set(newUnit.id, role);
-
-        return newUnit; 
-    },
-
-    // =================================================================
-    // === FASE 2: CEREBRO TÁCTICO =====================================
-    // =================================================================
-    
-    decideAndExecuteUnitAction: async function(unit) {
-        console.groupCollapsed(`Decidiendo acción para ${unit.name} en (${unit.r},${unit.c})`);
-        try {
-            // 1. Guardamos el estado inicial de la unidad.
-            const haActuadoAntes = unit.hasMoved || unit.hasAttacked;
-
-            // 2. Intentamos ejecutar la lógica compleja del cerebro táctico.
-            await this.planAndExecuteTacticalAction(unit);
-
-            // 3. Comprobamos el estado después de la ejecución.
-            const haActuadoDespues = unit.hasMoved || unit.hasAttacked;
-
-            // 4. Si la unidad sigue sin haber actuado (la lógica compleja ha fallado),
-            //    activamos el movimiento de emergencia.
-            if (!haActuadoDespues && haActuadoAntes === haActuadoDespues) {
-                console.warn(`-> [RED DE SEGURIDAD] La lógica táctica principal no produjo una acción. Activando movimiento de emergencia.`);
-                await this.executeEmergencyMovement(unit);
-            }
-
-        } catch(e) {
-            console.error(`Error procesando ${unit.name}:`, e);
-        } finally {
-            console.groupEnd();
-        }
-    },
-    
-    planAndExecuteTacticalAction: async function(unit) {
-        const enemyPlayer = unit.player === 1 ? 2 : 1;
-
-        console.log("PREGUNTA 1: ¿Existen enemigos cerca?");
-        const enemiesNearby = units.filter(u => u.player === enemyPlayer && hexDistance(u.r, u.c, unit.r, unit.c) <= unit.visionRange + (unit.currentMovement || 0));
-
-        if (enemiesNearby.length > 0) {
-            console.log("-> SÍ. Enemigos detectados.");
-            
-            console.log("  PREGUNTA 2: ¿Existen recursos cerca?");
-            const resourcesNearby = this.findNearbyObjectives(unit, 'resource');
-
-            if (resourcesNearby.length > 0) {
-                const resourceHex = resourcesNearby[0];
-                console.log(`  -> SÍ. Recurso más cercano en (${resourceHex.r},${resourceHex.c}).`);
-                
-                console.log("    PREGUNTA 3: ¿Puedo atacar y moverme al recurso?");
-                // Simplificado: Buscar un movimiento al recurso desde donde se pueda atacar.
-                const bestAttackOption = this.findBestMoveToHexAndAttack(unit, resourceHex, enemiesNearby);
-
-                if (bestAttackOption) {
-                    console.log(`    -> SÍ. Se puede atacar a ${bestAttackOption.target.name} desde (${bestAttackOption.moveHex.r},${bestAttackOption.moveHex.c}) junto al recurso.`);
-                    
-                    console.log("      PREGUNTA 4: ¿El combate es favorable (bajas <= enemigas)?");
-                    const outcome = predictCombatOutcome(bestAttackOption.unitState, bestAttackOption.target);
-                    console.log(`      -> Predicción: IA pierde ${outcome.damageToAttacker} HP vs Enemigo pierde ${outcome.damageToDefender} HP.`);
-
-                    if (outcome.damageToDefender >= outcome.damageToAttacker) {
-                        console.log("      -> SÍ. El combate es favorable.");
-                        console.log("%c        RESULTADO: Mover a recurso y atacar.", "font-weight: bold;");
-                        await moveUnit(unit, bestAttackOption.moveHex.r, bestAttackOption.moveHex.c);
-                        if (unit.currentHealth > 0 && !unit.hasAttacked) await attackUnit(unit, bestAttackOption.target);
-                        return;
-                    } else {
-                        console.log("      -> NO. El combate es desfavorable.");
-                        
-                        // Lógica de "Pregunta 5"
-                        await this.handleUnfavorableCombat(unit, bestAttackOption.target);
-                        return;
-                    }
-                } else {
-                    console.log("    -> NO. No es posible una acción combinada de mover a recurso y atacar.");
-                    // Lógica de "Pregunta 6"
-                    await this.handleSimpleMoveOrSplit(unit, enemiesNearby, resourceHex);
-                    return;
-                }
-            } else {
-                console.log("  -> NO. No hay recursos cerca.");
-                
-                console.log("    PREGUNTA 7: ¿Puedo ejecutar un ataque favorable?");
-                // La misma lógica que en P4, pero sin el requisito de moverse a un recurso
-                const bestOverallAttack = this.findBestOverallAttack(unit, enemiesNearby);
-                
-                if(bestOverallAttack) {
-                    const outcome = predictCombatOutcome(bestOverallAttack.unitState, bestOverallAttack.target);
-                    if(outcome.damageToDefender >= outcome.damageToAttacker) {
-                        console.log(`    -> SÍ. Combate favorable contra ${bestOverallAttack.target.name} detectado.`);
-                        console.log("%c      RESULTADO: Mover y atacar.", "font-weight: bold;");
-                        if(bestOverallAttack.moveHex) await moveUnit(unit, bestOverallAttack.moveHex.r, bestOverallAttack.moveHex.c);
-                        if(unit.currentHealth > 0 && !unit.hasAttacked) await attackUnit(unit, bestOverallAttack.target);
-                        return;
-                    } else {
-                        console.log(`    -> NO. Combate contra ${bestOverallAttack.target.name} es desfavorable.`);
-                        // Lógica de "Pregunta 5"
-                        await this.handleUnfavorableCombat(unit, bestOverallAttack.target);
-                        return;
-                    }
-                } else {
-                     console.log("   -> NO. No hay ataques posibles.");
-                     console.log("%c    RESULTADO: No se encontró acción de combate. La unidad se reposiciona.", "font-weight: bold;");
-                     await this.executeGeneralMovement(unit);
-                     return;
-                }
-            }
-        } else {
-            console.log("-> NO. No hay enemigos cerca.");
-            
-            console.log("  PREGUNTA 8: ¿Puedo dividir mi unidad?");
-            if (unit.regiments.length > 1) {
-                console.log("  -> SÍ.");
-                console.log("%c    RESULTADO: Dividiendo para máxima expansión.", "font-weight: bold;");
-                await this.executeExpansionSplit(unit);
-            } else {
-                console.log("  -> NO.");
-                console.log("%c    RESULTADO: Moviéndose para capturar territorio.", "font-weight: bold;");
-                await this.executeGeneralMovement(unit);
-            }
-        }
-    },
-
-    handleUnfavorableCombat: async function(unit, target) {
-        console.log("        PREGUNTA 5: ¿Existen amigos cerca para fusionar?");
-        // (Lógica de Fusión simplificada por ahora, a mejorar)
-        const canMerge = false;
-        if(canMerge){
-             console.log("        -> SÍ.");
-             console.log("%c          RESULTADO: FUSIONAR (Lógica pendiente)", "font-weight: bold;");
-        } else {
-            console.log("        -> NO.");
-            const outcome = predictCombatOutcome(unit, target);
-            console.log(`        PREGUNTA 5.B: ¿Mis bajas serán > 1.2 veces las del enemigo? (${outcome.damageToAttacker} vs ${outcome.damageToDefender})`);
-            
-            if(outcome.damageToAttacker > outcome.damageToDefender * 1.2){
-                console.log("        -> SÍ. Es una masacre.");
-                console.log("%c          RESULTADO: RETIRADA TÁCTICA a la base más cercana.", "font-weight: bold;");
-                await this.executeRetreat(unit);
-            } else {
-                console.log("        -> NO. Es un combate de desgaste, pero aceptable.");
-                console.log("%c          RESULTADO: Aceptar bajas, atacar y pedir refuerzos.", "font-weight: bold;");
-                this.requestReinforcements(unit.player);
-                if(unit.currentHealth > 0 && !unit.hasAttacked) await attackUnit(unit, target);
-            }
-        }
-    },
-
-    handleRangedHarassAndAdvance: async function(unit, enemiesNearby, resourceHex) {
-        console.log("      PREGUNTA 6: ¿Tengo unidades a distancia y puedo atacar?");
-        const rangedRegs = unit.regiments.filter(r => REGIMENT_TYPES[r.type].attackRange > 1);
-        const infantryRegs = unit.regiments.filter(r => REGIMENT_TYPES[r.type].attackRange <= 1);
-        
-        // Primero, buscamos el mejor ataque a distancia posible desde nuestra posición ACTUAL
-        const bestRangedAttack = this.findBestAttackAction(unit, [{r: unit.r, c: unit.c, cost: 0}], enemiesNearby, true); // `true` para forzar solo rango
-
-        // Si tenemos composición mixta Y un ataque a distancia válido desde AQUÍ
-        if(rangedRegs.length > 0 && infantryRegs.length > 0 && bestRangedAttack.target) {
-            console.log("      -> SÍ. Oportunidad de dividir y hostigar detectada.");
-            console.log("%c        RESULTADO: Dividir. Infantería a recurso, Arqueros atacan.", "font-weight: bold;");
-            
-            // Ahora sí llamamos a la función correcta con el objetivo de ataque correcto
-            await this.executeSplitAndAttack(unit, {resourceHex: resourceHex, enemyToAttack: bestRangedAttack.target});
-
-        } else {
-            console.log("      -> NO. O no tengo composición mixta, o no hay un buen tiro a distancia.");
-            console.log("%c        RESULTADO: Moverse al recurso.", "font-weight: bold;");
-            
-            const path = this.findPathToTarget(unit, resourceHex.r, resourceHex.c);
-            if (path && path.length > 1) {
-                await moveUnit(unit, path[1].r, path[1].c);
-            }
-        }
-    },
-
-    handleSimpleMoveOrSplit: async function(unit, enemiesNearby, resourceHex) {
-        console.log("      PREGUNTA 6: ¿Tengo composición mixta para 'Tomar y Atacar'?");
-        const rangedRegs = unit.regiments.filter(r => REGIMENT_TYPES[r.type].attackRange > 1);
-        const infantryRegs = unit.regiments.filter(r => REGIMENT_TYPES[r.type].attackRange <= 1);
-
-        // Se busca el mejor ataque A DISTANCIA desde la posición ACTUAL
-        const bestRangedAttack = this.findBestAttackFromPositions(unit, [{r: unit.r, c: unit.c, cost: 0}], enemiesNearby);
-
-        if (rangedRegs.length > 0 && infantryRegs.length > 0 && bestRangedAttack) {
-            console.log("      -> SÍ. Se puede dividir y hostigar.");
-            console.log("%c        RESULTADO: Dividir. Infantería a recurso, Arqueros atacan.", "font-weight: bold;");
-            await this.executeSplitAndAttack(unit, { resourceHex: resourceHex, enemyToAttack: bestRangedAttack.target });
-        } else {
-            console.log("      -> NO. O no tengo composición mixta, o no hay un buen tiro.");
-            console.log("%c        RESULTADO: Moverse al recurso.", "font-weight: bold;");
-            const path = this.findPathToTarget(unit, resourceHex.r, resourceHex.c);
-            if (path && path.length > 1) {
-                await moveUnit(unit, path[1].r, path[1].c);
-            }
-        }
-    },
-
-    findNearbyObjectives: function(unit, objectiveType) {
-        let nearby = [];
-        const searchRadius = 3; // Radio de búsqueda para "cerca"
-        
-        board.flat().forEach(hex => {
-            if (hex) {
-                const distance = hexDistance(unit.r, unit.c, hex.r, hex.c);
-                if (distance > 0 && distance <= searchRadius) {
-                    if (objectiveType === 'resource' && hex.resourceNode) {
-                        nearby.push(hex);
-                    }
-                    // Aquí se podrían añadir más tipos de objetivos, como 'ally' para fusiones
-                }
-            }
-        });
-
-        // Ordenar por el más cercano
-        nearby.sort((a,b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c));
-        return nearby;
-    },
-
-    findBestStrategicObjective: function(unit, enemyPlayer, role) {
-        console.log(`   - Buscando objetivo para ${unit.name} (Rol: ${role})`);
-        
-        // --- PRIORIDAD #1: OBJETIVOS ADYACENTES ---
-        const neighbors = getHexNeighbors(unit.r, unit.c);
-        for (const neighbor of neighbors) {
-            const hex = board[neighbor.r]?.[neighbor.c];
-            if (hex && !hex.unit && hex.owner === null) {
-                const category = unit.regiments?.[0] ? REGIMENT_TYPES[unit.regiments[0].type]?.category : null;
-                if(category && !IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(hex.terrain)) {
-                    console.log(`   -> ¡Prioridad 1! Objetivo adyacente encontrado en (${hex.r}, ${hex.c})`);
-                    // ¡LA CORRECCIÓN CLAVE! Siempre devolvemos una lista
-                    return [hex]; 
-                }
-            }
+        if (!spot) {
+            console.log(`   -> DIAGNÓSTICO PRODUCCIÓN: FALLO por falta de espacio alrededor de la capital.`); // <--- LOG 2
+            return null; 
         }
 
-        // --- PRIORIDAD #2: OBJETIVOS GLOBALES (Plan B) ---
-        let objectives = [];
-        // (La lógica para buscar objetivos globales no cambia)
-        if (role === 'explorer') {
-             board.flat().forEach(hex => { if(hex && !hex.unit && hex.owner === null) objectives.push(hex) });
-        } else {
-             board.flat().forEach(hex => { if(hex && !hex.unit && hex.owner !== unit.player && (hex.resourceNode || hex.isCity)) objectives.push(hex) });
-        }
-        
-        if (objectives.length === 0) return []; // Devuelve lista vacía
-        
-        // Ordenamos y devolvemos la lista, como antes
-        objectives.sort((a,b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c));
-        
-        console.log(`   -> Prioridad 2: No hay objetivos adyacentes. Se encontraron ${objectives.length} objetivos globales.`);
-        return objectives.slice(0, 5);
+        playerRes.oro-=totalCost.oro;
+        playerRes.puntosReclutamiento-=totalCost.puntosReclutamiento;
+        const newUnit=this.createUnitObject({regiments:fullRegiments,cost:totalCost,role,name},playerNumber,spot);
+        placeFinalizedDivision(newUnit,spot.r,spot.c);
+        this.unitRoles.set(newUnit.id,role);
+        return newUnit;
     },
 
-    findBestMoveToHexAndAttack: function(unit, targetHex, enemiesNearby) {
-        let bestOption = null;
-        let bestScore = -Infinity;
-        
-        const potentialAttackPositions = getHexNeighbors(targetHex.r, targetHex.c);
-        potentialAttackPositions.push(targetHex);
-
-        // ¡LA CORRECCIÓN ESTÁ AQUÍ! Primero calculamos TODAS las casillas alcanzables.
-        const reachableHexes = this.getReachableHexes(unit);
-        
-        // Y luego filtramos las posiciones de ataque usando la variable correcta.
-        const validAttackPositions = potentialAttackPositions.filter(pPos => 
-            reachableHexes.some(rPos => rPos.r === pPos.r && rPos.c === pPos.c)
-        );
-
-        if (validAttackPositions.length === 0) return null;
-
-        for (const moveHex of validAttackPositions) {
-            const tempUnitState = { ...unit, r: moveHex.r, c: moveHex.c };
-            for (const enemy of enemiesNearby) {
-                if (isValidAttack(tempUnitState, enemy)) {
-                    const outcome = predictCombatOutcome(tempUnitState, enemy);
-                    let score = outcome.defenderDies ? 500 : outcome.damageToDefender * 2;
-                    score -= outcome.damageToAttacker * 1.5;
-                    if (outcome.attackerDiesInRetaliation) score = -Infinity;
-                    
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestOption = { moveHex, target: enemy, unitState: tempUnitState };
-                    }
-                }
-            }
-        }
-
-        return bestOption;
-    },
-
-    findPathToTarget: function(unit, targetR, targetC) {
-        if (typeof targetR === 'undefined' || typeof targetC === 'undefined' || !unit?.regiments?.[0]) return null;
-        
-        const startNode = { r: unit.r, c: unit.c };
-        if (startNode.r === targetR && startNode.c === targetC) return [startNode];
-
-        const category = REGIMENT_TYPES[unit.regiments[0].type]?.category;
-        if (!category) return null;
-
-        let openSet = [ { ...startNode, g: 0, h: hexDistance(startNode.r, startNode.c, targetR, targetC), f: 0 } ];
-        openSet[0].f = openSet[0].h;
-
-        let cameFrom = new Map();
-        let gScore = new Map([[`${startNode.r},${startNode.c}`, 0]]);
-        
-        while(openSet.length > 0) {
-            // Encontrar el nodo en openSet con el menor fScore
-            let current = openSet.reduce((a, b) => a.f < b.f ? a : b);
-            
-            if (current.r === targetR && current.c === targetC) {
-                // Reconstruir el camino
-                let path = [current];
-                let currInPath = current;
-                while (cameFrom.has(`${currInPath.r},${currInPath.c}`)) {
-                    currInPath = cameFrom.get(`${currInPath.r},${currInPath.c}`);
-                    path.unshift(currInPath);
-                }
-                return path;
-            }
-
-            openSet = openSet.filter(node => node.r !== current.r || node.c !== current.c);
-
-            for (const neighbor of getHexNeighbors(current.r, current.c)) {
-                const hex = board[neighbor.r]?.[neighbor.c];
-                if (hex) {
-                    // Un hex es transitable si no hay unidad y el terreno es válido
-                    const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(hex.terrain);
-                    if (!hex.unit && !isImpassable) {
-                        const tentative_gScore = (gScore.get(`${current.r},${current.c}`) || 0) + 1; // Costo de movimiento simple por ahora
-                        const neighborKey = `${neighbor.r},${neighbor.c}`;
-
-                        if (tentative_gScore < (gScore.get(neighborKey) || Infinity)) {
-                            cameFrom.set(neighborKey, current);
-                            gScore.set(neighborKey, tentative_gScore);
-                            
-                            const h = hexDistance(neighbor.r, neighbor.c, targetR, targetC);
-                            const f = tentative_gScore + h;
-
-                            if (!openSet.some(node => node.r === neighbor.r && node.c === neighbor.c)) {
-                                openSet.push({ ...neighbor, g: tentative_gScore, h, f });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Si llegamos aquí, no se encontró ruta
-        return null; 
-    },
-
-    findBestOverallAttack: function(unit, enemyPlayer) {
-        // Esta función consolida la búsqueda del mejor ataque posible.
-        // Primero, calcula todas las casillas a las que la unidad puede llegar.
-        const reachableHexes = this.getReachableHexes(unit);
-        
-        // Luego, pasa esa lista de casillas (que incluye la posición actual)
-        // a la función de evaluación de ataques.
-        const bestAttack = this.findBestAttackAction(unit, reachableHexes, enemyPlayer);
-
-        return bestAttack;
-    },
-
-    executeGeneralMovement: async function(unit) {      
-        const role = this.unitRoles.get(unit.id) || 'explorer';
-        const enemyPlayer = unit.player === 1 ? 2 : 1; // Necesario para la búsqueda
-
-        // 1. Obtiene la LISTA de objetivos potenciales.
-        const potentialTargets = this.findBestStrategicObjective(unit, enemyPlayer, role); // Pasa enemyPlayer
-        if (!potentialTargets || potentialTargets.length === 0) {
-            console.log("   - No se encontraron objetivos para este rol.");
-            return false;
-        }
-        
-        // 2. Itera sobre la lista hasta encontrar uno viable.
-        console.log(`   - Evaluando ${potentialTargets.length} objetivos potenciales para rol '${role}'...`);
-        for (const targetHex of potentialTargets) {
-            
-            // CORRECCIÓN CLAVE: Asegurarnos de que targetHex es un objeto válido con r y c.
-            if (!targetHex || typeof targetHex.r === 'undefined') {
-                console.warn(`   - Objetivo inválido descartado:`, targetHex);
-                continue;
-            }
-            
-            const path = this.findPathToTarget(unit, targetHex.r, targetHex.c);
-            
-            if (path && path.length > 1) {
-                // LÓGICA DE "TURNOS PARA LLEGAR"
-                // El coste real del camino es path.length - 1
-                const pathCostInTurns = Math.ceil((path.length - 1) / (unit.movement || 1));
-                
-                // COMPROBACIÓN FINAL: La unidad SOLO se moverá si el camino es razonable
-                // Un explorador no intentará cruzar todo el mapa.
-                // Aumentamos el radio a 3 turnos para que tengan más alcance
-                if(pathCostInTurns < 3) {
-                    console.log(`   -> ¡OBJETIVO VIABLE! Destino: (${targetHex.r}, ${targetHex.c}). Se tardarían ~${pathCostInTurns} turnos.`);
-                    await moveUnit(unit, path[1].r, path[1].c);
-                    return true;
-                } else {
-                    console.log(`   - Objetivo (${targetHex.r}, ${targetHex.c}) descartado: demasiado lejos (${pathCostInTurns} turnos).`);
-                }
-            }
-        }
-        
-        console.log("   -> Ninguno de los objetivos potenciales era alcanzable o estaba a una distancia razonable.");
-        return false;
-    },
-    
-    executeSplitAndAttack: async function(unit, bestCombinedAction) {
-        // Asumimos que la unidad tiene al menos 1 regimiento de infantería y 1 de rango
-        const infantryToSplit = unit.regiments.find(r => r.type.includes('Infantería'));
-        if (!infantryToSplit) {
-            console.warn(`No se pudo ejecutar Split&Attack: No se encontró Infantería para dividir.`);
-            return false;
-        }
-
-        const newUnitRegiments = [infantryToSplit];
-        const remainingOriginalRegiments = unit.regiments.filter(r => r.id !== infantryToSplit.id);
-
-        if (remainingOriginalRegiments.length === 0) {
-            console.warn(`No se pudo ejecutar Split&Attack: La división se quedaría sin regimientos.`);
-            return false;
-        }
-        
-        console.log(`-> REGLA 2.1 (TOMAR Y ATACAR): CUMPLIDA. Dividiendo ${infantryToSplit.type} para tomar ${bestCombinedAction.resourceHex.r},${bestCombinedAction.resourceHex.c}`);
-
-        // La función global del juego para dividir unidades
-        if (typeof splitUnit === "function") {
-            // Preparamos los datos que 'splitUnit' necesita
-            gameState.preparingAction = { newUnitRegiments, remainingOriginalRegiments };
-            const success = splitUnit(unit, bestCombinedAction.resourceHex.r, bestCombinedAction.resourceHex.c);
-            
-            if(success) {
-                 // Si la división tuvo éxito, la unidad original ahora puede atacar
-                 if (unit.currentHealth > 0 && !unit.hasAttacked && isValidAttack(unit, bestCombinedAction.enemyToAttack)) {
-                    console.log(`--> La unidad principal ataca a ${bestCombinedAction.enemyToAttack.name}`);
-                    await attackUnit(unit, bestCombinedAction.enemyToAttack);
-                }
-            }
-        }
-        return true;
-    },
-
-    executeExpansionSplit: async function(unit) {
-        // Guardamos la posición original y una copia de los regimientos
-        const originalR = unit.r;
-        const originalC = unit.c;
-        const originalRegiments = [...unit.regiments];
-        
-        // La unidad principal se queda con el primer regimiento y se prepara para moverse
-        unit.regiments = [originalRegiments[0]];
-        recalculateUnitStats(unit);
-        
-        console.log(` -> Unidad principal (${unit.name}) se queda con 1 regimiento. Moviéndose...`);
-        await this.executeGeneralMovement(unit);
-        
-        const newUnitsToCreate = originalRegiments.slice(1);
-        console.log(` -> Se crearán ${newUnitsToCreate.length} nuevas unidades de 1 regimiento.`);
-
-        for (const reg of newUnitsToCreate) {
-            // Busca un spot de despliegue adyacente a la POSICIÓN ORIGINAL
-            const spot = getHexNeighbors(originalR, originalC).find(n => {
-                const hex = board[n.r]?.[n.c];
-                const category = REGIMENT_TYPES[reg.type]?.category;
-                return hex && !hex.unit && category && !IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(hex.terrain);
-            });
-            
-            if (spot) {
-                const unitDef = { regiments: [reg], cost: 0, role: 'explorer', name: `${reg.type.split(' ')[0]} (Div.)` };
-                const newUnit = this.createUnitObject(unitDef, unit.player, spot);
-                placeFinalizedDivision(newUnit, spot.r, spot.c);
-                // Las unidades recién creadas no actúan en este turno
-                newUnit.hasMoved = true;
-                newUnit.hasAttacked = true;
-                console.log(`  --> Nueva unidad creada en (${spot.r},${spot.c})`);
-            } else {
-                console.warn(`  --> No se encontró un spot adyacente libre para un regimiento de ${reg.type}.`);
-                // Devolvemos el regimiento no usado a la unidad original para no perderlo
-                unit.regiments.push(reg);
-            }
-        }
-        
-        // Recalculamos los stats de la unidad original por si le hemos devuelto regimientos
-        recalculateUnitStats(unit);
-    },
-
-    evaluateAllPossibleActions: function(unit, enemyPlayer) {
-        const bestStaticAttack = this.findBestAttackAction(unit, [{r: unit.r, c: unit.c, cost: 0}], enemyPlayer);
-        const reachableHexes = this.getReachableHexes(unit);
-        const bestMoveAndAttack = this.findBestAttackAction(unit, reachableHexes, enemyPlayer);
-        const bestMoveAction = this.findBestGeneralMovement(unit, enemyPlayer);
-        return { bestStaticAttack, bestMoveAction, bestMoveAndAttack };
-    },
-
-    executeEmergencyMovement: async function(unit) {
-        console.log(`   - Ejecutando movimiento de emergencia para ${unit.name}...`);
-        
-        // 1. Obtener la categoría de la unidad de forma segura.
-        const category = unit.regiments?.[0] ? REGIMENT_TYPES[unit.regiments[0].type]?.category : null;
-        if (!category) {
-            console.error(`   -> FALLO EMERGENCIA: No se pudo determinar la categoría de la unidad.`);
-            return;
-        }
-
-        // 2. Obtener los hexágonos adyacentes.
-        const neighbors = getHexNeighbors(unit.r, unit.c);
-        
-        // 3. Buscar la primera casilla adyacente válida.
-        const validMove = neighbors.find(n => {
-            const hex = board[n.r]?.[n.c];
-            if (!hex) return false; // El vecino está fuera del mapa
-
-            // <<< ¡LA CORRECCIÓN CRÍTICA ESTÁ AQUÍ! >>>
-            // Ahora sí, se comprueba si el terreno es intransitable PARA ESTA UNIDAD.
-            const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(hex.terrain);
-            const isBlockedByUnit = !!hex.unit;
-
-            // Una casilla es válida si no es intransitable Y no está bloqueada.
-            return !isImpassable && !isBlockedByUnit;
-        });
-        
-        // 4. Si se encontró un movimiento válido, ejecutarlo.
-        if (validMove) {
-            console.log(`   -> Movimiento de emergencia viable encontrado en (${validMove.r}, ${validMove.c}). Moviendo...`);
-            await moveUnit(unit, validMove.r, validMove.c);
-        } else {
-            console.log("   -> No se encontró ningún hexágono adyacente válido para el movimiento de emergencia.");
-        }
-    },
-
-    findNearestNeutralOrEnemyHex: function(unit) {
-        let allValidHexes = [];
-        const category = REGIMENT_TYPES[unit.regiments[0]?.type]?.category;
-        if (!category) return null; // No se puede mover si no tiene categoría
-
-        board.flat().forEach(hex => {
-            // Un hexágono es un objetivo de emergencia si no es nuestro
-            // y si la unidad puede moverse a ese tipo de terreno
-            if (hex && hex.owner !== unit.player && !IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(hex.terrain)) {
-                allValidHexes.push(hex);
-            }
-        });
-
-        if(allValidHexes.length === 0) return null;
-
-        // Ordenar por el más cercano a la unidad
-        allValidHexes.sort((a, b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c));
-        
-        return allValidHexes[0];
-    },
-
-    findBestAttackFromPositions: function(unit, positions, enemies) {
-        let bestOption = null;
-        let bestScore = -Infinity;
-        
-        for (const moveHex of positions) {
-            // Creamos un estado temporal de la unidad como si se hubiera movido
-            const tempUnitState = { ...unit, r: moveHex.r, c: moveHex.c };
-
-            for (const enemy of enemies) {
-                // Comprobamos si el ataque es posible desde esa posición
-                if (isValidAttack(tempUnitState, enemy)) {
-                    const outcome = predictCombatOutcome(tempUnitState, enemy);
-                    
-                    // Lógica de puntuación para decidir el mejor ataque
-                    let score = (outcome.damageToDefender * 2) - (outcome.damageToAttacker * 1.5);
-                    if (outcome.defenderDies) score += 50; // Bonus por aniquilación
-                    if (outcome.attackerDiesInRetaliation) score = -Infinity; // Evitar suicidios
-                    
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestOption = {
-                            moveHex: moveHex,
-                            target: enemy,
-                            unitState: tempUnitState, // Guardamos el estado para no recalcular
-                            score: score, // Guardamos la puntu-ación para comparaciones futuras
-                            isFavorable: (outcome.damageToDefender > (outcome.damageToAttacker || 0) * 1.2)
-                        };
-                    }
-                }
-            }
-        }
-        // Devuelve la mejor opción encontrada (o null si no encontró ninguna)
-        return bestOption;
-    },
-
-    requestReinforcements: function(playerNumber) {
-        // Esta es una función de "señalización". No produce unidades directamente,
-        // sino que establece una "bandera" para que 'manageEmpire' sepa qué hacer en el próximo turno.
-        
-        if (!gameState.ai_reinforcement_requests) {
-            gameState.ai_reinforcement_requests = {};
-        }
-        
-        // Simplemente incrementa la necesidad de refuerzos para este jugador.
-        // La función handleProduction leerá este valor en el siguiente turno.
-        const currentRequests = gameState.ai_reinforcement_requests[playerNumber] || 0;
-        gameState.ai_reinforcement_requests[playerNumber] = currentRequests + 1;
-        
-        console.log(`          --> Petición de refuerzos enviada. Próximo turno se evaluará la producción de unidades de combate.`);
-    },
-
-    // =================================================================
-    // === FUNCIONES AUXILIARES COMPLETAS =============================
-    // =================================================================
-
-    evaluateAllTacticalOptions: function(unit, enemyPlayer) {
-        const reachable = this.getReachableHexes(unit);
-        return {
-            bestStaticAttack: this.findBestAttackAction(unit, [{r: unit.r, c: unit.c, cost: 0}], enemyPlayer),
-            bestMoveAndAttack: this.findBestAttackAction(unit, reachable, enemyPlayer),
-            bestMoveAction: this.findBestGeneralMovement(unit, enemyPlayer)
-        };
-    },
-
-    findBestAttackAction: function(unit, reachableHexes, enemyPlayer) {
-        let bestAction = { score: -Infinity, isFavorable: false };
-        for (const enemy of units.filter(e => e.player === enemyPlayer && e.currentHealth > 0)) {
-            for (const movePos of reachableHexes) {
-                if(!board[movePos.r] || !board[movePos.r][movePos.c]) continue; // Sanity check
-                const tempAttacker = { ...unit, r: movePos.r, c: movePos.c };
-                if (isValidAttack(tempAttacker, enemy)) {
-                    const outcome = predictCombatOutcome(tempAttacker, enemy);
-                    let score = (outcome.damageToDefender * 2) - (outcome.damageToAttacker * 1.5);
-                    if (outcome.defenderDies) score += 50;
-                    if (outcome.attackerDiesInRetaliation) score = -Infinity;
-                    score -= (movePos.cost || 0) * 5;
-                    if (score > bestAction.score) {
-                        bestAction = { 
-                            score, target: enemy,
-                            moveHex: (movePos.r !== unit.r || movePos.c !== unit.c) ? movePos : null,
-                            isFavorable: (outcome.damageToDefender > (outcome.damageToAttacker || 0) * 1.2) && !outcome.attackerDiesInRetaliation
-                        };
-                    }
-                }
-            }
-        }
-        return bestAction;
-    },
-
-    findBestGeneralMovement: function(unit, enemyPlayer) {
-        const targetHex = this.findBestStrategicObjective(unit, enemyPlayer);
-        if (!targetHex) return { targetHex: null, path: null };
-        const path = this.findPathToTarget(unit, targetHex.r, targetHex.c);
-        return { targetHex, path };
-    },
-
-    getReachableHexes: function(unit) {
-        let reachable = [{ r: unit.r, c: unit.c, cost: 0 }];
-        let queue = [{ r: unit.r, c: unit.c, cost: 0 }];
-        let visited = new Set([`${unit.r},${unit.c}`]);
-        const maxMove = unit.currentMovement || 0;
-        while(queue.length > 0) {
-            let curr = queue.shift();
-            if (curr.cost >= maxMove) continue;
-            for (const n of getHexNeighbors(curr.r, curr.c)) {
-                const key = `${n.r},${n.c}`;
-                if (!visited.has(key) && !getUnitOnHex(n.r, n.c)) {
-                    const moveCost = TERRAIN_TYPES[board[n.r][n.c].terrain]?.movementCostMultiplier || 1;
-                    const newCost = curr.cost + moveCost;
-                    if (newCost <= maxMove) {
-                        visited.add(key);
-                        reachable.push({r: n.r, c: n.c, cost: newCost});
-                        queue.push({r: n.r, c: n.c, cost: newCost});
-                    }
-                }
-            }
-        }
-        return reachable;
-    },
-    
-    createUnitObject: function(definition, playerNumber, spot) {
-        const stats = calculateRegimentStats(definition.regiments, playerNumber);
-        return {
-            id: `u${unitIdCounter++}`, player: playerNumber, name: `${definition.name} IA`,
-            regiments: definition.regiments.map(r => ({ ...r, id: `r${Date.now()}${Math.random()}`})),
-            ...stats, currentHealth: stats.maxHealth, currentMovement: stats.movement,
-            r: spot.r, c: spot.c, hasMoved: false, hasAttacked: false, level: 0,
-            experience: 0, morale: 50, maxMorale: 125,
-        };
-    },
-
-    findAndExecuteMerge: async function(unit, attackTarget) {
-        const allies = units.filter(u => u.player === unit.player && u.id !== unit.id && !u.hasMoved && !u.hasAttacked);
-        let bestMergePartner = null;
-        let bestPostMergeScore = -Infinity;
-
-        for (const ally of allies) {
-            if (hexDistance(unit.r, unit.c, ally.r, ally.c) <= (ally.currentMovement || ally.movement)) {
-                const combinedRegs = [...unit.regiments, ...ally.regiments];
-                const tempSuperUnit = { ...unit, regiments: combinedRegs };
-                const tempStats = calculateRegimentStats(combinedRegs, unit.player);
-                Object.assign(tempSuperUnit, tempStats);
-                
-                const outcome = predictCombatOutcome(tempSuperUnit, attackTarget);
-                let score = outcome.defenderDies ? 200 : outcome.damageToDefender * 2;
-                if(outcome.isFavorable && score > bestPostMergeScore){
-                    bestPostMergeScore = score;
-                    bestMergePartner = ally;
-                }
-            }
-        }
-        if (bestMergePartner) {
-            console.log(`   -> Aliado ${bestMergePartner.name} encontrado para fusionarse.`);
-            await moveUnit(bestMergePartner, unit.r, unit.c); // Mueve al aliado
-            if(getUnitOnHex(unit.r, unit.c)?.id === bestMergePartner.id) {
-                mergeUnits(bestMergePartner, unit); // La unidad que se mueve es la que se disuelve
-            }
-            return true;
-        }
-        console.log("   -> No se encontraron aliados viables para fusionar. Ejecutando Retirada Táctica...");
-        await this.executeRetreat(unit);
-        return true;
-    },
-
-    handleCapitalChange: function(playerNumber) {
-        const capital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
-        if (!capital) return;
-        const enemyPlayer = playerNumber === 1 ? 2 : 1;
-        const isThreatened = units.some(u => u.player === enemyPlayer && hexDistance(u.r, u.c, capital.r, capital.c) <= 2);
-
-        if (isThreatened) {
-            const safeCities = gameState.cities.filter(c => c.owner === playerNumber && !c.isCapital && !units.some(u => u.player === enemyPlayer && hexDistance(u.r, u.c, c.r, c.c) <= 3));
-            if (safeCities.length > 0) {
-                console.log(`[IA Empire] ¡AMENAZA! La capital en (${capital.r},${capital.c}) está en peligro. Cambiando a (${safeCities[0].r},${safeCities[0].c}).`);
-                handleChangeCapital(safeCities[0].r, safeCities[0].c);
-            }
-        }
-    },
-
-    executeRetreat: async function(unit) {
-        const safeBases = gameState.cities.filter(c => c.owner === unit.player).sort((a,b) => hexDistance(unit.r, unit.c, a.r, a.c) - hexDistance(unit.r, unit.c, b.r, b.c));
-        if(safeBases.length > 0){
-            const path = this.findPathToTarget(unit, safeBases[0].r, safeBases[0].c);
-            if(path && path.length > 1){
-                 await moveUnit(unit, path[1].r, path[1].c);
-                 return true;
-            }
-        }
-        return false;
-    },
-
-    attemptOpportunisticAttack: async function(unit, enemyPlayer) {
-        if (!unit.hasAttacked) {
-            const immediateTarget = this.findBestImmediateAttackTarget(unit, enemyPlayer);
-            if (immediateTarget) { await attackUnit(unit, immediateTarget); return true; }
-        }
-        if (!unit.hasMoved && !unit.hasAttacked) {
-            const moveAttackPlan = this.findBestMoveAndAttackAction(unit, enemyPlayer);
-            if (moveAttackPlan) {
-                await moveUnit(unit, moveAttackPlan.moveCoords.r, moveAttackPlan.moveCoords.c);
-                if (unit.currentHealth > 0 && !unit.hasAttacked) {
-                    await attackUnit(unit, moveAttackPlan.targetUnit);
-                }
-                return true;
-            }
-        }
-        return false;
-    },
-
-    findBestImmediateAttackTarget: function(unit, enemyPlayer) {
-        let bestTarget = null, bestScore = -Infinity;
-        units.filter(e => e.player === enemyPlayer && e.currentHealth > 0 && isValidAttack(unit, e))
-             .forEach(enemy => {
-                const outcome = predictCombatOutcome(unit, enemy);
-                let score = outcome.defenderDies ? 200 : (outcome.damageToDefender * 2);
-                score -= (outcome.damageToAttacker * 1.1);
-                if (outcome.attackerDiesInRetaliation) score = -Infinity;
-                if (score > bestScore) { bestScore = score; bestTarget = enemy; }
-            });
-        return (bestScore > -20) ? bestTarget : null;
-    },
-
-    attemptOpportunisticAttack: async function(unit, enemyPlayer) {
-        // Esta es una versión simplificada, la mejoraremos
-        if (!unit.hasAttacked) {
-            const visibleEnemies = units.filter(e => e.player === enemyPlayer && e.currentHealth > 0);
-            for (const enemy of visibleEnemies) {
-                if (isValidAttack(unit, enemy)) {
-                    await attackUnit(unit, enemy);
-                    return true;
-                }
-            }
-        }
-        return false;
-    },
-
-    analyzeFrontera: function(playerNumber) {
-        const enemyPlayer = playerNumber === 1 ? 2 : 1;
-        const allAiUnits = units.filter(u => u.player === playerNumber);
-        const allEnemyUnits = units.filter(u => u.player === enemyPlayer);
-        
-        for (const aiUnit of allAiUnits) {
-            const enemiesNearUnit = allEnemyUnits.filter(e => hexDistance(aiUnit.r, aiUnit.c, e.r, e.c) <= 5);
-            if (enemiesNearUnit.length > 0) {
-                const aiPower = aiUnit.regiments.length;
-                const enemyPower = enemiesNearUnit.reduce((sum, e) => sum + e.regiments.length, 0);
-                if (aiPower < enemyPower) {
-                    return { frontRequiresReinforcements: true, neededRegs: enemyPower + 1 };
-                }
-            }
-        }
-        return { frontRequiresReinforcements: false, neededRegs: 0 };
-    },
-    
     endAiTurn: function(aiPlayerNumber) {
         if (gameState.currentPhase !== "gameOver" && gameState.currentPlayer === aiPlayerNumber) {
             if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) {
-                console.log(`%c[AI Manager] Finalizando turno para Jugador ${aiPlayerNumber}`, "color: purple;");
-                setTimeout(() => { if(domElements.endTurnBtn) domElements.endTurnBtn.click(); }, 250);
+                setTimeout(() => { if(domElements.endTurnBtn) domElements.endTurnBtn.click(); }, 500);
             }
         }
     }
-    
+
 };
+
+// --- IMPLEMENTACIÓN COMPLETA DE FUNCIONES AUXILIARES SIN CAMBIOS ---
+AiGameplayManager.decideAndExecuteUnitAction = async function(unit) { console.groupCollapsed(`Decidiendo para ${unit.name} (${unit.regiments.length} regs) en (${unit.r},${unit.c})`); try { if (this.codeRed_rallyPoint && unit.id !== this.codeRed_rallyPoint.anchorId) { await this.moveToRallyPoint(unit); return; } if (unit.regiments.length < 5 && this.unitRoles.get(unit.id) !== 'defender') { if (await this.findAndExecuteMerge_Proactive(unit)) { return; } } const enemyPlayer = unit.player === 1 ? 2 : 1; const enemies = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0); if (enemies.length > 0) { await this._executeCombatLogic(unit, enemies); } else { await this._executeExpansionLogic(unit); } } catch(e) { console.error(`Error procesando ${unit.name}:`, e); } finally { console.groupEnd(); } };
+AiGameplayManager.assessThreatLevel = AiGameplayManager.assessThreatLevel = function(playerNumber) { const enemyPlayer = playerNumber===1?2:1; const aiUnits=units.filter(u=>u.player===playerNumber); const enemyUnits=units.filter(u=>u.player===enemyPlayer); if(enemyUnits.length===0||aiUnits.length===0)return; const biggestEnemyFormation=enemyUnits.reduce((max,unit)=>(unit.regiments.length>max?unit.regiments.length:max),0); if(biggestEnemyFormation>10){aiUnits.sort((a,b)=>b.regiments.length-a.regiments.length);const anchorUnit=aiUnits[0];this.codeRed_rallyPoint={r:anchorUnit.r,c:anchorUnit.c,anchorId:anchorUnit.id};console.log(`%c[IA] CÓDIGO ROJO! Amenaza masiva detectada (${biggestEnemyFormation} reg.). Punto de reunión en ${anchorUnit.name} (${anchorUnit.r},${anchorUnit.c})`,"color: red; font-weight: bold;");}};
+AiGameplayManager.moveToRallyPoint = async function(unit) { const rallyR=this.codeRed_rallyPoint.r;const rallyC=this.codeRed_rallyPoint.c; if(hexDistance(unit.r,unit.c,rallyR,rallyC)<=1){const anchorUnit=units.find(u=>u.id===this.codeRed_rallyPoint.anchorId);if(anchorUnit&&(anchorUnit.regiments.length+unit.regiments.length<=MAX_REGIMENTS_PER_DIVISION)){await _executeMoveUnit(unit,rallyR,rallyC,true);const unitOnTarget=units.find(u=>u.id===anchorUnit.id);if(unitOnTarget){mergeUnits(unit,unitOnTarget);}}}else{const path=this.findPathToTarget(unit,rallyR,rallyC);if(path&&path.length>1){const moveHex=path[Math.min(path.length-1,unit.currentMovement||unit.movement)];await _executeMoveUnit(unit,moveHex.r,moveHex.c);}}};
+AiGameplayManager._executeExpansionLogic = async function(unit) { const canSplit=unit.regiments.length>2&&unit.regiments.length<8;const freeNeighbor=getHexNeighbors(unit.r,unit.c).find(n=>board[n.r]?.[n.c]&&!board[n.r][n.c].unit&&!TERRAIN_TYPES[board[n.r][n.c].terrain].isImpassableForLand);if(canSplit&&freeNeighbor){const splitCount=Math.ceil(unit.regiments.length/2);const newUnitRegs=unit.regiments.slice(0,splitCount);const originalUnitRegs=unit.regiments.slice(splitCount);gameState.preparingAction={newUnitRegiments:newUnitRegs,remainingOriginalRegiments:originalUnitRegs};splitUnit(unit,freeNeighbor.r,freeNeighbor.c);}else{await this.executeGeneralMovement(unit);}};
+AiGameplayManager._executeMoveAndAttack = async function(unit,moveHex,target){if(moveHex){await _executeMoveUnit(unit,moveHex.r,moveHex.c);} const unitAfterMove=units.find(u=>u.id===unit.id);if(unitAfterMove?.currentHealth>0&&!unitAfterMove.hasAttacked&&isValidAttack(unitAfterMove,target)){await attackUnit(unitAfterMove,target);}};
+AiGameplayManager.findAndExecuteMerge_Proactive = async function(unit){const potentialAllies=units.filter(u=>u.player===unit.player&&u.id!==unit.id&&!u.hasMoved&&(unit.regiments.length+u.regiments.length)<=MAX_REGIMENTS_PER_DIVISION);if(potentialAllies.length===0)return false;potentialAllies.sort((a,b)=>{const strengthDiff=b.regiments.length-a.regiments.length;if(strengthDiff!==0)return strengthDiff;return hexDistance(unit.r,unit.c,a.r,a.c)-hexDistance(unit.r,unit.c,b.r,b.c);});const bestAllyToMergeWith=potentialAllies[0];const path=this.findPathToTarget(unit,bestAllyToMergeWith.r,bestAllyToMergeWith.c);if(path&&(path.length-1)<=(unit.currentMovement||unit.movement)){await _executeMoveUnit(unit,bestAllyToMergeWith.r,bestAllyToMergeWith.c,true);const remainingAlly=units.find(u=>u.id===bestAllyToMergeWith.id);const movedUnit=units.find(u=>u.id===unit.id);if(remainingAlly&&movedUnit){mergeUnits(movedUnit,remainingAlly);return true;}} return false;};
+AiGameplayManager.findAndExecuteMerge_Reactive = async function(unit,attackTarget){const allies=units.filter(u=>u.player===unit.player&&u.id!==unit.id&&!u.hasMoved&&(unit.regiments.length+u.regiments.length)<=MAX_REGIMENTS_PER_DIVISION);let bestMergePartner=null;let bestPostMergeScore=-Infinity;const currentOutcome=predictCombatOutcome(unit,attackTarget);let currentScore=(currentOutcome.damageToDefender*2)-(currentOutcome.damageToAttacker*1.5);for(const ally of allies){if(hexDistance(unit.r,unit.c,ally.r,ally.c)<=(ally.currentMovement||ally.movement)){const combinedRegs=[...unit.regiments,...ally.regiments];const tempSuperUnit=JSON.parse(JSON.stringify(unit));tempSuperUnit.regiments=combinedRegs;recalculateUnitStats(tempSuperUnit);tempSuperUnit.currentHealth=unit.currentHealth+ally.currentHealth;const outcome=predictCombatOutcome(tempSuperUnit,attackTarget);let score=(outcome.damageToDefender*2)-(outcome.damageToAttacker*1.5);if(score>currentScore&&score>bestPostMergeScore){bestPostMergeScore=score;bestMergePartner=ally;}}} if(bestMergePartner){await _executeMoveUnit(bestMergePartner,unit.r,unit.c,true);const unitOnTarget=units.find(u=>u.id===unit.id);if(unitOnTarget){mergeUnits(bestMergePartner,unitOnTarget);return{merged:true,allyId:bestMergePartner.id};}} return null;};
+AiGameplayManager.executeDefenderMovement=async function(unit){let targetCoords=null;for(const zona in gameState.ai_reaction_forces){if(gameState.ai_reaction_forces[zona].unitId===unit.id){targetCoords=gameState.ai_reaction_forces[zona].targetCoords;break;}} if(targetCoords){const path=this.findPathToTarget(unit,targetCoords.r,targetCoords.c);if(path&&path.length>1){const moveHex=path[Math.min(path.length-1,unit.currentMovement||unit.movement)];await _executeMoveUnit(unit,moveHex.r,moveHex.c);return true;}} this.unitRoles.set(unit.id,'explorer');return await this.executeGeneralMovement(unit);};
+AiGameplayManager.executeGeneralMovement=async function(unit){const potentialTargets=this.findBestStrategicObjective(unit,'expansion');const availableTargets=potentialTargets.filter(hex=>!this.turn_targets.has(`${hex.r},${hex.c}`));if(availableTargets.length===0)return false;const targetHex=availableTargets[0];const path=this.findPathToTarget(unit,targetHex.r,targetHex.c);if(path&&path.length>1){const moveHex=path[Math.min(path.length-1,unit.currentMovement||unit.movement)];this.turn_targets.add(`${targetHex.r},${targetHex.c}`);await _executeMoveUnit(unit,moveHex.r,moveHex.c);return true;} return false;};
+AiGameplayManager.manageEmpire = function(playerNumber){console.groupCollapsed(`%c[IA Empire] Fase de Gestión Imperial`,"color: #4CAF50");try{this.handleStrategicReinforcements(playerNumber);this.handleExpansionProduction(playerNumber);this.handleConstruction(playerNumber);}finally{console.groupEnd();}};
+AiGameplayManager.handleConstruction = function(playerNumber){const capital=gameState.cities.find(c=>c.isCapital&&c.owner===playerNumber);if(!capital)return;if(gameState.turnNumber%5!==0||this.codeRed_rallyPoint)return;const playerRes=gameState.playerResources[playerNumber];if(playerRes.oro>800&&(playerRes.researchedTechnologies||[]).includes('FORTIFICATIONS')){const bestFortSpot=this.findBestStrategicObjective(null,'fortress_spot');if(bestFortSpot){if(bestFortSpot.owner===playerNumber&&!bestFortSpot.structure){console.log(`%c[IA STRATEGY] Construyendo Fortaleza en (${bestFortSpot.r},${bestFortSpot.c})...`,"color: #ff8c00");handleConfirmBuildStructure({playerId:playerNumber,r:bestFortSpot.r,c:bestFortSpot.c,structureType:'Fortaleza',builderUnitId:null});}}}};
+AiGameplayManager.handleStrategicReinforcements=function(playerNumber){const{frentes,necesitaRefuerzos}=this.analyzeFrontera(playerNumber);if(!gameState.ai_reaction_forces)gameState.ai_reaction_forces={};if(necesitaRefuerzos){for(const zona in frentes){const frente=frentes[zona];if(frente.aiPower<frente.enemyPower){const fuerzaAsignada=gameState.ai_reaction_forces[zona]?units.find(u=>u.id===gameState.ai_reaction_forces[zona].unitId&&u.currentHealth>0):null;if(!fuerzaAsignada){const capital=gameState.cities.find(c=>c.isCapital&&c.owner===playerNumber);if(!capital)continue;const neededPower=(frente.enemyPower-frente.aiPower)*1.2;let composition=[];let currentPower=0;while(currentPower<neededPower){composition.push('Infantería Pesada');const regHeavy=REGIMENT_TYPES['Infantería Pesada'];currentPower+=(regHeavy.attack+regHeavy.defense)/2;if(currentPower>=neededPower)break;composition.push('Arqueros');const regArcher=REGIMENT_TYPES['Arqueros'];currentPower+=(regArcher.attack+regArcher.defense)/2;} const newUnit=this.produceUnit(playerNumber,composition,'defender',`Defensa-${zona}`);if(newUnit)gameState.ai_reaction_forces[zona]={unitId:newUnit.id,targetCoords:frente.enemyCenter};}}}}};
+AiGameplayManager.analyzeFrontera=function(playerNumber){const enemyPlayer=playerNumber===1?2:1;const cols=board[0].length;const zonaWidth=Math.floor(cols/3);const zonas={'Flanco-Izquierdo':{minCol:0,maxCol:zonaWidth,aiPower:0,enemyPower:0,enemyUnits:[]},'Centro':{minCol:zonaWidth+1,maxCol:zonaWidth*2,aiPower:0,enemyPower:0,enemyUnits:[]},'Flanco-Derecho':{minCol:(zonaWidth*2)+1,maxCol:cols,aiPower:0,enemyPower:0,enemyUnits:[]}};const getZona=(c)=>{if(c<=zonas['Flanco-Izquierdo'].maxCol)return 'Flanco-Izquierdo';if(c<=zonas['Centro'].maxCol)return 'Centro';return 'Flanco-Derecho';};units.forEach(unit=>{if(unit.currentHealth>0){const zona=getZona(unit.c);if(!zonas[zona])return;const power=(unit.attack+unit.defense)/2;if(unit.player===playerNumber){zonas[zona].aiPower+=power;}else if(unit.player===enemyPlayer){zonas[zona].enemyPower+=power;zonas[zona].enemyUnits.push(unit);}}});for(const zona in zonas){const frente=zonas[zona];if(frente.enemyUnits.length>0){const avgR=Math.round(frente.enemyUnits.reduce((sum,u)=>sum+u.r,0)/frente.enemyUnits.length);const avgC=Math.round(frente.enemyUnits.reduce((sum,u)=>sum+u.c,0)/frente.enemyUnits.length);frente.enemyCenter={r:avgR,c:avgC};}}const necesitaRefuerzos=Object.values(zonas).some(z=>z.aiPower<z.enemyPower);return{frentes:zonas,necesitaRefuerzos};};
+AiGameplayManager.findBestOverallAttack = function(unit, enemies) { let bestAction = null; let bestScore = -Infinity; const reachableHexes = this.getReachableHexes(unit); reachableHexes.push({r: unit.r, c: unit.c, cost: 0}); for (const movePos of reachableHexes) { const tempAttacker = {...unit, r:movePos.r, c:movePos.c}; for (const enemy of enemies) { if(isValidAttack(tempAttacker, enemy)) { const outcome = predictCombatOutcome(tempAttacker, enemy); let score = (outcome.damageToDefender * 2) - (outcome.damageToAttacker * 1.5); if(outcome.defenderDies) score += 100; if(outcome.attackerDiesInRetaliation) score -= 500; score -= (movePos.cost || 0) * 2; if (score > bestScore) { bestScore = score; bestAction = { score, target: enemy, moveHex: (movePos.r !== unit.r || movePos.c !== unit.c) ? movePos : null, isFavorable: !outcome.attackerDiesInRetaliation && outcome.damageToDefender > outcome.damageToAttacker * 1.2, isSuicidal: outcome.attackerDiesInRetaliation || outcome.damageToAttacker > outcome.damageToDefender * 1.2}; } } } } return bestAction; };
+AiGameplayManager.getReachableHexes = function(unit) { let reachable=[];let queue=[{r:unit.r,c:unit.c,cost:0}];let visited=new Set([`${unit.r},${unit.c}`]);const maxMove=unit.currentMovement||unit.movement;while(queue.length>0){let curr=queue.shift();for(const n of getHexNeighbors(curr.r,curr.c)){const key=`${n.r},${n.c}`;if(!visited.has(key)){visited.add(key);const neighborHex=board[n.r]?.[n.c];if(neighborHex&&!neighborHex.unit&&!TERRAIN_TYPES[neighborHex.terrain].isImpassableForLand){const moveCost=TERRAIN_TYPES[neighborHex.terrain]?.movementCostMultiplier||1;const newCost=curr.cost+moveCost;if(newCost<=maxMove){reachable.push({r:n.r,c:n.c,cost:newCost});queue.push({r:n.r,c:n.c,cost:newCost});}}}}}return reachable;};
+AiGameplayManager.createUnitObject = function(definition, playerNumber, spot) { const stats=calculateRegimentStats(definition.regiments, playerNumber); const unit = { id: `u${unitIdCounter++}`, player: playerNumber, name: definition.name, regiments: definition.regiments.map(r => ({ ...r, id: `r${Date.now()}${Math.random()}`})), ...stats, currentHealth: stats.maxHealth, currentMovement: stats.movement, r: spot.r, c: spot.c, hasMoved: false, hasAttacked: false, level: 0, experience: 0, morale: 50, maxMorale: 125, }; recalculateUnitStats(unit); return unit; };

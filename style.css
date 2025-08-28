@@ -189,6 +189,16 @@ html, body {
 }
 .hex.capital-city .structure-sprite { z-index: 5; }
 
+.hex .bonus-sprite {
+    position: absolute;
+    font-size: 16px;
+    top: 2px;
+    left: 2px;
+    opacity: 0.8;
+    z-index: 6; /* Un poco por encima del sprite de estructura */
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
 /* --- Sprites de Recursos --- */
 .hex.resource-hierro::after { content: 'Fe'; font-size: 10px; color: #663300; position: absolute; top: 2px; right: 2px;}
 .hex.resource-madera::after { content: 'Wd'; font-size: 10px; color: #228B22; position: absolute; top: 2px; right: 2px;}

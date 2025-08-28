@@ -1,5 +1,34 @@
 // uiUpdates.js (ESTA ES TU VERSIÓN ORIGINAL Y COMPLETA, RESTAURADA)
 
+/**
+ * Comprueba si una unidad enemiga está dentro del rango de visión de un explorador del jugador actual.
+ * @param {object} enemyUnit - La unidad enemiga seleccionada.
+ * @returns {boolean} - True si un explorador la ve, false en caso contrario.
+ */
+function isEnemyScouted(enemyUnit) {
+    const currentPlayer = gameState.currentPlayer;
+    const playerScoutUnits = units.filter(unit => 
+        unit.player === currentPlayer && 
+        unit.regiments.some(reg => reg.type === "Explorador")
+    );
+
+    if (playerScoutUnits.length === 0) {
+        return false;
+    }
+
+    // Comprueba si alguna de las unidades exploradoras está en rango
+    for (const scoutUnit of playerScoutUnits) {
+        const distance = hexDistance(scoutUnit.r, scoutUnit.c, enemyUnit.r, enemyUnit.c);
+        const scoutRange = scoutUnit.visionRange || 2; // Rango de visión del explorador
+        if (distance <= scoutRange) {
+            console.log(`[Scout Check] Unidad enemiga ${enemyUnit.name} está en rango del explorador ${scoutUnit.name}.`);
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 const UIManager = {
     _tutorialMessagePanel: null, 
     _originalEndTurnButtonListener: null, 
@@ -274,51 +303,59 @@ const UIManager = {
         hexToBuildOn = null;
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
-        // Guardar la selección actual en el estado del juego
+            // Guardar la selección actual en el estado del juego
         gameState.selectedHexR = unit.r;
         gameState.selectedHexC = unit.c;
 
-        // Reinicia el panel a su estado colapsado por defecto
+            // Reinicia el panel a su estado colapsado por defecto
         if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
         if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
 
-        // --- RELLENAR CONTENIDO DEL PANEL ---
+            // --- RELLENAR CONTENIDO DEL PANEL ---
         const isPlayerUnit = unit.player === gameState.currentPlayer;
         this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (J${unit.player})`;
         this._domElements.contextualContent.innerHTML = this._buildUnitDetailsHTML(unit);
 
+        // --- LÓGICA DE VISIBILIDAD DE BOTONES (MODIFICADA) ---
+        
+        // Primero, comprobamos si es un enemigo explorado
+        const isScoutedEnemy = !isPlayerUnit && isEnemyScouted(unit);
 
-
-        // --- LÓGICA DE VISIBILIDAD DE BOTONES ---
-        if (isPlayerUnit && this._domElements.floatingReinforceBtn) {
-            this._domElements.floatingReinforceBtn.style.display = 'flex';
+        // Botón Reforzar / Ver Detalles (floatingReinforceBtn)
+        // Se muestra si la unidad es PROPIA, O si es un ENEMIGO EXPLORADO.
+        if (isPlayerUnit || isScoutedEnemy) {
+            if (this._domElements.floatingReinforceBtn) {
+                this._domElements.floatingReinforceBtn.style.display = 'flex';
+                // Cambiamos el icono y el tooltip según el contexto
+                this._domElements.floatingReinforceBtn.title = isPlayerUnit ? "Gestionar/Reforzar Unidad" : "Ver Detalles de Unidad Enemiga";
+                this._domElements.floatingReinforceBtn.innerHTML = isPlayerUnit ? "💪" : "👁️";
+            }
         }
-
-
-
+        
+        // El resto de los botones (dividir, construir, etc.) solo deben aparecer para unidades propias.
         if (isPlayerUnit && gameState.currentPhase === 'play') {
             const canAct = !unit.hasMoved && !unit.hasAttacked;
 
-            // Botón Deshacer
+                // Botón Deshacer
             if (unit.lastMove && !unit.hasAttacked) {
                 if (this._domElements.floatingUndoMoveBtn) this._domElements.floatingUndoMoveBtn.style.display = 'flex';
             }
 
-            // Botones que solo aparecen si la unidad aún puede actuar
+                // Botones que solo aparecen si la unidad aún puede actuar
             if (canAct) {
-                // Botón Dividir
+                    // Botón Dividir
                 if ((unit.regiments?.length || 0) > 1 && this._domElements.floatingSplitBtn) {
                     this._domElements.floatingSplitBtn.style.display = 'flex';
                 }
                 
                 const unitHex = board[unit.r]?.[unit.c];
                 if (unitHex) {
-                    // *** LÓGICA DE SAQUEO RESTAURADA ***
+                        // *** LÓGICA DE SAQUEO RESTAURADA ***
                     if (unitHex.owner !== null && unitHex.owner !== unit.player && this._domElements.floatingPillageBtn) {
                         this._domElements.floatingPillageBtn.style.display = 'flex';
                     }
                     
-                    // Lógica de Construcción
+                        // Lógica de Construcción
                     const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
                     if (isBuilderUnit && this._domElements.floatingBuildBtn) {
                         hexToBuildOn = { r: unit.r, c: unit.c };
@@ -327,8 +364,8 @@ const UIManager = {
                 }
             }
             
-            // *** LÓGICA DE CAPITAL CORREGIDA Y FUNCIONAL ***
-            // Esta lógica es independiente de si la unidad ya actuó
+                // *** LÓGICA DE CAPITAL CORREGIDA Y FUNCIONAL ***
+                // Esta lógica es independiente de si la unidad ya actuó
             const hexUnderUnit = board[unit.r]?.[unit.c];
             if (hexUnderUnit && this._domElements.setAsCapitalBtn) {
                 const isEligibleCity = hexUnderUnit.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexUnderUnit.structure);
@@ -338,7 +375,7 @@ const UIManager = {
             }
         }
         
-        // --- FINALIZACIÓN ---
+            // --- FINALIZACIÓN ---
         if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
             this.attachAttackPredictionListener(unit);
         } else { 
@@ -346,35 +383,55 @@ const UIManager = {
         }
         
         if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.add('visible');
-    }, 
+    },
     
     _buildUnitDetailsHTML: function(unit) {
-        let html = `<p>Salud: ${unit.currentHealth}/${unit.maxHealth} | Mov: ${unit.currentMovement || unit.movement}</p>`;
-        
-        // Añadir Moral
+        let html = '';
+
+        // --- Línea 1: Stats Consolidados de la Unidad ---
+        // Salud
+        const healthStr = `Salud: ${unit.currentHealth}/${unit.maxHealth}`;
+
+        // Moral (con colores)
         let moralStatus = "Normal", moralColor = "#f0f0f0";
         if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
         else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
         else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
-        html += `<p>Moral: <strong style="color:${moralColor};">${unit.morale || 50}/${unit.maxMorale || 125} (${moralStatus})</strong></p>`;
+        const moraleStr = `Moral: <strong style="color:${moralColor};">${unit.morale || 50}/${unit.maxMorale || 125} (${moralStatus})</strong>`;
 
-        // Añadir Experiencia
+        // Experiencia (con valores numéricos)
         const levelData = XP_LEVELS[unit.level || 0];
+        let xpStr = "Experiencia: ";
         if (levelData) {
-            let xpText = `Nivel: ${levelData.currentLevelName}`;
-            if (levelData.nextLevelXp !== 'Max') {
-                xpText += ` (XP: ${unit.experience || 0} / ${levelData.nextLevelXp})`;
+            const nextLevelXP = levelData.nextLevelXp;
+            if (nextLevelXP !== 'Max') {
+                xpStr += `${unit.experience || 0}/${nextLevelXP} (${levelData.currentLevelName})`;
+            } else {
+                xpStr += `Máxima (${levelData.currentLevelName})`;
             }
-            html += `<p>${xpText}</p>`;
         }
 
-        // Añadir Terreno
+        // Movimiento
+        const moveStr = `Mov: ${unit.currentMovement || unit.movement}`;
+
+        // Construir la primera línea del HTML. Usamos separadores para claridad.
+        html += `<p>${healthStr} &nbsp;|&nbsp; ${moraleStr} &nbsp;|&nbsp; ${xpStr} &nbsp;|&nbsp; ${moveStr}</p>`;
+
+        // --- Líneas 2 y 3: Información de la Casilla ---
         const hexData = board[unit.r]?.[unit.c];
         if (hexData) {
-            html += `<hr style="margin: 4px 0; border-color: #4a5568;" />`;
-            html += `<p>En Terreno: ${TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido'}</p>`;
-            html += `<p>J${hexData.owner} Est: ${hexData.estabilidad}/${MAX_STABILITY} Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}</p>`;
+            // Terreno y Coordenadas
+            const terrainName = TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido';
+            html += `<p>En Terreno: ${terrainName} (${unit.r},${unit.c})</p>`;
+            
+            // Dueño, Estabilidad y Nacionalidad
+            if (hexData.owner !== null) {
+                html += `<p>Dueño: J${hexData.owner} &nbsp;|&nbsp; Est: ${hexData.estabilidad}/${MAX_STABILITY} &nbsp;|&nbsp; Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}</p>`;
+            } else {
+                html += `<p>Territorio Neutral</p>`;
+            }
         }
+        
         return html;
     },
     
@@ -517,4 +574,44 @@ const UIManager = {
             endTurnBtn.disabled = true;
         }
     },
+
+    /**
+     * (NUEVA FUNCIÓN) Borra todas las unidades visuales del tablero y las vuelve a crear
+     * desde el array de datos `units`. Es la solución definitiva para problemas de desincronización del DOM.
+     */
+    renderAllUnitsFromData: function() {
+        if (!this._domElements.gameBoard) return;
+
+        console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
+
+        // Paso 1: Eliminar todos los divs de unidades existentes.
+        this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
+
+        // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
+        for (const unit of units) {
+            // Se recrea el elemento DOM para cada unidad en la lista de datos.
+            const unitElement = document.createElement('div');
+            unitElement.className = `unit player${unit.player}`;
+            unitElement.textContent = unit.sprite || '?';
+            unitElement.dataset.id = unit.id;
+            const strengthDisplay = document.createElement('div');
+            strengthDisplay.className = 'unit-strength';
+            strengthDisplay.textContent = unit.currentHealth;
+            unitElement.appendChild(strengthDisplay);
+            
+            // Re-asignamos la nueva referencia del elemento al objeto de datos.
+            unit.element = unitElement;
+
+            // Lo añadimos al tablero.
+            this._domElements.gameBoard.appendChild(unitElement);
+
+            // Y lo posicionamos.
+            if (typeof positionUnitElement === 'function') {
+                positionUnitElement(unit);
+            }
+        }
+        console.log("[RENDER ALL] Re-dibujado completo finalizado.");
+    },
+
+    
 };

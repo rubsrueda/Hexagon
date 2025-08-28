@@ -301,14 +301,16 @@ function generateClusteredTerrain(rows, cols, terrainType, targetAmount, minClus
 }
 
 /**
- * Coloca los recursos en el mapa ya generado según las reglas.
+ * Coloca los recursos en el mapa ya generado, garantizando una cantidad mínima de oro.
  * @param {number} rows - Filas del tablero.
  * @param {number} cols - Columnas del tablero.
- * @param {string} resourceLevel - Nivel de recursos seleccionado por el jugador.
+ * @param {string} resourceLevel - Nivel de recursos seleccionado por el jugador ('min', 'med', 'max').
  */
 function placeResourcesOnGeneratedMap(rows, cols, resourceLevel) {
     const plainsHexes = [];
+    const availableHills = []; // Lista para guardar todas las colinas disponibles
 
+    // --- 1. PRIMERA PASADA: Colocar recursos fijos y recopilar ubicaciones disponibles ---
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             const hex = board[r][c];
@@ -318,16 +320,9 @@ function placeResourcesOnGeneratedMap(rows, cols, resourceLevel) {
             if (hex.terrain === 'forest') {
                 hex.resourceNode = 'madera';
             }
-            // Regla 2: Colinas tienen Piedra, Hierro u Oro
-            else if (hex.terrain === 'hills') {
-                const rand = Math.random();
-                if (rand < 0.70) { // 70%
-                    hex.resourceNode = 'piedra';
-                } else if (rand < 0.90) { // 20% (de 0.70 a 0.90)
-                    hex.resourceNode = 'hierro';
-                } else { // 10% (de 0.90 a 1.0)
-                    hex.resourceNode = 'oro_mina';
-                }
+            // Regla 2: Recopilar todas las colinas que no sean ciudades/capitales
+            else if (hex.terrain === 'hills' && !hex.isCity) {
+                availableHills.push({r, c});
             }
             // Regla 3: Guardar llanuras para la Comida
             else if (hex.terrain === 'plains' && !hex.isCity) {
@@ -336,7 +331,43 @@ function placeResourcesOnGeneratedMap(rows, cols, resourceLevel) {
         }
     }
 
-    // Colocar Comida en llanuras
+    // --- 2. LÓGICA DE ORO GARANTIZADO ---
+    let goldNodesToPlace = 0;
+    switch (resourceLevel) {
+        case 'min': goldNodesToPlace = 1; break;
+        case 'med': goldNodesToPlace = 2; break;
+        case 'max': goldNodesToPlace = 3; break;
+        default: goldNodesToPlace = 1;
+    }
+    
+    // Barajar las colinas disponibles para colocar el oro aleatoriamente
+    for (let i = availableHills.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availableHills[i], availableHills[j]] = [availableHills[j], availableHills[i]];
+    }
+
+    // Colocar el oro garantizado
+    for (let i = 0; i < goldNodesToPlace && i < availableHills.length; i++) {
+        const hillCoords = availableHills[i];
+        board[hillCoords.r][hillCoords.c].resourceNode = 'oro_mina';
+    }
+
+    // --- 3. RELLENAR EL RESTO DE RECURSOS ---
+    
+    // Rellenar las colinas restantes (las que no obtuvieron oro) con piedra o hierro
+    for (const hillCoords of availableHills) {
+        const hex = board[hillCoords.r][hillCoords.c];
+        // Si el hexágono de colina todavía no tiene un recurso asignado...
+        if (hex && !hex.resourceNode) {
+            if (Math.random() < 0.75) { // 75% de las restantes serán piedra
+                hex.resourceNode = 'piedra';
+            } else { // 25% de las restantes serán hierro
+                hex.resourceNode = 'hierro';
+            }
+        }
+    }
+
+    // Colocar Comida en llanuras (lógica sin cambios)
     let foodNodesToPlace = 0;
     switch (resourceLevel) {
         case 'min': foodNodesToPlace = 2; break;
@@ -349,7 +380,6 @@ function placeResourcesOnGeneratedMap(rows, cols, resourceLevel) {
         const j = Math.floor(Math.random() * (i + 1));
         [plainsHexes[i], plainsHexes[j]] = [plainsHexes[j], plainsHexes[i]];
     }
-
     for (let i = 0; i < foodNodesToPlace && i < plainsHexes.length; i++) {
         const hexCoords = plainsHexes[i];
         board[hexCoords.r][hexCoords.c].resourceNode = 'comida';

@@ -1097,6 +1097,7 @@ function populateWikiRegimentsTab() {
     const table = document.getElementById('wikiRegimentsTable');
     if (!table) return;
 
+    // 1. Añadimos una nueva cabecera de columna para las limitaciones.
     let html = `
         <thead>
             <tr>
@@ -1109,6 +1110,7 @@ function populateWikiRegimentsTab() {
                 <th>Salud</th>
                 <th>Mov.</th>
                 <th>Rango</th>
+                <th>Limitaciones Terreno</th> 
             </tr>
         </thead>
         <tbody>
@@ -1132,6 +1134,24 @@ function populateWikiRegimentsTab() {
 
     for (const type in REGIMENT_TYPES) {
         const reg = REGIMENT_TYPES[type];
+
+        // 2. Lógica para obtener las limitaciones de terreno
+        let limitationsStr = 'Ninguna';
+        if (reg.category && !reg.is_naval) { // Las unidades navales tienen su propia lógica
+            const categoryLimitations = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[reg.category] || [];
+            const allLandLimitations = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land || [];
+            const allLimitations = [...new Set([...allLandLimitations, ...categoryLimitations])]; // Combinar y eliminar duplicados
+
+            if (allLimitations.length > 0) {
+                limitationsStr = allLimitations
+                    .map(terrainKey => TERRAIN_TYPES[terrainKey]?.name || terrainKey) // Usar nombres amigables (ej. "Bosque")
+                    .join(', ');
+            }
+        } else if (reg.is_naval) {
+            limitationsStr = "Solo Agua";
+        }
+        
+        // 3. Añadimos la nueva celda <td> a la fila.
         html += `
             <tr>
                 <td class="wiki-regiment-icon">${reg.sprite}</td>
@@ -1143,6 +1163,7 @@ function populateWikiRegimentsTab() {
                 <td>${getStars(reg.health, maxHealth)}</td>
                 <td>${getStars(reg.movement, maxMovement)}</td>
                 <td>${getStars(reg.attackRange, maxRange)}</td>
+                <td>${limitationsStr}</td> 
             </tr>
         `;
     }

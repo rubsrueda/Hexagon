@@ -745,19 +745,35 @@ function initApp() {
     if (domElements.floatingReinforceBtn) {
         domElements.floatingReinforceBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            console.log("[DEBUG Botón Gestionar] click detectado");
-            if (selectedUnit) {
-                if (typeof openUnitDetailModal === "function") {
-                    openUnitDetailModal(selectedUnit);
+            console.log("[Botón 💪/👁️] Clic detectado.");
+
+            // Obtenemos las coordenadas de la última unidad sobre la que se mostró el panel.
+            // Esto es más fiable que depender de `selectedUnit`, que es solo para unidades controlables.
+            const unitR = gameState.selectedHexR;
+            const unitC = gameState.selectedHexC;
+
+            if (typeof unitR !== 'undefined' && unitR !== -1) {
+                const unitToShow = getUnitOnHex(unitR, unitC);
+
+                if (unitToShow) {
+                    console.log(`[Botón 💪/👁️] Abriendo modal para: ${unitToShow.name}`);
+                    if (typeof openUnitDetailModal === "function") {
+                        // La función openUnitDetailModal ya sabe cómo manejar
+                        // una unidad propia vs. una unidad enemiga.
+                        openUnitDetailModal(unitToShow);
+                    } else {
+                        console.error("CRÍTICO: La función 'openUnitDetailModal' no está definida en modalLogic.js.");
+                    }
                 } else {
-                    console.error("CRÍTICO: La función 'openUnitDetailModal' no está definida en modalLogic.js.");
+                    console.warn(`[Botón 💪/👁️] Clic, pero no se encontró ninguna unidad en las coordenadas guardadas (${unitR}, ${unitC}).`);
                 }
             } else {
-                console.warn("[DEBUG Botón Gestionar] Clic, pero no hay unidad seleccionada.");
+                console.warn("[Botón 💪/👁️] Clic, pero no hay coordenadas de unidad seleccionada en el gameState.");
             }
         });
-    } else { console.warn("main.js: floatingReinforceBtn no encontrado, no se pudo añadir listener."); }
-    
+    } else { 
+        console.warn("main.js: floatingReinforceBtn no encontrado, no se pudo añadir listener."); 
+    }
     if (typeof showWelcomeHelpModal === "function") {
         console.log("main.js: Llamando a showWelcomeHelpModal().");
         showWelcomeHelpModal(); 
