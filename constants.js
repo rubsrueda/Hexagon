@@ -5,7 +5,8 @@ const BOARD_COLS = 15;
 const BOARD_SIZES = {
     'small': { rows: 12, cols: 15 },
     'medium': { rows: 18, cols: 25 },
-    'large': { rows: 24, cols: 35 }
+    'large': { rows: 24, cols: 35 },
+    'iberia_magna': { rows: 75, cols: 120 }
 };
 
 const HEX_WIDTH = 50;
@@ -18,13 +19,18 @@ const MAX_REGIMENTS_PER_DIVISION = 20;
 
 const REGIMENT_TYPES = {
     // Escala base: Stats y Costos x20. Salud = 200. Tácticos (mov, rango) sin cambios.
-    "Infantería Ligera": { category: "light_infantry", cost: { oro: 200, upkeep: 20 }, attack: 40, defense: 60, health: 200, movement: 2, sprite: '🚶', visionRange: 2, attackRange: 1, initiative: 8, goldValueOnDestroy: 140, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
-    "Infantería Pesada": { category: "heavy_infantry", cost: { oro: 300, upkeep: 40 }, attack: 60, defense: 100, health: 200, movement: 1, sprite: '🛡️', visionRange: 1, attackRange: 1, initiative: 5, goldValueOnDestroy: 220, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
-    "Caballería Ligera": { category: "light_cavalry", cost: { oro: 400, upkeep: 40 }, attack: 80, defense: 40, health: 200, movement: 4, sprite: '🐎', visionRange: 3, attackRange: 0, initiative: 15, goldValueOnDestroy: 280, foodConsumption: 2, puntosReclutamiento: 200, abilities: ["Jump"] },
-    "Caballería Pesada": { category: "heavy_cavalry", cost: { oro: 600, upkeep: 60 }, attack: 100, defense: 100, health: 200, movement: 3, sprite: '🐴', visionRange: 2, attackRange: 0, initiative: 12, goldValueOnDestroy: 400, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] },
-    "Arqueros": { category: "light_infantry", cost: { oro: 360, upkeep: 20 }, attack: 70, defense: 20, health: 200, movement: 2, sprite: '🏹', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 240, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
-    "Arcabuceros": { category: "light_infantry", cost: { oro: 480, upkeep: 40 }, attack: 100, defense: 40, health: 200, movement: 1, sprite: '💂', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 360, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+//    "Infantería Ligera": { category: "light_infantry", cost: { oro: 200, upkeep: 20 }, attack: 40, defense: 60, health: 200, movement: 2, sprite: '🚶', visionRange: 2, attackRange: 1, initiative: 8, goldValueOnDestroy: 140, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+//    "Infantería Pesada": { category: "heavy_infantry", cost: { oro: 300, upkeep: 40 }, attack: 60, defense: 100, health: 200, movement: 1, sprite: '🛡️', visionRange: 1, attackRange: 1, initiative: 5, goldValueOnDestroy: 220, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+
+    "Infantería Ligera": { category: "light_infantry", cost: { oro: 200, upkeep: 20 }, attack: 40, defense: 60, health: 200, movement: 2, sprite: 'images/sprites/Infanteria_128x128.png', visionRange: 2, attackRange: 1, initiative: 8, goldValueOnDestroy: 140, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+    "Infantería Pesada": { category: "heavy_infantry", cost: { oro: 300, upkeep: 40 }, attack: 60, defense: 100, health: 200, movement: 1, sprite:'images/sprites/Legionario.png', visionRange: 1, attackRange: 1, initiative: 5, goldValueOnDestroy: 220, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+    "Caballería Ligera": { category: "light_cavalry", cost: { oro: 400, upkeep: 40 }, attack: 80, defense: 40, health: 200, movement: 4, sprite: 'images/sprites/cab_ligera_128x128.png', visionRange: 3, attackRange: 0, initiative: 15, goldValueOnDestroy: 280, foodConsumption: 2, puntosReclutamiento: 200, abilities: ["Jump"] },
+    "Caballería Pesada": { category: "heavy_cavalry", cost: { oro: 600, upkeep: 60 }, attack: 100, defense: 100, health: 200, movement: 3, sprite: 'images/sprites/cab_pesada128.png', visionRange: 2, attackRange: 0, initiative: 12, goldValueOnDestroy: 400, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] },
+    
     "Arqueros a Caballo": { category: "light_cavalry", cost: { oro: 720, upkeep: 60 }, attack: 60, defense: 60, health: 200, movement: 4, sprite: '🏇', visionRange: 3, attackRange: 2, initiative: 16, goldValueOnDestroy: 480, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+    "Arqueros": { category: "light_infantry", cost: { oro: 360, upkeep: 20 }, attack: 70, defense: 20, health: 200, movement: 2, sprite: '🏹', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 240, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+    
+    "Arcabuceros": { category: "light_infantry", cost: { oro: 480, upkeep: 40 }, attack: 100, defense: 40, health: 200, movement: 1, sprite: '💂', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 360, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
     "Artillería": { category: "artillery", cost: { oro: 1000, upkeep: 80 }, attack: 200, defense: 20, health: 200, movement: 1, sprite: '💣', visionRange: 1, attackRange: 3, initiative: 20, goldValueOnDestroy: 800, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] },
 
     // Unidades de Apoyo - Stats ajustados para equilibrio. Ataques bajos se escalan menos.
@@ -57,7 +63,6 @@ const REGIMENT_TYPES = {
         goldValueOnDestroy: 200, foodConsumption: -5,
         abilities: ["provide_supply"]
     },
-
     // Unidades Navales y Especiales
     "Barco de Guerra": {
         category: "naval", is_naval: true,
@@ -89,6 +94,32 @@ const REGIMENT_TYPES = {
         puntosReclutamiento: 40,
         abilities: ["enhanced_vision", "reveal_details"] // Habilidades descriptivas
     },
+};
+
+// Iberia Magna
+
+// Define el número máximo de jugadores para esta modalidad
+const MAX_PLAYERS_MAGNA = 8;
+
+// (MODIFICADO) Expande los recursos iniciales
+const INITIAL_PLAYER_RESOURCES_MAGNA = [
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 1
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+    { oro: 1000, hierro: 200, piedra: 500, madera: 500, comida: 300, researchPoints: 0, puntosReclutamiento: 1000 }, // Jugador 2
+];
+
+// Define las facciones de Iberia
+const CIVILIZATIONS_IBERIA = {
+    "Castilla": { name: "Corona de Castilla", bonuses: { /* ... */ } },
+    "Aragon": { name: "Corona de Aragón", bonuses: { /* ... */ } },
+    "Portugal": { name: "Reino de Portugal", bonuses: { /* ... */ } },
+    "Navarra": { name: "Reino de Navarra", bonuses: { /* ... */ } },
+    "Granada": { name: "Emirato de Granada", bonuses: { /* ... */ } },
 };
 
 const XP_LEVELS = [
@@ -296,6 +327,21 @@ const CIVILIZATIONS = {
     }
 };
 
+const HERO_PROGRESSION_CONFIG = {
+    MAX_LEVEL: 50,
+    BASE_XP: 1000,
+    POWER: 1.2,
+    XP_PER_BOOK: 500
+};
+
+const HERO_FRAGMENTS_PER_STAR = {
+    // Para evolucionar A esta estrella
+    2: 20,
+    3: 50,
+    4: 100,
+    5: 200
+};
+
 const SKIRMISH_VICTORY_GOLD_BONUS = 200;
 
 const STRUCTURE_TYPES = {
@@ -404,6 +450,107 @@ const BASE_INCOME = {
     RESEARCH_POINTS_PER_TURN: 8
 };
 
+// Habilidades de los héroes
+const SKILL_DEFINITIONS = {
+    // === HABILIDADES GENÉRICAS REUTILIZABLES ===
+    'passive_infantry_defense_buff': {
+        name: "Defensa de Infantería",
+        description_template: "Aumenta la defensa de la Infantería en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: { unit_category: ['heavy_infantry', 'light_infantry'] }
+    },
+    'passive_infantry_attack_buff': {
+        name: "Ataque de Infantería",
+        description_template: "Aumenta el ataque de la Infantería en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: { unit_category: ['heavy_infantry', 'light_infantry'] }
+    },
+    'passive_cavalry_attack_buff': {
+        name: "Ataque de Caballería",
+        description_template: "Aumenta el ataque de la Caballería en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: { unit_category: ['heavy_cavalry', 'light_cavalry'] }
+    },
+    'passive_cavalry_health_buff': {
+        name: "Salud de Caballería",
+        description_template: "Aumenta la salud de la Caballería en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: { unit_category: ['heavy_cavalry', 'light_cavalry'] }
+    },
+    'passive_archer_attack_buff': {
+        name: "Ataque de Arqueros",
+        description_template: "Aumenta el ataque de los Arqueros en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: { unit_type: 'Arqueros' }
+    },
+    'passive_siege_damage_buff': {
+        name: "Daño de Asedio",
+        description_template: "Aumenta el daño de asedio en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: { unit_category: 'artillery' }
+    },
+    'passive_all_troops_health_buff': {
+        name: "Salud de Tropas",
+        description_template: "Aumenta la salud de todas las tropas en un {X}%.",
+        effect_type: 'stat_modifier',
+        filters: {} // Vacío para aplicar a todos
+    },
+    'active_direct_damage': { name: "Golpe Certero", description_template: "Inflige daño directo (Poder {X}).", effect_type: 'damage' },
+    'active_shield': { name: "Escudo Defensivo", description_template: "Crea un escudo que absorbe {X} de daño.", effect_type: 'shield' },
+    'active_heal': { name: "Curación de Campo", description_template: "Cura a las tropas (Poder {X}).", effect_type: 'heal' },
+    'active_attack_buff': { name: "Grito de Guerra", description_template: "Aumenta el ataque de la división un {X}%.", effect_type: 'buff' },
+    'passive_skill_damage_buff': { name: "Genio Militar", description_template: "Aumenta el daño de habilidad un {X}%.", effect_type: 'stat_modifier' },
+
+    // === HABILIDADES ÚNICAS (Todas declaradas) ===
+    'active_damage_and_slow': { name: "Emboscada Ilergete", description_template: "Inflige daño (Poder {X}) y ralentiza un {Y}%." },
+    'passive_terrain_bonus': { name: "Guerra de Montaña", description_template: "Aumenta Atk/Def de Infantería un {X}% en Colinas/Bosques." },
+    'active_mass_attack_speed_buff': { name: "Juramento de Odio", description_template: "Aumenta el ataque ({X}%) y la marcha ({Y}%) de las tropas." },
+    'passive_inf_cav_health_buff': { name: "Veteranos de África", description_template: "Aumenta salud de Infantería y Caballería un {X}%." },
+    'active_garrison_attack_buff': { name: "Qart Hadasht", description_template: "Aumenta el ataque un {X}% al defender en ciudades/fortalezas." },
+    'active_berserk_rage': { name: "Furia Lusitana", description_template: "Aumenta ataque un {X}% pero reduce defensa un {Y}%." },
+    'passive_low_health_defense_buff': { name: "Invencible", description_template: "Bajo el 50% de salud, aumenta su defensa en {X}%." },
+    'passive_infantry_movement_buff': { name: "Tierra Quemada", description_template: "Aumenta la velocidad de marcha de la Infantería en 1." },
+    'active_debuff_enemy': { name: "Táctica Envolvente", description_template: "Inflige daño (Poder {X}) y reduce la defensa enemiga un {Y}%." },
+    'passive_all_troops_defense_buff': { name: "Legiones Disciplinadas", description_template: "Aumenta la defensa de todas las tropas un 10%." },
+    'active_heal_and_speed_buff': { name: "Consejo de la Cierva Blanca", description_template: "Cura (Poder {X}) y aumenta la marcha un {Y}%." },
+    'passive_counter_damage_reduction': { name: "Guerra Sertoriana", description_template: "Reduce el daño de contraataque recibido en {X}%." },
+    'passive_mixed_army_buff': { name: "Lealtad Hispana", description_template: "Aumenta el ataque de tropas mixtas (3+ tipos) en {X}%." },
+    'active_siege_conditional_damage': { name: "Majestad Gótica", description_template: "Inflige daño (Poder {X}). +20% de daño a guarniciones." },
+    'passive_garrison_defense_bonus': { name: "Código de Leovigildo", description_template: "Aumenta defensa de guarnición un {X}%." },
+    'active_finisher_damage': { name: "Carga Final", description_template: "Inflige daño masivo (Poder {X}). El daño aumenta a baja salud." },
+    'passive_glass_cannon': { name: "El Peso de la Traición", description_template: "La división recibe un 7% más de daño de ataques normales." },
+    'active_defensive_stance': { name: "Victoria de Covadonga", description_template: "Aumenta defensa ({X}%) y contraataque ({Y}%) pero inmoviliza a la unidad." },
+    'active_aoe_damage': { name: "Aceifa Fulminante", description_template: "Inflige daño en área (Poder {X}) a hasta 3 objetivos." },
+    'passive_full_army_buff': { name: "Señor de Valencia", description_template: "Aumenta atk, def y salud de tropas mixtas (3+ tipos) un {X}%." },
+    'passive_on_death_aoe_buff': { name: "Ganar Batallas Después de Muerto", description_template: "Al ser derrotado, aliados cercanos ganan {X}% de ataque." },
+    'active_heal_and_attack_buff': { name: "Fervor del Desierto", description_template: "Cura (Poder {X}) y aumenta el ataque un {Y}%." },
+    'passive_high_health_damage_buff': { name: "Batalla de Sagrajas", description_template: "Con más del 70% de salud, el daño aumenta un {X}%." },
+    'active_normal_attack_steroid': { name: "Siempre en la Brecha", description_template: "Aumenta el daño de ataque normal un {X}%." },
+    'active_cavalry_charge': { name: "Carga Relámpago", description_template: "Aumenta la marcha ({Y}%) e inflige daño (Poder {X})." },
+    'active_garrison_debuff_damage': { name: "Asalto Anfibio", description_template: "Inflige daño de asedio (Poder {X}) y reduce la defensa de la guarnición un {Y}%." },
+    'active_heal_and_skill_defense': { name: "Bendición Divina", description_template: "Cura (Poder {X}) y otorga {Y}% de reducción de daño de habilidad." },
+    'active_cavalry_buff_no_slow': { name: "¡Santiago y Cierra, España!", description_template: "Aumenta el ataque de caballería un {X}% y otorga inmunidad a ralentización." },
+    'active_garrison_damage_reduction': { name: "Sacrificio Leal", description_template: "La guarnición recibe {X}% menos de daño." },
+    'passive_garrison_conditional_attack': { name: "Defensa a ultranza", description_template: "Aumenta el ataque de guarnición un {X}% si está rodeada." },
+    'active_aoe_damage_with_dot': { name: "¡Desperta Ferro!", description_template: "Inflige daño en área (Poder {X}) y aplica Sangrado (Poder {Y})." },
+    'passive_infantry_rage': { name: "Furia Almogávar", description_template: "Aumenta el ataque de Infantería un {X}%, pero reduce su salud un 5%." },
+    'passive_counter_attack_buff': { name: "Venganza Catalana", description_template: "El daño de contraataque aumenta un {X}%." },
+    'active_aoe_debuff': { name: "Guerra de Desgaste", description_template: "Reduce ataque ({X}%) y defensa ({Y}%) de hasta 3 objetivos." },
+    'active_heal_debuff': { name: "Conspiración Palaciega", description_template: "Reduce la defensa un {X}% y la curación recibida un {Y}%." },
+    'active_siege_mine': { name: "Mina Socavadora", description_template: "Inflige daño de asedio masivo (Poder {X}) a una guarnición." },
+    'active_death_defiance': { name: "Voluntad de Hierro", description_template: "Durante 2 turnos, las tropas no pueden caer por debajo del 10% de su fuerza." },
+    'passive_low_health_defense_up': { name: "Batalla de Pavía", description_template: "Bajo el 50% de salud, la defensa aumenta en {X}%." },
+    'active_heal_and_skill_buff': { name: "Inspirar a las Tropas", description_template: "Cura (Poder {X}) y aumenta el daño de habilidad de tropas cercanas un 10%." },
+    'active_shield_and_counter': { name: "Disciplina de Hierro", description_template: "Otorga un escudo (Poder {X}) y aumenta el contraataque un {Y}%." },
+    'active_naval_aoe_damage_and_buff': { name: "Carga de la Liga Santa", description_template: "Inflige daño a hasta 5 flotas (Poder {X}) y aumenta el ataque de flotas aliadas un {Y}%." },
+    'active_naval_damage_and_debuff': { name: "Dominio de los Mares", description_template: "Inflige daño a una flota (Poder {X}) y reduce su ataque y marcha un {Y}%." },
+    'passive_naval_attack_defense_buff': { name: "Nunca Derrotado", description_template: "Aumenta ataque y defensa de unidades navales un {X}%." },
+    'active_siege_attack_buff': { name: "Asalto Metódico", description_template: "Aumenta el ataque de las tropas que atacan una ciudad en un {X}%." },
+    'passive_cavalry_infantry_speed_buff': { name: "Maestro de Flandes", description_template: "Aumenta la velocidad de marcha de Caballería e Infantería en 1." },
+    'active_heal_and_counter_buff': { name: "Indomable", description_template: "Cura (Poder {X}) y aumenta el contraataque en {Y}%." },
+    'passive_low_health_damage_up': { name: "Veterano Marcado", description_template: "Cuanta menos vida tiene, más daño inflige (hasta un +{X}% de ataque)." },
+    'active_defense_buff': { name: "Cabeza de Puente", description_template: "Aumenta la defensa de sus tropas en un {X}%." }
+};
 
 // --- INGRESOS BASE DE ORO POR CONTROL TERRITORIAL ---
 const GOLD_INCOME = {

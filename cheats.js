@@ -27,6 +27,18 @@ const Cheats = { // ¡Reemplaza el objeto Cheats completo con esto!
     lose_game: () => { /* ... la lógica original se mantiene abajo... */ },
 
 
+    /**
+     * ¡Amnesia total! Borra todos los datos guardados del juego en el navegador (perfiles, etc.).
+     * Uso: nuevo_comienzo
+     */
+    nuevo_comienzo: () => {
+        if (confirm("¿Estás seguro de que quieres borrar TODOS los datos guardados? Esta acción es irreversible.")) {
+            localStorage.clear();
+            logToConsole("Todos los datos locales han sido borrados. Recarga la página (F5) para empezar de cero.", "warning");
+            setTimeout(() => location.reload(), 1500); // Recarga automática
+        }
+    },
+    
     // --- 1. GESTIÓN DE RECURSOS ---
 
     /**
@@ -449,4 +461,3 @@ Cheats.lose_game = () => {
         if(typeof logToConsole === "function") logToConsole("¡Derrota forzada!", 'error');
     } else throw new Error("endTacticalBattle no está definida.");
 };
-

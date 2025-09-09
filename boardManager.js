@@ -981,6 +981,17 @@ function renderSingleHexVisuals(r, c) {
         hexEl.classList.remove('plains', 'forest', 'hills', 'water'); 
     }
 
+    // Primero, eliminamos cualquier clase de estructura anterior para evitar conflictos al mejorar.
+    for (const structureKey in STRUCTURE_TYPES) {
+        const oldStructureClass = `structure-${structureKey.replace(/\s+/g, '-')}`;
+        hexEl.classList.remove(oldStructureClass);
+    }
+    // Ahora, si hay una nueva estructura, añadimos su clase.
+    if (hexData.structure) {
+        const newStructureClass = `structure-${hexData.structure.replace(/\s+/g, '-')}`;
+        hexEl.classList.add(newStructureClass);
+    }
+
     if (hexData.owner) hexEl.classList.add(`player${hexData.owner}-owner`);
     if (hexData.isCity) hexEl.classList.add('city');
     if (hexData.isCapital) hexEl.classList.add('capital-city');
@@ -997,7 +1008,19 @@ function renderSingleHexVisuals(r, c) {
             structureSpriteEl.classList.add('structure-sprite');
             hexEl.appendChild(structureSpriteEl);
         }
-        structureSpriteEl.textContent = STRUCTURE_TYPES[hexData.structure].sprite;
+        
+        // ---  LÓGICA HÍBRIDA PARA ESTRUCTURAS ---
+        const spriteValue = STRUCTURE_TYPES[hexData.structure].sprite;
+        const isImageSprite = spriteValue.includes('.') || spriteValue.includes('/');
+
+        if (isImageSprite) {
+            structureSpriteEl.textContent = '';
+            structureSpriteEl.style.backgroundImage = `url('${spriteValue}')`;
+        } else {
+            structureSpriteEl.style.backgroundImage = 'none';
+            structureSpriteEl.textContent = spriteValue;
+        }
+
     } else if (structureSpriteEl) {
         structureSpriteEl.remove();
     }
@@ -1074,4 +1097,58 @@ function initializeTerritoryData() {
         }
     }
     console.log("Inicialización de territorio completada.");
+}
+
+// Al final de boardManager.js
+
+/**
+ * (NUEVO) Inicializa el tablero para la modalidad de juego "Iberia Magna".
+ */
+function initializeIberiaMagnaMap() {
+    console.log("boardManager.js: Inicializando el mapa de Iberia Magna.");
+
+    const mapData = GAME_DATA_REGISTRY.maps['IBERIA_MAGNA'];
+    const B_ROWS = mapData.rows;
+    const B_COLS = mapData.cols;
+
+    // Reseteo del tablero y estado (similar a la función original)
+    if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
+    board = Array(B_ROWS).fill(null).map(() => Array(B_COLS).fill(null));
+    gameState.cities = [];
+
+    domElements.gameBoard.style.width = `${B_COLS * HEX_WIDTH + HEX_WIDTH / 2}px`;
+    domElements.gameBoard.style.height = `${B_ROWS * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+
+    // 1. Crear el tablero base (todo llanuras)
+    for (let r = 0; r < B_ROWS; r++) {
+        for (let c = 0; c < B_COLS; c++) {
+            const hexElement = createHexDOMElementWithListener(r, c);
+            domElements.gameBoard.appendChild(hexElement);
+            board[r][c] = {
+                r, c, element: hexElement, terrain: 'plains', owner: null,
+                structure: null, isCity: false, isCapital: false, resourceNode: null,
+                visibility: {}, unit: null, estabilidad: 0, nacionalidad: {}
+            };
+        }
+    }
+
+    // 2. Aplicar los hexágonos especiales del archivo de mapa
+    mapData.specialHexes.forEach(hexConfig => {
+        if (board[hexConfig.r]?.[hexConfig.c]) {
+            const hex = board[hexConfig.r][hexConfig.c];
+            hex.terrain = hexConfig.terrain || hex.terrain;
+            hex.resourceNode = hexConfig.resourceNode || null;
+
+            if (hexConfig.cityName) {
+                const isCapital = hexConfig.isCapital || false;
+                addCityToBoardData(hexConfig.r, hexConfig.c, hexConfig.owner, hexConfig.cityName, isCapital);
+            }
+        }
+    });
+
+    initializeTerritoryData();
+    renderFullBoardVisualState();
+    updateFogOfWar();
+    initializeBoardPanning();
+    logMessage("¡Bienvenido a Iberia Magna!");
 }

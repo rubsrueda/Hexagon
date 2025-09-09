@@ -1,4 +1,4 @@
-// debugConsole.js
+// debugConsole.js(20250827)
 // Lógica para la consola de depuración en pantalla (Versión Clásica).
 
 let consoleElement;

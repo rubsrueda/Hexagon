@@ -1,4 +1,4 @@
-// Archivo: ai_deploymentLogic.js
+// Archivo: ai_deploymentLogic.js(20250827)
 console.log("ai_deploymentLogic.js CARGADO - Módulo de IA para la Fase de Despliegue.");
 
 const AiDeploymentManager = {

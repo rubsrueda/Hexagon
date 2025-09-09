@@ -139,6 +139,34 @@ function handleBrokenUnits(playerNum) {
     });
 }
 
+function resetUnitsForNewTurn(playerNumber) { 
+    console.log(`%c[TurnStart] Reseteando unidades para Jugador ${playerNumber}`, "color: blue; font-weight: bold;");
+    if (!units || !Array.isArray(units)) {
+        console.error("[TurnStart] El array 'units' no está disponible o no es un array.");
+        return;
+    }
+    
+    // Iteramos sobre TODAS las unidades
+    units.forEach(unit => {
+        // >> INICIO DE LA CORRECCIÓN LÓGICA <<
+        // Si la unidad pertenece al jugador cuyo turno está COMENZANDO...
+        if (unit.player === playerNumber) {
+            // Se resetean sus acciones y su movimiento
+            const statsFromRegiments = calculateRegimentStats(unit.regiments, unit.player);
+            unit.movement = statsFromRegiments.movement;
+            unit.currentMovement = unit.movement;
+            unit.hasMoved = false;
+            unit.hasAttacked = false;
+            unit.isFlanked = false; // Se resetea el estado de flanqueo al inicio de su turno
+        }
+    });
+
+    if (typeof deselectUnit === "function") deselectUnit();
+    if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
+        UIManager.updateAllUIDisplays();
+    }
+}
+
 function handleUnitUpkeep(playerNum) {
     if (!gameState.playerResources?.[playerNum] || !units) return;
 
@@ -302,7 +330,7 @@ function collectPlayerResources(playerNum) {
                 return;
             }
 
-            console.log(`--- Analizando Hex (${hex.r},${hex.c}) ---`);
+           // console.log(`--- Analizando Hex (${hex.r},${hex.c}) ---`);
 
             // <<== NUEVO: Cálculo no lineal del multiplicador de estabilidad ==>>
             let stabilityMultiplier = 0;
@@ -319,8 +347,8 @@ function collectPlayerResources(playerNum) {
 
             const nationalityMultiplier = (hex.nacionalidad[playerNum] || 0) / MAX_NACIONALIDAD;
 
-            console.log(`  - Estabilidad: ${hex.estabilidad}/${MAX_STABILITY} (Multiplicador: ${stabilityMultiplier.toFixed(2)})`);
-            console.log(`  - Nacionalidad: ${hex.nacionalidad[playerNum]}/${MAX_NACIONALIDAD} (Multiplicador: ${nationalityMultiplier.toFixed(2)})`);
+           // console.log(`  - Estabilidad: ${hex.estabilidad}/${MAX_STABILITY} (Multiplicador: ${stabilityMultiplier.toFixed(2)})`);
+           // console.log(`  - Nacionalidad: ${hex.nacionalidad[playerNum]}/${MAX_NACIONALIDAD} (Multiplicador: ${nationalityMultiplier.toFixed(2)})`);
             
             let recruitmentPointsFromHex = 0;
             if (hex.isCity) {
@@ -330,7 +358,7 @@ function collectPlayerResources(playerNum) {
             } else {
                 recruitmentPointsFromHex = 10 * nationalityMultiplier * stabilityMultiplier;
             }
-            console.log(`  - Puntos Reclutamiento base del hex: ${recruitmentPointsFromHex.toFixed(2)}`);
+           // console.log(`  - Puntos Reclutamiento base del hex: ${recruitmentPointsFromHex.toFixed(2)}`);
             totalIncome.puntosReclutamiento += Math.round(recruitmentPointsFromHex);
 
             let incomeFromHex = { oro: 0, hierro: 0, piedra: 0, madera: 0, comida: 0 };
@@ -684,6 +712,16 @@ function endTacticalBattle(winningPlayerNumber) {
         // Para escaramuza, podrías tener un botón "Volver al Menú" en un modal de resumen
         // o simplemente dejar que el jugador cierre el alert y luego use el menú flotante.
     }
+
+    if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.username) {
+        // Usamos un timeout para que la pregunta no aparezca instantáneamente
+        setTimeout(() => {
+            if (confirm(`¿Quieres guardar una copia de seguridad de tu perfil '${PlayerDataManager.currentPlayer.username}' en tu ordenador?`)) {
+                exportProfile();
+            }
+        }, 2000); // 2 segundos después de que termine la batalla
+    }
+
 }
 
 
@@ -821,7 +859,7 @@ function updateTerritoryMetrics(playerEndingTurn) {
                 if (hex.estabilidad >= 3) {
                     if (hex.nacionalidad[originalOwner] > 0) {
                         hex.nacionalidad[originalOwner]--;
-                        console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Baja nación de J${originalOwner} a ${hex.nacionalidad[originalOwner]}`);
+                        //console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Baja nación de J${originalOwner} a ${hex.nacionalidad[originalOwner]}`);
 
                         // Si la nacionalidad llega a 0, se produce la conquista.
                         if (hex.nacionalidad[originalOwner] === 0) {
@@ -851,14 +889,14 @@ function updateTerritoryMetrics(playerEndingTurn) {
                 
                 if (stabilityGained > 0) {
                     hex.estabilidad = Math.min(MAX_STABILITY, hex.estabilidad + stabilityGained);
-                     console.log(`Hex (${r},${c}): Gana ${stabilityGained} Estabilidad -> ahora es ${hex.estabilidad}`);
+                     //console.log(`Hex (${r},${c}): Gana ${stabilityGained} Estabilidad -> ahora es ${hex.estabilidad}`);
                 }
 
                 // 2. AUMENTO DE NACIONALIDAD (si la estabilidad es suficiente)
                 if (hex.estabilidad >= 3) {
                     if (hex.nacionalidad[hex.owner] < MAX_NACIONALIDAD) {
                         hex.nacionalidad[hex.owner]++;
-                        console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Sube nación de J${hex.owner} a ${hex.nacionalidad[hex.owner]}`);
+                        //console.log(`Hex (${r},${c}): Estabilidad es ${hex.estabilidad}. Sube nación de J${hex.owner} a ${hex.nacionalidad[hex.owner]}`);
                     }
                 }
             }
@@ -950,6 +988,45 @@ function calculateTradeIncome(playerNum) {
     }
 
     return tradeIncome;
+}
+
+/**
+ * Busca y selecciona la siguiente unidad del jugador actual que no ha movido ni atacado.
+ * El ciclo de búsqueda empieza desde la última unidad seleccionada o desde el principio.
+ */
+function selectNextIdleUnit() {
+    const idleUnits = units.filter(u => 
+        u.player === gameState.currentPlayer && 
+        u.currentHealth > 0 && 
+        !u.hasMoved && 
+        !u.hasAttacked
+    );
+
+    if (idleUnits.length === 0) {
+        logMessage("Todas las unidades han actuado este turno.");
+        return;
+    }
+
+    let nextUnitToSelect = null;
+    if (selectedUnit) {
+        const currentIndex = idleUnits.findIndex(u => u.id === selectedUnit.id);
+        // Si la unidad seleccionada está en la lista de inactivas, busca la siguiente
+        if (currentIndex !== -1) {
+            nextUnitToSelect = idleUnits[(currentIndex + 1) % idleUnits.length];
+        }
+    }
+    
+    // Si no había unidad seleccionada o la seleccionada ya había actuado, elige la primera de la lista
+    if (!nextUnitToSelect) {
+        nextUnitToSelect = idleUnits[0];
+    }
+
+    // Selecciona la unidad y centra la vista (necesitaremos una función para centrar)
+    if (nextUnitToSelect) {
+        selectUnit(nextUnitToSelect);
+        // Idealmente, aquí llamaríamos a una función para centrar el mapa en (nextUnitToSelect.r, nextUnitToSelect.c)
+        console.log(`Centrando en la siguiente unidad inactiva: ${nextUnitToSelect.name}`);
+    }
 }
 
 /**
@@ -1260,6 +1337,11 @@ function handleEndTurn() {
         gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
         if (gameState.currentPlayer === 1) gameState.turnNumber++;
         logMessage(`Comienza el Turno ${gameState.turnNumber} del Jugador ${gameState.currentPlayer}.`);
+
+        // <<== LLAMADA AL CRONISTA ==>>
+        if (typeof Chronicle !== 'undefined') {
+            Chronicle.logEvent('turn_start');
+        }
 
         // C. Tareas de PREPARACIÓN para el jugador que EMPIEZA el turno.
         resetUnitsForNewTurn(gameState.currentPlayer);

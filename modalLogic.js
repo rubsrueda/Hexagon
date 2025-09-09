@@ -62,6 +62,8 @@ function addModalEventListeners() {
         console.warn("modalLogic: closeTechTreeBtn no encontrado en domElements."); 
     }
 
+    
+
     if (domElements.closeAdvancedSplitModalBtn) {
         domElements.closeAdvancedSplitModalBtn.addEventListener('click', (event) => { 
             event.stopPropagation(); 
@@ -152,13 +154,20 @@ function addModalEventListeners() {
         });
     } else console.warn("modalLogic: startGameFromHelpBtn no encontrado.");
 
+    const closeHeroDetailBtn = document.getElementById('closeHeroDetailBtn');
+    if (closeHeroDetailBtn) {
+        closeHeroDetailBtn.addEventListener('click', () => {
+            const modal = document.getElementById('heroDetailModal');
+            if (modal) modal.style.display = 'none';
+        });
+    } else {
+        console.warn("modalLogic: closeHeroDetailBtn no encontrado.");
+    }
+
     console.log("modalLogic: addModalEventListeners FINALIZADO.");
 }
 
 function openBuildStructureModal() {
-    // --- Log inicial ---
-    console.log("--- INICIO openBuildStructureModal ---");
-
     if (!hexToBuildOn) {
         console.error("  -> ERROR: hexToBuildOn es nulo. Saliendo.");
         return;
@@ -169,12 +178,15 @@ function openBuildStructureModal() {
         console.error(`  -> ERROR: No se encontró hexágono en board[${r}][${c}]. Saliendo.`);
         return;
     }
+    
+    // <<== Guardamos los datos en el modal ==>>
+    domElements.buildStructureModal.dataset.r = r;
+    domElements.buildStructureModal.dataset.c = c;
+
     if (!domElements.buildStructureModal || !domElements.availableStructuresListModalEl) {
         console.error("  -> ERROR: Elementos del DOM del modal no encontrados. Saliendo.");
         return;
     }
-
-    console.log(`  [Paso 1] Preparando modal para hex (${r},${c}). Estructura actual: ${hex.structure || 'Ninguna'}.`);
     
     // Preparar UI
     domElements.buildHexCoordsDisplay.textContent = `${r},${c}`;
@@ -446,50 +458,6 @@ function populateAvailableStructuresForModal(r, c) {
     }
 }
 
-function handleConfirmBuildStructure() {
-    if (!selectedStructureToBuild || !hexToBuildOn) return;
-
-    const data = STRUCTURE_TYPES[selectedStructureToBuild];
-    const { r, c } = hexToBuildOn;
-    const playerRes = gameState.playerResources[gameState.currentPlayer];
-    const unitOnHex = getUnitOnHex(r,c); // Comprobamos si hay una unidad para el coste de Colono
-
-    // Volver a validar los costes justo antes de confirmar
-    for (const res in data.cost) {
-        if (res === 'Colono') {
-            if (!unitOnHex || !unitOnHex.isSettler) {
-                logMessage("Error: El Colono ya no está en la casilla.");
-                return;
-            }
-        } else {
-            if ((playerRes[res] || 0) < data.cost[res]) {
-                logMessage(`Error: Ya no tienes suficientes ${res}.`);
-                return;
-            }
-        }
-    }
-
-    // Deducir costes
-    for (const res in data.cost) {
-        if (res === 'Colono') {
-            // Consumir la unidad de colono
-            handleUnitDestroyed(unitOnHex, null); 
-            logMessage("¡El Colono ha establecido una nueva Aldea!");
-        } else {
-            playerRes[res] -= data.cost[res];
-        }
-    }
-    
-    // Construir la estructura
-    board[r][c].structure = selectedStructureToBuild;
-    logMessage(`${data.name} construido en (${r},${c}).`);
-
-    renderSingleHexVisuals(r, c);
-    UIManager.updatePlayerAndPhaseInfo();
-    domElements.buildStructureModal.style.display = 'none';
-    UIManager.hideContextualPanel();
-}
-
 function showWelcomeHelpModal() {
     const doNotShow = localStorage.getItem('hexEvolvedDoNotShowHelp');
     if (doNotShow === 'true') {
@@ -556,7 +524,7 @@ function updateAdvancedSplitModalDisplay() {
     
     // Calcula los stats para ambas divisiones (original y nueva)
     let originalStats = calculateRegimentStats(_tempOriginalRegiments, _unitBeingSplit.player);
-    let newStats = calculateRegimentStats(_tempNewUnitRegiments, _unitBeingSplit.player);
+    let newStats = calculateRegimentStats(_tempNewUnitRegiments, _unitBeingSplit.player, null); 
     
     // --- Panel de la Unidad Original ---
     domElements.originalUnitRegimentCount.textContent = `(${_tempOriginalRegiments.length})`; // Solo el contador
@@ -792,6 +760,7 @@ function handleFinalizeDivision() {
         id: null, 
         player: gameState.currentPlayer,
         name: domElements.divisionNameInput.value.trim() || "Nueva División",
+        commander: null,
         // <<== MODIFICACIÓN LÓGICA NECESARIA: Asignamos un ID único a cada regimiento para poder rastrearlo ==>>
         regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)).map((reg, index) => ({
             ...reg,
@@ -896,31 +865,69 @@ function openUnitDetailModal(unit) {
 function populateUnitDetailList(unit) {
     if (!unit) return;
 
-    // --- Rellenar Stats Principales de la División ---
-    const totalHealthPercentage = (unit.currentHealth / unit.maxHealth) * 100;
-    domElements.unitDetailTotalHealthBar.style.width = `${totalHealthPercentage}%`;
-    domElements.unitDetailTotalHealthText.textContent = `${unit.currentHealth} / ${unit.maxHealth}`;
-    
-    domElements.unitDetailCombatStats.textContent = `A/D: ${unit.attack}/${unit.defense}`;
-    domElements.unitDetailMovementStats.textContent = `Mov: ${unit.currentMovement || unit.movement}`;
-    domElements.unitDetailVisionStats.textContent = `Vis: ${unit.visionRange}`;
-    
-    // Moral
-    let moralStatus = "Normal", moralColor = "#f0f0f0";
-    if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
-    else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
-    else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
-    domElements.unitDetailMorale.innerHTML = `Moral: <strong style="color:${moralColor};">${unit.morale}/${unit.maxMorale || 125} (${moralStatus})</strong>`;
+    domElements.unitDetailTitle.textContent = `Gestión de: ${unit.name}`;
 
-    // Experiencia
-    const levelData = XP_LEVELS[unit.level || 0];
-    if (levelData) {
-        const nextLevelXP = levelData.nextLevelXp;
-        let xpText = `XP: ${levelData.currentLevelName}`;
-        if (nextLevelXP !== 'Max') {
-            xpText += ` (${unit.experience || 0} / ${nextLevelXP})`;
+    // Creamos un nuevo contenedor para la información del general
+    let commanderHTML = '';
+    if (unit.commander && COMMANDERS[unit.commander]) {
+        const cmdr = COMMANDERS[unit.commander];
+        commanderHTML = `
+            <div class="commander-details-section" style="background-color: #fff; padding: 10px; border-radius: 5px; border: 1px solid gold; margin-bottom: 15px; text-align: center;">
+                <h4 style="margin: 0 0 5px 0; color: #333;">Líder de la División</h4>
+                <p style="font-size: 1.2em; font-weight: bold; margin: 0; color: #555;">
+                    <span style="font-size: 1.5em; vertical-align: middle;">${cmdr.sprite}</span> ${cmdr.name}
+                </p>
+                <p style="font-size: 0.9em; font-style: italic; margin: 2px 0 0 0; color: #6c757d;">
+                    ${cmdr.title}
+                </p>
+            </div>
+        `;
+    }
+    // --- Rellenar Stats Principales de la División (el contenedor ahora tendrá todo) ---
+    const statsContainer = domElements.unitDetailModal.querySelector('.unit-main-stats');
+    if (statsContainer) {
+        // Inyectamos el HTML del comandante (si existe) y luego los stats
+        statsContainer.innerHTML = commanderHTML + `
+            <div class="stat-row">
+                <span class="stat-label">Salud:</span>
+                <div class="unit-total-health-bar-container">
+                    <div id="unitDetailTotalHealthBar" class="unit-total-health-bar" style="width: ${(unit.currentHealth / unit.maxHealth) * 100}%;"></div>
+                </div>
+                <span id="unitDetailTotalHealthText">${unit.currentHealth} / ${unit.maxHealth}</span>
+            </div>
+            <div class="stat-row stat-summary">
+                <span id="unitDetailCombatStats">A/D: ${unit.attack}/${unit.defense}</span>
+                <span id="unitDetailMovementStats">Mov: ${unit.currentMovement || unit.movement}</span>
+                <span id="unitDetailVisionStats">Vis: ${unit.visionRange}</span>
+            </div>
+            <div class="stat-row">
+                <span id="unitDetailMorale">Moral: ...</span>
+                <span id="unitDetailXP">XP: ...</span>
+            </div>
+        `;
+
+        // Re-asignamos referencias a los elementos internos de stats después de sobreescribir el HTML
+        
+        // Moral
+        const moralStatusMap = { high: "Exaltada", low: "Baja", breaking: "Vacilante" };
+        const moralColorMap = { high: "#2ecc71", low: "#f39c12", breaking: "#e74c3c" };
+        let moralStatus = "Normal", moralColor = "#f0f0f0";
+        if (unit.morale > 100) { moralStatus = moralStatusMap.high; moralColor = moralColorMap.high; }
+        else if (unit.morale <= 24) { moralStatus = moralStatusMap.breaking; moralColor = moralColorMap.breaking; }
+        else if (unit.morale < 50) { moralStatus = moralStatusMap.low; moralColor = moralColorMap.low; }
+        
+        statsContainer.querySelector('#unitDetailMorale').innerHTML = `Moral: <strong style="color:${moralColor};">${unit.morale}/${unit.maxMorale || 125} (${moralStatus})</strong>`;
+
+        // Experiencia
+        const levelData = XP_LEVELS[unit.level || 0];
+        if (levelData) {
+            const nextLevelXP = levelData.nextLevelXp;
+            let xpText = `XP: ${levelData.currentLevelName}`;
+            if (nextLevelXP !== 'Max') {
+                xpText += ` (${unit.experience || 0} / ${nextLevelXP})`;
+            }
+            statsContainer.querySelector('#unitDetailXP').textContent = xpText;
         }
-        domElements.unitDetailXP.textContent = xpText;
     }
 
 
@@ -933,7 +940,7 @@ function populateUnitDetailList(unit) {
         return;
     }
     
-    // <<== MODIFICACIÓN: Comprobamos si la unidad es del jugador actual para el "modo consulta" ==>>
+    // <<== Comprobamos si la unidad es del jugador actual para el "modo consulta" ==>>
     const isOwnUnit = unit.player === gameState.currentPlayer;
 
     unit.regiments.forEach(reg => {
@@ -977,17 +984,17 @@ function populateUnitDetailList(unit) {
         
         listEl.appendChild(li);
     });
-    
-    // <<== LÓGICA AÑADIDA PARA EL BOTÓN DE DISOLVER ==>>
+
+    // --- Lógica del Botón de Disolver ---
     if (domElements.disbandUnitBtn) {
         const isOwnUnit = unit.player === gameState.currentPlayer;
         const hex = board[unit.r]?.[unit.c];
         // Se puede disolver si la unidad es propia y está en territorio propio
         const canDisband = isOwnUnit && hex && hex.owner === unit.player;
         
-        domElements.disbandUnitBtn.style.display = isOwnUnit ? 'inline-block' : 'none'; // Mostrar solo para unidades propias
-        domElements.disbandUnitBtn.disabled = !canDisband; // Deshabilitar si no está en territorio propio
-        domElements.disbandUnitBtn.title = canDisband ? "Disuelve esta unidad para recuperar recursos" : "La unidad debe estar en territorio propio para ser disuelta";
+        domElements.disbandUnitBtn.style.display = isOwnUnit ? 'inline-block' : 'none';
+        domElements.disbandUnitBtn.disabled = !canDisband;
+        domElements.disbandUnitBtn.title = canDisband ? "Disuelve esta unidad" : "Debe estar en territorio propio";
     }
 }
 
@@ -1297,7 +1304,7 @@ function populateWikiConceptsTab() {
 }
 
 //=======================================================================
-//== AÑADE ESTAS NUEVAS FUNCIONES DE RED EN modalLogic.js              ==
+//== FUNCIONES DE RED EN modalLogic.js              ==
 //=======================================================================
 
 function RequestConfirmBuildStructure() {
@@ -1365,4 +1372,252 @@ function RequestReinforceRegiment(division, regiment) {
         // Si es juego local, llama a la función original que ya incluye el confirm.
         handleReinforceRegiment(division, regiment);
     }
+}
+
+//=======================================================================
+//== FUNCIONES DE Heroes                                               ==
+//=======================================================================
+
+/**
+ * Abre el modal del Cuartel y muestra la colección de héroes del jugador.
+ * Si 'assignmentMode' es true, permite seleccionar un héroe para asignarlo.
+ * @param {boolean} assignmentMode - Si se está asignando un héroe a una división.
+ * @param {object|null} targetUnit - La unidad a la que se le asignará el héroe.
+ */ 
+ function openBarracksModal(assignmentMode = false, targetUnit = null) {
+    const modal = document.getElementById('barracksModal');
+    const container = document.getElementById('heroCollectionContainer');
+    if (!modal || !container || !PlayerDataManager.currentPlayer) return;
+
+    container.innerHTML = '';
+    const playerData = PlayerDataManager.getCurrentPlayer();
+
+    // Lógica para el modo asignación (sin cambios)
+    modal.dataset.assignmentMode = assignmentMode;
+    if (targetUnit) {
+        modal.dataset.targetUnitId = targetUnit.id;
+    } else {
+        delete modal.dataset.targetUnitId;
+    }
+
+    if (!playerData.heroes || playerData.heroes.length === 0) {
+        container.innerHTML = '<p>No has reclutado a ningún héroe todavía.</p>';
+    } else {
+        // <<== LÓGICA MODIFICADA PARA MOSTRAR HÉROES DESBLOQUEADOS Y BLOQUEADOS ==>>
+        
+        // Primero, ordena la lista para mostrar siempre los desbloqueados (stars > 0) primero.
+        playerData.heroes.sort((a, b) => b.stars - a.stars);
+        
+        playerData.heroes.forEach(heroInstance => {
+            const heroData = COMMANDERS[heroInstance.id];
+            if (!heroData) return;
+            
+            const isLocked = heroInstance.stars === 0;
+            const card = document.createElement('div');
+            // Añadimos la clase 'is-locked' si el héroe no está desbloqueado
+            card.className = `hero-card ${heroData.rarity} ${isLocked ? 'is-locked' : ''}`;
+            
+            // Si está bloqueado, mostramos la tarjeta "fantasma" con el progreso de fragmentos
+            if (isLocked) {
+                // Asumimos un coste de 20 fragmentos para desbloquear (a 1 estrella)
+                const fragmentsNeededToUnlock = HERO_FRAGMENTS_PER_STAR[1] || 20; 
+                card.innerHTML = `
+                    <div class="hero-sprite">${heroData.sprite}</div>
+                    <div class="hero-name">${heroData.name}</div>
+                    <div class="hero-fragments-progress">Fragmentos: ${heroInstance.fragments}/${fragmentsNeededToUnlock}</div>
+                    <div class="hero-stars">BLOQUEADO</div>
+                `;
+            } else {
+                // Si está desbloqueado, mostramos la tarjeta normal
+                card.innerHTML = `
+                    <div class="hero-sprite">${heroData.sprite}</div>
+                    <div class="hero-name">${heroData.name}</div>
+                    <div class="hero-level">Nivel ${heroInstance.level}</div>
+                    <div class="hero-stars">${'⭐'.repeat(heroInstance.stars)}</div>
+                `;
+            }
+
+            // El clic siempre lleva a la pantalla de detalles, para ver el progreso o mejorar
+            card.onclick = () => {
+                openHeroDetailModal(heroInstance);
+            };
+            container.appendChild(card);
+        });
+    }
+    
+    modal.style.display = 'flex';
+}
+
+/**
+ * Abre y rellena la pantalla de detalles de un héroe específico.
+ * Muestra un botón de "Asignar" solo si se viene desde el flujo de asignación.
+ * @param {object} heroInstance - La instancia del héroe del jugador (con su nivel, xp, etc.).
+ */
+function openHeroDetailModal(heroInstance) {
+    const modal = document.getElementById('heroDetailModal');
+    const heroData = COMMANDERS[heroInstance.id];
+    const playerData = PlayerDataManager.getCurrentPlayer();
+    const footer = document.getElementById('heroDetailFooter');
+    if (!modal || !heroData || !playerData) return;
+
+    // Rellenar info básica
+    document.getElementById('heroDetailSprite').textContent = heroData.sprite;
+    document.getElementById('heroDetailName').textContent = heroData.name;
+    document.getElementById('heroDetailTitle').textContent = heroData.title;
+    const rarityEl = document.getElementById('heroDetailRarity');
+    rarityEl.textContent = heroData.rarity;
+    rarityEl.className = `hero-rarity ${heroData.rarity}`;
+
+    // <<== MODIFICADO: Rellenar progresión y Puntos de Habilidad sin gastar ==>>
+    const currentLevel = heroInstance.level;
+    const xpForNextLevel = getXpForNextLevel(currentLevel);
+    // Mostrar los puntos de habilidad junto al nivel
+    document.getElementById('heroDetailLevel').textContent = `${currentLevel} (${heroInstance.skill_points_unspent || 0} Ptos.)`;
+    document.getElementById('heroDetailXpBar').style.width = `${xpForNextLevel === 'Max' ? 100 : Math.min(100, (heroInstance.xp / xpForNextLevel) * 100)}%`;
+    document.getElementById('heroDetailXpText').textContent = `${heroInstance.xp} / ${xpForNextLevel}`;
+    const nextStar = heroInstance.stars + 1;
+    const fragmentsNeeded = HERO_FRAGMENTS_PER_STAR[nextStar] || 'Max';
+    document.getElementById('heroDetailStars').textContent = '⭐'.repeat(heroInstance.stars);
+    document.getElementById('heroDetailFragmentBar').style.width = `${fragmentsNeeded === 'Max' ? 100 : Math.min(100, (heroInstance.fragments / fragmentsNeeded) * 100)}%`;
+    document.getElementById('heroDetailFragmentText').textContent = `${heroInstance.fragments} / ${fragmentsNeeded}`;
+
+    // Rellenar Habilidades Dinámicamente
+    const skillsContainer = document.getElementById('heroDetailSkills');
+    skillsContainer.innerHTML = '';
+    
+    const canUpgradeSkills = (heroInstance.skill_points_unspent || 0) > 0;
+
+    // Función auxiliar interna para renderizar una habilidad de forma consistente
+    const renderSkill = (skillData, skillInstanceLevel, skillKey, isUnlocked, unlockRequirement) => {
+        let name, description;
+        const isLvl5 = skillInstanceLevel >= 5;
+
+        // Habilidad del registro central
+        if (skillData.skill_id && SKILL_DEFINITIONS[skillData.skill_id]) {
+            const definition = SKILL_DEFINITIONS[skillData.skill_id];
+            name = definition.name;
+            const scalingValues = skillData.scaling_override || definition.default_scaling;
+            const levelIndex = Math.max(0, skillInstanceLevel - 1);
+            const currentValue = scalingValues[levelIndex];
+            
+            // Reemplazar placeholders en la descripción
+            let tempDesc = definition.description_template.replace('{X}', Array.isArray(currentValue) ? currentValue.dmg || currentValue.atk || currentValue.def || currentValue[0] : currentValue);
+            if(Array.isArray(currentValue) && (currentValue.slow || currentValue.spd || currentValue[1])) tempDesc = tempDesc.replace('{Y}', currentValue.slow || currentValue.spd || currentValue[1]);
+            description = tempDesc;
+        } else { // Fallback para habilidades personalizadas
+            name = skillData.name;
+            const levelIndex = Math.max(0, skillInstanceLevel - 1);
+            const currentValue = skillData.scaling[levelIndex];
+            description = skillData.description.replace('X', Array.isArray(currentValue) ? currentValue[0] : currentValue);
+        }
+        
+        let upgradeButtonHTML = (isUnlocked && canUpgradeSkills && !isLvl5) ? `<button class="skill-upgrade-btn" data-skill-key="${skillKey}" title="Mejorar Habilidad">+</button>` : '';
+        
+        return `
+            <div class="skill-item ${skillKey === 'active' ? 'active-skill' : ''}">
+                <h5>${name} (Nivel ${isUnlocked ? skillInstanceLevel : 0}) ${upgradeButtonHTML}</h5>
+                <p>${description}</p>
+                ${!isUnlocked ? `<p class="skill-unlock-req"><em>Se desbloquea con ${unlockRequirement} estrellas.</em></p>` : ''}
+            </div>
+        `;
+    };
+    
+    // Renderizar habilidad activa
+    skillsContainer.innerHTML += renderSkill(heroData.activeSkill, heroInstance.skill_levels.active, 'active', true, 1);
+
+    // Renderizar habilidades pasivas
+    heroData.passiveSkills.forEach((skill, index) => {
+        const skillKey = `passive${index + 1}`;
+        const skillInstanceLevel = heroInstance.skill_levels[skillKey] || 0;
+        const isUnlocked = heroInstance.stars >= index + 2;
+        skillsContainer.innerHTML += renderSkill(skill, skillInstanceLevel, skillKey, isUnlocked, index + 2);
+    });
+
+    // Añadir listeners a los nuevos botones [+]
+    modal.querySelectorAll('.skill-upgrade-btn').forEach(btn => {
+        btn.onclick = () => {
+            PlayerDataManager.upgradeHeroSkill(heroInstance.id, btn.dataset.skillKey);
+            const updatedHero = PlayerDataManager.getCurrentPlayer().heroes.find(h => h.id === heroInstance.id);
+            openHeroDetailModal(updatedHero); // Refrescar modal
+        };
+    });
+
+    // <<== NUEVO: Conectar botones principales y refrescar modal tras la acción ==>>
+    const levelUpBtn = document.getElementById('heroLevelUpBtn');
+    levelUpBtn.textContent = `Usar Libro XP (${playerData.inventory.xp_books || 0})`;
+    levelUpBtn.disabled = (playerData.inventory.xp_books || 0) <= 0 || xpForNextLevel === 'Max';
+    levelUpBtn.onclick = () => {
+        PlayerDataManager.useXpBook(heroInstance.id);
+        const updatedHero = PlayerDataManager.getCurrentPlayer().heroes.find(h => h.id === heroInstance.id);
+        openHeroDetailModal(updatedHero);
+    };
+
+    const evolveBtn = document.getElementById('heroEvolveBtn');
+    evolveBtn.disabled = heroInstance.fragments < fragmentsNeeded || fragmentsNeeded === 'Max';
+    evolveBtn.onclick = () => {
+        PlayerDataManager.evolveHero(heroInstance.id);
+        const updatedHero = PlayerDataManager.getCurrentPlayer().heroes.find(h => h.id === heroInstance.id);
+        openHeroDetailModal(updatedHero);
+    };
+    
+   // --- Lógica de Botones: Mostrar "Asignar" si aplica ---
+    const barracksModal = document.getElementById('barracksModal');
+    const assignmentMode = barracksModal.dataset.assignmentMode === 'true';
+
+    // Limpiar cualquier botón de asignación anterior para evitar duplicados
+    const oldAssignBtn = document.getElementById('heroAssignBtn');
+    if (oldAssignBtn) {
+        oldAssignBtn.remove();
+    }
+
+    if (assignmentMode) {
+        const targetUnitId = barracksModal.dataset.targetUnitId;
+        const targetUnit = units.find(u => u.id === targetUnitId);
+        
+        if (targetUnit) {
+            const assignBtn = document.createElement('button');
+            assignBtn.id = 'heroAssignBtn';
+            assignBtn.textContent = 'Asignar a esta División';
+            assignBtn.onclick = () => {
+                // LLAMAMOS A LA FUNCIÓN DE ASIGNACIÓN QUE YA FUNCIONABA
+                assignHeroToUnit(targetUnit, heroInstance.id);
+                modal.style.display = 'none';
+                barracksModal.style.display = 'none';
+            };
+            footer.prepend(assignBtn); // Añadimos el botón al footer del modal
+        }
+    }
+    
+    modal.style.display = 'flex';
+}
+
+/**
+ * Asigna un héroe a una división y recalcula sus stats.
+ * @param {object} unit - La división objetivo.
+ * @param {string} commanderId - El ID del héroe a asignar.
+ */
+function assignHeroToUnit(unit, commanderId) {
+    if (!unit || !commanderId) return;
+
+    // <<== NUEVA LÓGICA DE REGISTRO ==>>
+    const playerActiveCommanders = gameState.activeCommanders[unit.player];
+    
+    // Comprobar que el héroe no esté ya en uso
+    if (playerActiveCommanders.includes(commanderId)) {
+        logMessage(`Error: El general ${COMMANDERS[commanderId].name} ya está comandando otra división.`);
+        return;
+    }
+    
+    // Añadir al héroe a la lista de activos
+    playerActiveCommanders.push(commanderId);
+    
+    unit.commander = commanderId;
+    
+    Chronicle.logEvent('commander_assigned', { unit, commander: COMMANDERS[commanderId] }); // (Opcional, para la crónica)
+    logMessage(`¡El general ${COMMANDERS[commanderId].name} ha tomado el mando de la división "${unit.name}"!`);
+    
+    recalculateUnitStats(unit);
+    UIManager.updateUnitStrengthDisplay(unit);
+    UIManager.showUnitContextualInfo(unit, true);
+    UIManager.renderAllUnitsFromData();
 }

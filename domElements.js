@@ -34,6 +34,7 @@ domElements.worldMapScreenEl = null;
 domElements.gameContainer = null; 
 domElements.welcomeHelpModalEl = null; 
 domElements.startCampaignBtnEl = null;
+domElements.barracksBtn = null;
 domElements.startSkirmishBtnEl = null; 
 domElements.startTutorialBtn = null;
 domElements.floatingPillageBtn = null;
@@ -45,10 +46,26 @@ domElements.startLocalGameBtn = null;
 domElements.createNetworkGameBtn = null;
 domElements.joinNetworkGameBtn = null; // En el menú principal
 domElements.hostLobbyScreen = null; // Nueva pantalla de lobby
+domElements.barracksModal  = null; // Nueva pantalla de cuartel
 domElements.shortGameCodeEl = null;
 domElements.hostStatusEl = null;
 domElements.hostPlayerListEl = null;
 domElements.backToMainMenuBtn_fromHostLobby = null;
+
+//Pantalla de Login: 
+domElements.loginScreen = null;
+domElements.usernameInput = null;
+domElements.passwordInput = null;
+domElements.loginBtn = null;
+domElements.logoutBtn = null;
+domElements.loginErrorMessage = null;
+domElements.currentGeneralName = null;
+domElements.player2NameDiv = null;  
+domElements.player2NameInput = null; 
+domElements.player2NameDiv = null;
+domElements.player2NameInput = null;
+domElements.importProfileInput = null;
+domElements.exportProfileBtn_float = null;
 
 
 // Antiguo botón startGameBtn se renombra a startLocalGameBtn
@@ -130,7 +147,10 @@ domElements.newUnitRegimentsList = null;
 domElements.finalizeAdvancedSplitBtn = null; 
 domElements.cancelAdvancedSplitBtn = null; 
 
+domElements.floatingAssignGeneralBtn = null;
 domElements.floatingUndoMoveBtn = null;
+domElements.floatingNextUnitBtn = null;
+domElements.floatingConsolidateBtn = null; 
 domElements.floatingReinforceBtn = null;
 domElements.floatingSplitBtn = null;
 domElements.floatingBuildBtn = null;
@@ -207,7 +227,22 @@ function initializeDomElements() {
     domElements.floatingTechTreeBtn = document.getElementById('floatingTechTreeBtn');
     
     domElements.closeTechTreeBtn = document.getElementById('closeTechTreeBtn');
-    
+
+
+    domElements.loginScreen = document.getElementById('loginScreen');
+    domElements.usernameInput = document.getElementById('usernameInput');
+    domElements.passwordInput = document.getElementById('passwordInput');
+    domElements.loginBtn = document.getElementById('loginBtn');
+    domElements.logoutBtn = document.getElementById('logoutBtn');
+    domElements.loginErrorMessage = document.getElementById('loginErrorMessage');
+    domElements.currentGeneralName = document.getElementById('currentGeneralName');
+    domElements.player2NameDiv = document.getElementById('player2NameDiv');        
+    domElements.player2NameInput = document.getElementById('player2NameInput');   
+    domElements.player2NameDiv = document.getElementById('player2NameDiv');
+    domElements.player2NameInput = document.getElementById('player2NameInput'); 
+    domElements.importProfileInput = document.getElementById('importProfileInput');
+    domElements.exportProfileBtn_float = document.getElementById('exportProfileBtn_float');
+
     domElements.floatingConsoleBtn = document.getElementById('floatingConsoleBtn'); 
     domElements.mainMenuScreenEl = document.getElementById('mainMenuScreen');
     domElements.setupScreen = document.getElementById('setupScreen');
@@ -216,20 +251,20 @@ function initializeDomElements() {
     domElements.startCampaignBtnEl = document.getElementById('startCampaignBtn');
     domElements.startSkirmishBtnEl = document.getElementById('startSkirmishBtn'); 
     domElements.startTutorialBtn = document.getElementById('startTutorialBtn'); 
+    domElements.barracksBtn = document.getElementById('barracksBtn'); // <<== Botón del Cuartel    
     domElements.expandPanelBtn = document.getElementById('expandPanelBtn');
 
-    // --- CORRECCIONES Y ADICIONES PARA EL NUEVO FLUJO ---
     domElements.startGameBtn = document.getElementById('startGameBtn'); // Original preservado
     domElements.startLocalGameBtn = document.getElementById('startLocalGameBtn'); // Nuevo para el botón Local
     domElements.createNetworkGameBtn = document.getElementById('createNetworkGameBtn'); // Nuevo para el botón de Red
     domElements.joinNetworkGameBtn = document.getElementById('joinNetworkGameBtn'); // Nuevo en el menú principal
     domElements.hostLobbyScreen = document.getElementById('hostLobbyScreen');
+    domElements.barracksModal = document.getElementById('barracksModal'); // Referencia al cuartel
     domElements.shortGameCodeEl = document.getElementById('short-game-code');
     domElements.hostStatusEl = document.getElementById('host-status');
     domElements.hostPlayerListEl = document.getElementById('host-player-list');
     domElements.backToMainMenuBtn_fromHostLobby = document.getElementById('backToMainMenuBtn_fromHostLobby');
-    // --- FIN CORRECCIONES Y ADICIONES ---
-    
+
     domElements.player1TypeSelect = document.getElementById('player1Type');
     
     domElements.player1Civ = document.getElementById('player1Civ');
@@ -343,7 +378,10 @@ function initializeDomElements() {
     domElements.disbandUnitBtn = document.getElementById('disbandUnitBtn');
 
     //botones de acción flotantes
+    domElements.floatingAssignGeneralBtn = document.getElementById('floatingAssignGeneralBtn'); // <<== Botón Asignar General    
     domElements.floatingUndoMoveBtn = document.getElementById('floatingUndoMoveBtn');
+    domElements.floatingNextUnitBtn = document.getElementById('floatingNextUnitBtn');
+    domElements.floatingConsolidateBtn = document.getElementById('floatingConsolidateBtn');
     domElements.floatingReinforceBtn = document.getElementById('floatingReinforceBtn');
     domElements.floatingSplitBtn = document.getElementById('floatingSplitBtn');
     domElements.floatingBuildBtn = document.getElementById('floatingBuildBtn');

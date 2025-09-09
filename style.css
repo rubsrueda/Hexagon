@@ -20,7 +20,8 @@
  * 8.  ANIMACIONES (@keyframes)
  * 9.  ESTILOS DE DEPURACIÓN Y TUTORIAL
  * 10. MEDIA QUERIES (Diseño Adaptable)
- * 11. ESTILOS ANTIGUOS O DESHABILITADOS
+ * 11. RECOMPENSAS VISUALES
+ * 12. ESTILOS ANTIGUOS O DESHABILITADOS
  */
 
 /* ========================================================================== */
@@ -35,7 +36,16 @@ body {
     justify-content: center;
     align-items: flex-start;
     padding: 10px;
-    background-color: #e8e8e8;
+    /* background-color: #e8e8e8; */ /* <-- Comentamos o eliminamos el color de fondo */
+
+    /* --- INICIO DE LAS LÍNEAS NUEVAS --- */
+    background-image: url('images/Iberion.jpeg'); /* <-- La ruta a tu imagen */
+    background-size: cover;          /* <-- Hace que la imagen cubra todo el espacio sin deformarse */
+    background-position: center center; /* <-- Centra la imagen */
+    background-repeat: no-repeat;    /* <-- Evita que la imagen se repita si es pequeña */
+    background-attachment: fixed;      /* <-- Mantiene la imagen estática al hacer scroll */
+    /* --- FIN DE LAS LÍNEAS NUEVAS --- */
+    
     min-height: 100vh;
     box-sizing: border-box;
     overflow-y: hidden;
@@ -101,7 +111,8 @@ html, body {
 #gameBoard {
     display: grid;
     border: 2px solid #6c757d;
-    background-color: #c2b280;
+    /* background-color: #c2b280; */ /* <-- Comentamos o eliminamos el color sólido */
+    background-color: rgba(194, 178, 128, 0.2); /* <-- Mismo color pero con 40% de opacidad */
     position: relative;
     align-self: flex-start;
     cursor: grab;
@@ -140,10 +151,17 @@ html, body {
 }
 
 /* --- Tipos de Terreno --- */
-.hex.plains { background-color:#90EE90; }
+/*.hex.plains { background-color:#90EE90; }
 .hex.forest { background-color: #6B8E23; }
 .hex.hills { background-color: #A9A9A9; }
 .hex.water { background-color: #87CEEB; }
+*/
+
+/*.hex.plains { background-color: #a08d75; } /* Tono Tierra Seca */*/
+.hex.plains { background-color:#cbefcb; }
+.hex.forest { background-color: #556b2f; } /* Verde Oliva Oscuro */
+.hex.hills { background-color: #A9A9A9; } /* Tono Roca/Tierra */
+.hex.water { background-color: #4682b4; } /* Azul Acero (SteelBlue) */
 
 /* --- Resaltados de Acción (Highlights) --- */
 .hex.highlight-move { background-color: rgba(0, 255, 0, 0.4); }
@@ -172,6 +190,13 @@ html, body {
     box-shadow: inset 0 0 0 3px rgba(255, 0, 0, 0.6);
     --owner-color: rgba(255, 0, 0, 0.6);
 }
+
+.hex.player3-owner { box-shadow: inset 0 0 0 3px rgba(0, 0128, 0, 0.6); --owner-color: rgba(0, 128, 0, 0.6); } /* Verde */
+.hex.player4-owner { box-shadow: inset 0 0 0 3px rgba(255, 255, 0, 0.6); --owner-color: rgba(255, 255, 0, 0.6); } /* Amarillo */
+.hex.player5-owner { box-shadow: inset 0 0 0 3px rgba(128, 0, 0, 0.6); --owner-color: rgba(128, 0, 128, 0.6); } /* Púrpura */
+.hex.player6-owner { box-shadow: inset 0 0 0 3px rgba(255, 165, 0, 0.6); --owner-color: rgba(255, 165, 0, 0.6); } /* Naranja */
+.hex.player7-owner { box-shadow: inset 0 0 0 3px rgba(0, 255, 255, 0.6); --owner-color: rgba(0, 255, 255, 0.6); } /* Cian */
+.hex.player8-owner { box-shadow: inset 0 0 0 3px rgba(255, 192, 203, 0.6); --owner-color: rgba(255, 192, 203, 0.6); } /* Rosa */
 
 .hex.city::before { content: '🏠'; font-size: 18px; opacity: 0.7; }
 .hex.capital-city::before { content: '👑'; font-size: 20px; opacity: 0.9; }
@@ -247,6 +272,35 @@ html, body {
 .hex.owner-change-effect { animation: ownerChangeFlash 0.5s forwards; }
 .hex.hit-effect { animation: hexHitFlash 0.3s ease-out; }
 
+/* --- ESTILOS PARA EL CAMINO --- */
+
+/* 1. Crea una capa virtual (::before) para el camino. */
+.hex.structure-Camino::after {
+    content: ''; /* Obligatorio para que se muestre el pseudo-elemento */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* ¡La clave! Hereda la forma hexagonal del hexágono padre. */
+   /* clip-path: inherit; */
+    
+    /* El color del camino con transparencia. */
+    background-color: rgba(210, 180, 140, 0.75); 
+
+    /* Lo ponemos por encima del terreno pero por debajo de los iconos. */
+    z-index: 1; 
+
+    /* Hace que esta capa no bloquee los clics del ratón. */
+    pointer-events: none; 
+}
+
+/* 2. Oculta el ícono 🟰 del camino. */
+.hex.structure-Camino .structure-sprite {
+    display: none;
+}
+
 /* ========================================================================== */
 /* 4. COMPONENTES DE UNIDADES
 /* ========================================================================== */
@@ -256,22 +310,27 @@ html, body {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 18px;
     cursor: pointer;
-    transition: transform 0.2s, left 0.3s, top 0.3s;
-    border: 2px solid black;
+    transition: transform 0.2s, left 0.3s ease-out, top 0.3s ease-out;
+    border: 2px solid black; /* Borde exterior, siempre visible */
     box-sizing: border-box;
     z-index: 10;
     pointer-events: none;
-}
-/** DUPLICADO: Transición mejorada para .unit */
-.unit {
-    transition: transform 0.2s, left 0.3s ease-out, top 0.3s ease-out;
+
+    /* 1. Forzamos el color de fondo a ser transparente SIEMPRE.
+          Esto anula los colores de .player1 y .player2. */
+    background-color: transparent !important;
+    
+    /* 2. Propiedades explícitas para la imagen de fondo (tu sprite). */
+    background-size: 85%; /* Hacemos la imagen un poco más pequeña que el círculo para que respire */
+    background-repeat: no-repeat;
+    background-position: center center; /* ¡Esto la centra perfectamente! */
+
+    /* 3. La sombra ahora se aplica a la imagen, no al círculo. */
+    filter: drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.6));
 }
 
+/* Esta regla se mantiene igual, es para la barra de vida */
 .unit-strength {
     position: absolute;
     bottom: -16px;
@@ -284,8 +343,10 @@ html, body {
     white-space: nowrap;
     border: 1px solid #aaa;
 }
+
 .player1 { background-color: #add8e6; border-color: #0000ff; }
 .player2 { background-color: #f08080; border-color: #ff0000; }
+
 .unit.player-controlled-visible { display: flex !important; }
 
 .selected-unit {
@@ -314,6 +375,118 @@ html, body {
     z-index: 110;
     pointer-events: none;
     animation: floatAndFade 1.2s ease-out forwards;
+}
+
+.commander-banner {
+    position: absolute;
+    bottom: -5px;
+    right: -8px;
+    font-size: 14px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    border: 1px solid gold;
+    text-shadow: none;
+}
+/* --- Modal: Cuartel de Héroes --- */
+.hero-collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: #e9ecef;
+    border-radius: 5px;
+}
+
+.hero-card {
+    border: 2px solid #adb5bd;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    background-color: #fff;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.hero-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.hero-card .hero-sprite { font-size: 48px; }
+.hero-card .hero-name { font-weight: bold; margin: 5px 0; }
+.hero-card .hero-level { font-size: 0.9em; color: #6c757d; }
+.hero-card .hero-stars { color: #ffc107; }
+
+/* Estilos de Borde por Rareza */
+.hero-card.Común { border-color: #adb5bd; }
+.hero-card.Raro { border-color: #007bff; }
+.hero-card.Épico { border-color: #8a2be2; }
+.hero-card.Legendario { border-color: #ffc107; }
+
+/* ========================================== */
+/* ==       BOTONES DE HABILIDAD     == */
+/* ========================================== */
+.skill-upgrade-btn {
+    margin-left: 10px;
+    padding: 0px 8px;
+    font-size: 1.2em;
+    line-height: 1.2;
+    font-weight: bold;
+    color: white;
+    background-color: #28a745;
+    border: 1px solid #1e7e34;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+.skill-upgrade-btn:hover {
+    transform: scale(1.1);
+    background-color: #218838;
+}
+.skill-unlock-req {
+    font-size: 0.8em;
+    font-style: italic;
+    color: #6c757d;
+}
+
+/* ========================================== */
+/* ==       NUEVO: HÉROES BLOQUEADOS        == */
+/* ========================================== */
+.hero-card.is-locked {
+    background-color: #e9ecef;
+    opacity: 0.75;
+    filter: grayscale(90%);
+    position: relative;
+    border-color: #6c757d;
+}
+
+.hero-card.is-locked::after {
+    content: '🔒';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 24px;
+    background-color: rgba(0,0,0,0.5);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    color: white;
+}
+
+.hero-fragments-progress {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #0056b3; /* Un color que resalte incluso en la tarjeta gris */
+    margin-top: 5px;
 }
 
 /* ========================================================================== */
@@ -511,7 +684,7 @@ html, body {
 /** DUPLICADO: Base de botones flotantes más reciente y completa. */
 .floating-btn,#floatingMenuBtn, #floatingTechTreeBtn, #floatingEndTurnBtn, #floatingCreateDivisionBtn,
 #floatingConsoleBtn, #floatingUndoMoveBtn, #floatingReinforceBtn, #setAsCapitalBtn,
-#floatingSplitBtn, #floatingPillageBtn, #floatingBuildBtn, #floatingWikiBtn {
+#floatingSplitBtn, #floatingPillageBtn, #floatingBuildBtn, #floatingWikiBtn, #floatingNextUnitBtn, #floatingConsolidateBtn, #floatingAssignGeneralBtn {
     position: fixed; z-index: 1001 !important; cursor: pointer; border: 1px solid #555;
     border-radius: 5px; background-color: #333; color: #eee;
     transition: background-color 0.3s ease, transform 0.1s ease;
@@ -540,17 +713,20 @@ html, body {
 
 /* --- Posicionamiento específico --- */
 #floatingEndTurnBtn        { bottom: 20px;  right: 20px; }
-#floatingCreateDivisionBtn { bottom: 80px;  right: 20px; }
-#floatingTechTreeBtn       { bottom: 140px; right: 20px; }
-#floatingMenuBtn           { bottom: 200px; right: 20px; }
-#floatingConsoleBtn        { bottom: 260px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
-#floatingPillageBtn        { bottom: 20px;  left: 20px; } 
-#floatingBuildBtn          { bottom: 20px;  left: 20px; }
-#floatingSplitBtn          { bottom: 80px;  left: 20px; }
-#floatingReinforceBtn      { bottom: 140px; left: 20px; }
-#floatingUndoMoveBtn       { bottom: 200px; left: 20px; }
-#floatingWikiBtn           { bottom: 320px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
-#floatingManageBtn         { bottom: 260px; left: 20px; display: none; }
+#floatingCreateDivisionBtn { bottom: 100px;  right: 20px; }
+#floatingTechTreeBtn       { bottom: 160px; right: 20px; }
+#floatingMenuBtn           { bottom: 220px; right: 20px; }
+#floatingConsoleBtn        { bottom: 280px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
+#floatingWikiBtn           { bottom: 340px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
+#floatingPillageBtn        { bottom: 40px;  left: 20px; } 
+#floatingBuildBtn          { bottom: 100px;  left: 20px; }
+#floatingSplitBtn          { bottom: 160px;  left: 20px; }
+#floatingReinforceBtn      { bottom: 220px; left: 20px; }
+#floatingUndoMoveBtn       { bottom: 280px; left: 20px; }
+#floatingConsolidateBtn    { bottom: 320px; left: 20px; display: none; } 
+#floatingAssignGeneralBtn  { bottom: 380px; left: 20px; display: none;}
+#floatingNextUnitBtn       { bottom: 32px; left: 20px; display: none; }
+#floatingManageBtn         { bottom: 320px; left: 20px; display: none; }
 
 /* --- Estados Deshabilitados --- */
 .floating-btn:disabled, #floatingUndoMoveBtn:disabled, #floatingReinforceBtn:disabled, #floatingSplitBtn:disabled, #floatingBuildBtn:disabled {
@@ -589,17 +765,156 @@ html, body {
 }
 
 /* --- Modal: Menú Principal --- */
+#mainMenuScreen.modal {
+    background-color: transparent;
+}
+
+/* Elimina el fondo, borde y sombra de la caja de contenido. */
 #mainMenuScreen .modal-content {
-    background-color: #f0f2f5; border: 1px solid #ccc;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
 }
-#mainMenuScreen h2 { color: #333; margin-bottom: 30px; font-size: 2em; }
+
+/* Oculta el título "Hex General Evolved" */
+#mainMenuScreen h2 {
+    display: none;
+}
+
+/* Estiliza los botones para que se vean bien sobre la imagen de fondo. */
 #mainMenuScreen button {
-    background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;
-    transition: background-color 0.2s ease-in-out, transform 0.1s ease; font-weight: bold;
+    background-color: rgba(0, 0, 0, 0.6); /* Fondo negro semi-transparente */
+    color: #f0e6d2; /* Color de texto tipo pergamino, más cálido que el blanco puro */
+    border: 1px solid rgba(255, 215, 0, 0.5); /* Borde sutil dorado/bronce */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7); /* Sombra de texto para máxima legibilidad */
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.2em; /* Un poco más grande para darle epicidad */
+    transition: all 0.2s ease-in-out; /* Transición suave para todos los efectos */
 }
-#mainMenuScreen button:hover { background-color: #0056b3; transform: translateY(-2px); }
-#mainMenuScreen button:active { transform: translateY(0px); }
+
+/* Efecto al pasar el ratón por encima del botón. */
+#mainMenuScreen button:hover {
+    background-color: rgba(20, 20, 20, 0.8); /* Se oscurece un poco */
+    border-color: rgba(255, 215, 0, 0.9); /* El borde se vuelve más brillante */
+    transform: translateY(-3px) scale(1.02); /* Se eleva y agranda ligeramente */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+}
+
+/* Mantenemos el estilo del botón de "Unirse a Partida" para que destaque */
+#mainMenuScreen button#joinNetworkGameBtn {
+    background-color: rgba(255, 193, 7, 0.7); /* Amarillo semi-transparente */
+    color: #111;
+    border-color: rgba(255, 255, 255, 0.6);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+#mainMenuScreen button#joinNetworkGameBtn:hover {
+    background-color: rgba(255, 193, 7, 0.9);
+}
+
+/* --- Modal: Detalles del Héroe --- */
+#heroDetailModal .modal-content {    max-width: 600px;    background-color: #f0f2f5;}
+.hero-detail-header {
+    display: flex;
+    align-items: center;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.hero-detail-header .hero-sprite {
+    font-size: 80px;
+    margin-right: 20px;
+    line-height: 1;
+}
+.hero-header-info h2 { margin: 0 0 5px 0; }
+.hero-header-info p { margin: 0; font-style: italic; color: #6c757d; }
+.hero-header-info .hero-rarity {
+    margin-top: 8px;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+.hero-rarity.Común { background-color: #adb5bd; color: white; }
+.hero-rarity.Raro { background-color: #007bff; color: white; }
+.hero-rarity.Épico { background-color: #8a2be2; color: white; }
+.hero-rarity.Legendario { background-color: #ffc107; color: #333; }
+
+.hero-detail-body {
+    display: flex;
+    gap: 20px;
+}
+.hero-progression-section, .hero-skills-section {
+    flex: 1;
+}
+.hero-progression-section h4, .hero-skills-section h4 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+.progress-item {
+    margin-bottom: 15px;
+    font-size: 0.9em;
+}
+.progress-item > span {
+    display: block;
+    margin-bottom: 5px;
+}
+.xp-bar-container {
+    width: 100%;
+    background-color: #ced4da;
+    border-radius: 8px;
+    height: 16px;
+    overflow: hidden;
+}
+.xp-bar {
+    height: 100%;
+    width: 0%; /* Se actualizará con JS */
+    background-color: #28a745;
+    border-radius: 8px;
+    transition: width 0.3s ease;
+}
+.xp-bar.fragments {
+    background-color: #007bff;
+}
+
+.skill-item {
+    margin-bottom: 10px;
+}
+.skill-item h5 {
+    margin: 0 0 3px 0;
+    color: #0056b3;
+}
+.skill-item p {
+    margin: 0;
+    font-size: 0.85em;
+    color: #495057;
+}
+.skill-item.active-skill h5::before {
+    content: 'ACTIVA | ';
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.hero-detail-footer {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 2px solid #ccc;
+    text-align: right;
+}
+.hero-detail-footer button {
+    padding: 8px 16px;
+    margin-left: 10px;
+}
+.hero-detail-footer button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 
 /* --- Modal: Configuración de Escaramuza y Campaña --- */
 #setupScreen .modal-content { background-color: #fff; border: 1px solid #ddd; }
@@ -867,8 +1182,50 @@ html, body {
     #gameMessagesMobile { width: 90%; }
 }
 
+
+/* ========================================== */
+/* ==      RECOMPENSAS VISUALES       == */
+/* ========================================== */
+.reward-toast {
+    position: absolute;
+    z-index: 1000;
+    background-color: rgba(26, 32, 44, 0.9);
+    color: #f7fafc;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 2px solid #f6e05e; /* Un borde dorado */
+    font-size: 1.1em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    /* Animación */
+    animation: reward-float 2.5s ease-out forwards;
+}
+
+@keyframes reward-float {
+    0% {
+        transform: translateY(0) scale(0.8);
+        opacity: 0;
+    }
+    20% {
+        transform: translateY(-20px) scale(1.1);
+        opacity: 1;
+    }
+    80% {
+        transform: translateY(-60px) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-80px) scale(0.8);
+        opacity: 0;
+    }
+}
+
 /* ========================================================================== */
-/* 11. ESTILOS ANTIGUOS O DESHABILITADOS
+/* 12. ESTILOS ANTIGUOS O DESHABILITADOS
 /* ========================================================================== */
 
 /* --- Sidebar Antiguo (Oculto) --- */

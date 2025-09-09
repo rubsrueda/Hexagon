@@ -83,58 +83,122 @@ function onHexClick(r, c) {
 }
 
 function initApp() {
-    console.log("main.js: DOMContentLoaded -> initApp INICIADO.");
+    console.log("main.js: DOMContentLoaded -> initApp INICIADO (Versión CORREGIDA con Cuentas).");
 
+    // ======================================================================
+    // 1. VERIFICACIONES DE CARGA
+    // ======================================================================
     if (typeof domElements === 'undefined' || !domElements.domElementsInitialized) {
-         console.error("main.js: CRÍTICO: domElements no está definido o no se ha inicializado completamente. Abortando initApp.");
-         return;
+         console.error("main.js: CRÍTICO: domElements no está definido."); return;
     }
-     console.log("main.js: domElements está definido e inicializado.", domElements);
+    if (typeof addModalEventListeners === "function") { addModalEventListeners(); } 
+    else { console.error("main.js: CRÍTICO: addModalEventListeners no está definida."); }
+    if (typeof UIManager !== 'undefined' && UIManager.setDomElements) { UIManager.setDomElements(domElements); } 
+    else { console.error("main.js: CRÍTICO: UIManager no definido."); }
+    if (typeof setupMainMenuListeners === "function") { setupMainMenuListeners(); } 
+    else { console.error("main.js: CRÍTICO: setupMainMenuListeners no está definida."); }
 
-    if (typeof addModalEventListeners === "function") { 
-         addModalEventListeners(); 
-    } else { 
-        console.error("main.js: CRÍTICO: addModalEventListeners no está definida (de modalLogic.js). Modales no funcionarán correctamente."); 
+    // ======================================================================
+    // 2. LÓGICA DE CUENTAS DE USUARIO
+    // ======================================================================
+
+    const showMainMenu = () => {
+        if (PlayerDataManager.currentPlayer) {
+            domElements.currentGeneralName.textContent = PlayerDataManager.currentPlayer.username;
+        }
+        // La pantalla de bienvenida gestiona si mostrarse o ir directo al menú
+        if (typeof showWelcomeHelpModal === 'function') {
+            showWelcomeHelpModal();
+        } else {
+            showScreen(domElements.mainMenuScreenEl);
+        }
+    };
+
+    const showLoginScreen = () => {
+        showScreen(domElements.loginScreen);
+        const lastUser = localStorage.getItem('lastUser');
+        if (lastUser) {
+            domElements.usernameInput.value = lastUser;
+            domElements.passwordInput.focus();
+        } else {
+            domElements.usernameInput.focus();
+        }
+    };
+    
+    if (domElements.loginBtn) {
+        domElements.loginBtn.addEventListener('click', () => {
+            domElements.loginErrorMessage.textContent = "";
+            const username = domElements.usernameInput.value;
+            const password = domElements.passwordInput.value;
+            const result = PlayerDataManager.login(username, password);
+            if (result.success) {
+                showMainMenu();
+            } else {
+                domElements.loginErrorMessage.textContent = result.message;
+            }
+        });
+    }
+
+    if (domElements.logoutBtn) {
+        domElements.logoutBtn.addEventListener('click', () => {
+            PlayerDataManager.logout();
+            showLoginScreen();
+        });
+    }
+
+    // ======================================================================
+    // 3. RESTO DE TUS LISTENERS
+    // ======================================================================
+
+    // <<== "Cuartel" ==>>
+    if (domElements.barracksBtn && !domElements.barracksBtn.hasListener) {
+        domElements.barracksBtn.addEventListener('click', () => {
+            if(typeof openBarracksModal === "function") {
+                openBarracksModal(false); // Abrir en modo "solo vista"
+            } else {
+                console.error("main.js: La función openBarracksModal no está definida en modalLogic.js.");
+            }
+        });
+        domElements.barracksBtn.hasListener = true; // Previene añadir múltiples listeners
+    }
+
+    if(domElements.player2TypeSelect && !domElements.player2TypeSelect.hasListener) {
+        domElements.player2TypeSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'human') {
+                domElements.player2NameDiv.style.display = 'block';
+            } else {
+                domElements.player2NameDiv.style.display = 'none';
+            }
+        });
+        domElements.player2TypeSelect.hasListener = true;
+    }
+    // <<==botón de IMPORTAR Perfil==>>
+    if (domElements.importProfileInput) {
+        domElements.importProfileInput.addEventListener('change', (event) => {
+            importProfile(event);
+        });
+    }
+
+    // <<== botón de EXPORTAR Perfil==>>
+    if (domElements.exportProfileBtn_float) {
+        domElements.exportProfileBtn_float.addEventListener('click', () => {
+            exportProfile();
+        });
     }
     
-    if (typeof UIManager !== 'undefined' && UIManager && typeof UIManager.setDomElements === 'function') {
-        UIManager.setDomElements(domElements); 
-    } else {
-        console.error("main.js: CRÍTICO: UIManager o UIManager.setDomElements no definido.");
-    }
-
-    if (typeof setupMainMenuListeners === "function") { 
-         setupMainMenuListeners(); 
-    } else { 
-        console.error("main.js: CRÍTICO: setupMainMenuListeners no está definida (de campaignManager.js). Menús no funcionarán."); 
-    }
-
-    // --- LÓGICA DEL LOBBY MULTIJUGADOR EN RED LOCAL ---
-    if (domElements.createNetworkGameBtn) {
+if (domElements.createNetworkGameBtn) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
              console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
-
-             // 1. Recopilar la configuración del juego desde la pantalla de setup.
              const gameSettings = {
                  playerTypes: { player1: 'human', player2: 'human' },
-                 playerCivilizations: {
-                     1: domElements.player1Civ.value,
-                     2: domElements.player2Civ.value
-                 },
+                 playerCivilizations: { 1: domElements.player1Civ.value, 2: domElements.player2Civ.value },
                  resourceLevel: domElements.resourceLevelSelect.value,
                  boardSize: domElements.boardSizeSelect.value,
                  deploymentUnitLimit: domElements.initialUnitsCountSelect.value === "unlimited" ? Infinity : parseInt(domElements.initialUnitsCountSelect.value)
              };
-             
-             // 2. Transicionar a la pantalla del lobby de anfitrión.
              showScreen(domElements.hostLobbyScreen);
-             
-             // 3. Guardar la configuración en un atributo del propio elemento del lobby
-             // para que 'onConexionLANEstablecida' pueda acceder a ella más tarde.
              domElements.hostLobbyScreen.dataset.gameSettings = JSON.stringify(gameSettings);
              gameState.currentPhase = "hostLobby";
-
-             // 4. Iniciar el proceso de red para esperar a un cliente.
              NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
              NetworkManager.iniciarAnfitrion((idGenerado) => {
                  if (domElements.shortGameCodeEl) domElements.shortGameCodeEl.textContent = idGenerado;
@@ -145,83 +209,42 @@ function initApp() {
         console.warn("main.js: createNetworkGameBtn no encontrado.");
     }
     
-    // Función que se ejecuta cuando nos conectamos con éxito a otro jugador
     function onConexionLANEstablecida(idRemoto) {
         if (NetworkManager.esAnfitrion) {
-            // -- SOY EL ANFITRIÓN: un cliente se ha unido --
             if (domElements.hostStatusEl && domElements.hostPlayerListEl) {
                 domElements.hostStatusEl.textContent = 'Jugador Conectado. Iniciando...';
                 domElements.hostStatusEl.className = 'status conectado';
                 domElements.hostPlayerListEl.innerHTML = `<li>J1: Tú (Anfitrión)</li><li>J2: ${idRemoto}</li>`;
             }
-
             console.log("[Red - Anfitrión] Cliente conectado. Iniciando la partida automáticamente para ambos...");
-            
-            // 1. Recupera la configuración que guardamos al entrar al lobby.
             const gameSettings = JSON.parse(domElements.hostLobbyScreen.dataset.gameSettings || "{}");
-            
-            // 2. Envía el paquete 'startGame' que le dirá al cliente que comience.
             const dataPacket = { type: 'startGame', settings: gameSettings };
             NetworkManager.enviarDatos(dataPacket);
-            
-            // 3. Inicia la propia partida del anfitrión, un instante después.
-            setTimeout(() => {
-                 iniciarPartidaLAN(gameSettings);
-            }, 500);
-
+            setTimeout(() => { iniciarPartidaLAN(gameSettings); }, 500);
         } else {
-            // -- SOY EL CLIENTE: me he conectado con éxito al anfitrión --
-            // El cliente ya no necesita una pantalla de lobby compleja. Loguea y espera.
             console.log(`[Red - Cliente] Conexión establecida con Anfitrión ${idRemoto}. Esperando inicio de partida...`);
         }
     }
     
-    // Función que se ejecuta cuando recibimos datos del otro jugador
-
     function onDatosLANRecibidos(datos) {
         console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
         console.log(`%c[VIAJE-3] Datos recibidos por Jugador ${gameState.myPlayerNumber}. Anfitrión: ${NetworkManager.esAnfitrion}`, 'color: #90EE90; font-weight: bold;', datos);
-
-        // --- Lógica del CLIENTE: Reaccionar a mensajes del anfitrión ---
         if (!NetworkManager.esAnfitrion) {
             switch (datos.type) {
-                case 'startGame':
-                    logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero...");
-                    iniciarPartidaLAN(datos.settings);
-                    break;
-
-                case 'initialGameSetup':
-                    reconstruirJuegoDesdeDatos(datos.payload);
-                    break;
-
-                case 'actionBroadcast':
-                    // El cliente SÍ procesa las retransmisiones del anfitrión.
-                    executeConfirmedAction(datos.action);
-                    break;
-
-                default:
-                    console.warn(`[Red - Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'. Se ignora.`);
-                    break;
+                case 'startGame': logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero..."); iniciarPartidaLAN(datos.settings); break;
+                case 'initialGameSetup': reconstruirJuegoDesdeDatos(datos.payload); break;
+                case 'actionBroadcast': executeConfirmedAction(datos.action); break;
+                default: console.warn(`[Red - Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'. Se ignora.`); break;
             }
         }
-
-        // --- Lógica del ANFITRIÓN: Procesar peticiones de los clientes ---
         if (NetworkManager.esAnfitrion) {
-            switch (datos.type) {
-                case 'actionRequest':
-                    // El anfitrión SÍ procesa las peticiones de acción de los clientes.
-                    processActionRequest(datos.action);
-                    break;
-
-                default:
-                    console.warn(`[Red - Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'. Se ignora.`);
-                    break;
-            }
+            if (datos.type === 'actionRequest') { processActionRequest(datos.action); } 
+            else { console.warn(`[Red - Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'. Se ignora.`); }
         }
     }
 
     function onConexionLANCerrada() {
-         if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
+        if (!domElements.lanStatusEl || !domElements.lanPlayerListEl || !domElements.lanRemoteIdInput || !domElements.lanConnectBtn) return;
         domElements.lanStatusEl.textContent = 'Desconectado';
         domElements.lanStatusEl.className = 'status desconectado';
         domElements.lanPlayerListEl.innerHTML = `<li>Tú (${NetworkManager.miId})</li>`;
@@ -230,11 +253,10 @@ function initApp() {
         // Habilitar de nuevo la opción de unirse
         domElements.lanRemoteIdInput.disabled = false;
         domElements.lanConnectBtn.disabled = false;
-        
         alert("El otro jugador se ha desconectado.");
     }
 
-    // Botón para ir a la pantalla del Lobby LAN
+// Botón para ir a la pantalla del Lobby LAN
     if (domElements.startLanModeBtn) {
         domElements.startLanModeBtn.addEventListener('click', () => {
             showScreen(domElements.lanLobbyScreen);
@@ -344,7 +366,7 @@ function initApp() {
             }
         });
     }
-
+    
     // 2. Botón para que el ANFITRIÓN cree una partida en red
     if (domElements.createNetworkGameBtn) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
@@ -376,134 +398,102 @@ function initApp() {
     if(domElements.backToMainMenuBtn_fromHostLobby) {
         domElements.backToMainMenuBtn_fromHostLobby.addEventListener('click', () => {
              NetworkManager.desconectar();
-             showScreen(domElements.setupScreen); // Vuelve a la pantalla de configuración
+             showScreen(domElements.setupScreen);
         });
     }
-    
-    // 4. Se asegura de que el listener de partida local apunte al ID correcto.
-    if (domElements.startLocalGameBtn) {
-        domElements.startLocalGameBtn.addEventListener('click', () => {
-            //... Tu código original para iniciar una partida local va aquí ...
-            // (No necesitas copiarlo, solo asegúrate de que el 'if' apunte a 'startLocalGameBtn')
-        });
-    }
-    
-    if (domElements.floatingBuildBtn) {
-                domElements.floatingBuildBtn.addEventListener('click', (event) => {
-                    // <<== CORRECCIÓN CLAVE: Detenemos la propagación del evento ==>>
-                    // Esto evita que otros listeners (como el que cierra el panel) se activen.
-                    event.stopPropagation();
-                    console.log("[DEBUG Botón Construir] click detectado.");
 
-                    // Si hay una unidad seleccionada, establece el hexágono de construcción
-                    if (selectedUnit) {
-                        hexToBuildOn = { r: selectedUnit.r, c: selectedUnit.c };
-                        console.log(`Modo construcción iniciado por unidad seleccionada en (${hexToBuildOn.r}, ${hexToBuildOn.c}).`);
-                    }
-                    
-                    if (hexToBuildOn) {
-                        if (typeof openBuildStructureModal === "function") {
-                            openBuildStructureModal();
-                        } else {
-                            console.error("CRÍTICO: La función openBuildStructureModal no está definida en modalLogic.js");
-                        }
-                    } else {
-                        console.warn("[DEBUG Botón Construir] No se puede construir. No hay unidad ni hexágono seleccionado.");
-                        if (UIManager) UIManager.showMessageTemporarily("No hay una acción de construcción válida.", 3000, true);
-                    }
-                });
-            } else { 
-                console.warn("main.js: floatingBuildBtn no encontrado, no se pudo añadir listener."); 
+    if (domElements.floatingAssignGeneralBtn && !domElements.floatingAssignGeneralBtn.hasListener) {
+        domElements.floatingAssignGeneralBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (selectedUnit) {
+                console.log(`Abriendo Cuartel para asignar un Héroe a ${selectedUnit.name}.`);
+                if (typeof openBarracksModal === "function") {
+                    openBarracksModal(true, selectedUnit);
+                }
             }
+        });
+        domElements.floatingAssignGeneralBtn.hasListener = true;
+    }
+
+    if (domElements.floatingBuildBtn) {
+        domElements.floatingBuildBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            console.log("[DEBUG Botón Construir] click detectado.");
+            if (selectedUnit) {
+                hexToBuildOn = { r: selectedUnit.r, c: selectedUnit.c };
+                console.log(`Modo construcción iniciado por unidad seleccionada en (${hexToBuildOn.r}, ${hexToBuildOn.c}).`);
+            }
+            if (hexToBuildOn) {
+                if (typeof openBuildStructureModal === "function") { openBuildStructureModal(); } 
+                else { console.error("CRÍTICO: La función openBuildStructureModal no está definida en modalLogic.js"); }
+            } else {
+                console.warn("[DEBUG Botón Construir] No se puede construir. No hay unidad ni hexágono seleccionado.");
+                if (UIManager) UIManager.showMessageTemporarily("No hay una acción de construcción válida.", 3000, true);
+            }
+        });
+    } else { 
+        console.warn("main.js: floatingBuildBtn no encontrado, no se pudo añadir listener."); 
+    }
 
     if (domElements.floatingPillageBtn) {
         domElements.floatingPillageBtn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        // Invocamos la función de "petición", que es el punto de entrada correcto.
-        RequestPillageAction(); 
-    });
+            event.stopPropagation();
+            RequestPillageAction(); 
+        });
     } else {
         console.warn("main.js: floatingPillageBtn no encontrado, no se pudo añadir listener.");
     }
 
     if (domElements.player1TypeSelect && domElements.player1AiLevelDiv) {
-        if (domElements.player1TypeSelect.value.startsWith('ai_')) { domElements.player1AiLevelDiv.style.display = 'block'; } else { domElements.player1AiLevelDiv.style.display = 'none'; }
-        domElements.player1TypeSelect.addEventListener('change', () => { if (domElements.player1TypeSelect.value.startsWith('ai_')) { domElements.player1AiLevelDiv.style.display = 'block'; } else { domElements.player1AiLevelDiv.style.display = 'none'; } });
+        if (domElements.player1TypeSelect.value.startsWith('ai_')) { domElements.player1AiLevelDiv.style.display = 'block'; } 
+        else { domElements.player1AiLevelDiv.style.display = 'none'; }
+        domElements.player1TypeSelect.addEventListener('change', () => { 
+            if (domElements.player1TypeSelect.value.startsWith('ai_')) { domElements.player1AiLevelDiv.style.display = 'block'; } 
+            else { domElements.player1AiLevelDiv.style.display = 'none'; } 
+        });
     } else { console.warn("main.js: domElements.player1TypeSelect o domElements.player1AiLevelDiv no encontrados para lógica de AI level."); }
 
-    if (domElements.player2TypeSelect) { 
-    } else { console.warn("main.js: domElements.player2TypeSelect no encontrado."); }
+    if (domElements.player2TypeSelect) {} 
+    else { console.warn("main.js: domElements.player2TypeSelect no encontrado."); }
 
     if (domElements.startLocalGameBtn) { 
         domElements.startLocalGameBtn.addEventListener('click', () => { 
-            console.log("main.js: Botón 'Empezar Partida (Local)' clickeado."); // Mensaje corregido
+            console.log("main.js: Botón 'Empezar Partida (Local)' clickeado.");
             if (typeof resetGameStateVariables === "function") resetGameStateVariables();
             else { console.error("main.js: resetGameStateVariables no definida."); return; }
-
             gameState.isCampaignBattle = false; gameState.currentScenarioData = null; gameState.currentMapData = null;
-
-             if (!domElements.player1TypeSelect || !domElements.player2TypeSelect) {
-                  console.error("main.js: Faltan elementos de selección de jugador para iniciar partida."); return;
-             }
-            
-             if (!domElements.player1Civ || !domElements.player2Civ) {
-                console.error("main.js: Elementos de selección de civilización no encontrados. Usando 'ninguna' por defecto.");
+            if (!domElements.player1TypeSelect || !domElements.player2TypeSelect) { console.error("main.js: Faltan elementos de selección de jugador para iniciar partida."); return; }
+            if (!domElements.player1Civ || !domElements.player2Civ) {
+                console.error("main.js: Elementos de selección de civilización no encontrados.");
             } else {
-                console.log("[DIAGNÓSTICO] Elemento domElements.player1Civ:", domElements.player1Civ);
-                console.log("[DIAGNÓSTICO] Elemento domElements.player2Civ:", domElements.player2Civ);
                 gameState.playerCivilizations[1] = domElements.player1Civ.value;
                 gameState.playerCivilizations[2] = domElements.player2Civ.value;
-
-                console.log('%c[CIV INIT en main.js] Civilizaciones establecidas -> J1: ' + gameState.playerCivilizations[1] + ', J2: ' + gameState.playerCivilizations[2], "background: #222; color: #bada55");
             }
-            console.log(`[CIV DEBUG] Civilización J1: ${gameState.playerCivilizations[1]}, Civilización J2: ${gameState.playerCivilizations[2]}`);
-            
-            gameState.playerTypes.player1 = domElements.player1TypeSelect.value; 
+            gameState.playerTypes.player1 = domElements.player1TypeSelect.value;
             if (domElements.player1TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player1 = domElements.player1TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player1')) { delete gameState.playerAiLevels.player1; } }
             gameState.playerTypes.player2 = domElements.player2TypeSelect.value;
             if (domElements.player2TypeSelect.value.startsWith('ai_')) { gameState.playerAiLevels.player2 = domElements.player2TypeSelect.value.split('_')[1] || 'normal'; } else { if (gameState.playerAiLevels && gameState.playerAiLevels.hasOwnProperty('player2')) { delete gameState.playerAiLevels.player2; } }
-
-             if (!domElements.resourceLevelSelect || !domElements.boardSizeSelect || !domElements.initialUnitsCountSelect) {
-                  console.error("main.js: Faltan elementos de configuración de partida para iniciar."); return;
-             }
+            if (!domElements.resourceLevelSelect || !domElements.boardSizeSelect || !domElements.initialUnitsCountSelect) { console.error("main.js: Faltan elementos de configuración de partida para iniciar."); return; }
             const selectedResourceLevel = domElements.resourceLevelSelect.value;
             const selectedBoardSize = domElements.boardSizeSelect.value;
             const selectedInitialUnits = domElements.initialUnitsCountSelect.value; 
             gameState.deploymentUnitLimit = selectedInitialUnits === "unlimited" ? Infinity : parseInt(selectedInitialUnits);
-            
-            console.log("Iniciando Partida Rápida (Escaramuza):", "P1:", gameState.playerTypes.player1, gameState.playerAiLevels?.player1 || "", "P2:", gameState.playerTypes.player2, gameState.playerAiLevels?.player2 || "");
-
-             if (typeof showScreen === "function" && domElements.gameContainer) {
-                  showScreen(domElements.gameContainer); 
-             } else { 
-                 console.error("main.js: CRÍTICO: showScreen (de campaignManager) o domElements.gameContainer no disponibles para transición de pantalla.");
-                 if (typeof domElements.setupScreen !== 'undefined') domElements.setupScreen.style.display = 'none';
-                 if (typeof domElements.gameContainer !== 'undefined') domElements.gameContainer.style.display = 'flex';
-             }
+            if (typeof showScreen === "function" && domElements.gameContainer) { showScreen(domElements.gameContainer); } 
+            else { console.error("main.js: CRÍTICO: showScreen o domElements.gameContainer no disponibles."); }
             gameState.currentPhase = "deployment"; 
-
-            console.log("MAIN.JS --- DEBUG ---> ANTES de llamar a initializeNewGameBoardDOMAndData");
-            if (typeof initializeNewGameBoardDOMAndData === "function") { 
-                 initializeNewGameBoardDOMAndData(selectedResourceLevel, selectedBoardSize); 
-                 console.log("MAIN.JS --- DEBUG ---> DESPUÉS de llamar a initializeNewGameBoardDOMAndData (si fue función)"); 
-            } else { 
-                 console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función (de boardManager.js). No se puede inicializar el tablero."); 
-                 console.log("MAIN.JS --- DEBUG ---> initializeNewGameBoardDOMAndData NO FUE UNA FUNCION"); 
-            }
-
-            if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === "function") { 
-                 UIManager.updateAllUIDisplays();
-            } else { console.warn("main.js: UIManager.updateAllUIDisplays no definida."); }
-            
-             if (typeof logMessage === "function") {
-            const player1CivName = CIVILIZATIONS[gameState.playerCivilizations[1]]?.name || 'Desconocida';
-            logMessage(`Fase de Despliegue. Jugador 1 (${player1CivName}) | Límite: ${gameState.deploymentUnitLimit === Infinity ? 'Ilimitado' : gameState.deploymentUnitLimit}.`);
+            if (typeof initializeNewGameBoardDOMAndData === "function") { initializeNewGameBoardDOMAndData(selectedResourceLevel, selectedBoardSize); } 
+            else { console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función."); }
+            if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === "function") { UIManager.updateAllUIDisplays(); } 
+            else { console.warn("main.js: UIManager.updateAllUIDisplays no definida."); }
+            if (typeof logMessage === "function") {
+                const player1CivName = CIVILIZATIONS[gameState.playerCivilizations[1]]?.name || 'Desconocida';
+                logMessage(`Fase de Despliegue. Jugador 1 (${player1CivName}) | Límite: ${gameState.deploymentUnitLimit === Infinity ? 'Ilimitado' : gameState.deploymentUnitLimit}.`);
             }
             else console.warn("main.js: logMessage no definida.");
         });
     } else { console.warn("main.js: startLocalGameBtn no encontrado."); }
 
-     if (domElements.expandPanelBtn && domElements.contextualInfoPanel) {
+    if (domElements.expandPanelBtn && domElements.contextualInfoPanel) {
         domElements.expandPanelBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             const panel = domElements.contextualInfoPanel;
@@ -524,7 +514,7 @@ function initApp() {
                 handleEndTurn();
             } else {
                 console.error("main.js Error: La función handleEndTurn no está definida en gameFlow.js."); 
-            }
+    }
         }); 
     } else { 
         console.warn("main.js: floatingEndTurnBtn no encontrado."); 
@@ -540,7 +530,7 @@ function initApp() {
             }
             if (isVisible && typeof UIManager !== 'undefined' && typeof UIManager.hideContextualPanel === "function") {
                  UIManager.hideContextualPanel();
-            }
+    }
         }); 
     } else { console.warn("main.js: floatingMenuBtn o floatingMenuPanel no encontrado."); }
 
@@ -582,7 +572,7 @@ function initApp() {
 
             } else {
                 console.error("[FORZANDO CIERRE] No se pudo encontrar #contextualInfoPanel en el DOM al hacer clic en 'X'.");
-            }
+    }
         });
         console.log("Listener de cierre FINAL y FORZADO añadido al botón 'X'.");
     }
@@ -667,7 +657,7 @@ function initApp() {
             }
             if (typeof openUnitManagementModal === "function") {
                 console.log("[>] Llamando a openUnitManagementModal() para mostrar la nueva interfaz...");
-                openUnitManagementModal(); 
+            openUnitManagementModal();
             } else {
                 console.error("main.js: CRÍTICO: La función 'openUnitManagementModal' no está definida en modalLogic.js.");
             }
@@ -692,7 +682,7 @@ function initApp() {
             event.stopPropagation();
             if (domElements.wikiModal) {
                 domElements.wikiModal.style.display = 'none';
-            }
+    }
         });
     }
 
@@ -702,7 +692,7 @@ function initApp() {
                 openTechTreeScreen();
                 if (domElements && domElements.floatingMenuPanel && domElements.floatingMenuPanel.style.display !== 'none') {
                     domElements.floatingMenuPanel.style.display = 'none';
-                }
+    }
                 if (domElements && domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
                     if (typeof UIManager !== 'undefined' && UIManager.hideContextualPanel) {
                         UIManager.hideContextualPanel();
@@ -728,7 +718,7 @@ function initApp() {
         console.error("main.js: CRÍTICO: initDebugConsole no está definida (de debugConsole.js).");
     }
 
-    if (domElements.floatingUndoMoveBtn) {
+        if (domElements.floatingUndoMoveBtn) {
         domElements.floatingUndoMoveBtn.addEventListener('click', (event) => {
             event.stopPropagation(); 
             console.log("[DEBUG Botón Deshacer] click detectado");
@@ -738,7 +728,7 @@ function initApp() {
             } else {
                  console.warn("[DEBUG Botón Deshacer] No se puede deshacer el movimiento.");
                  if(typeof UIManager !== 'undefined' && typeof UIManager.showMessageTemporarily === 'function') UIManager.showMessageTemporarily("No se puede deshacer el movimiento.", 3000, true);
-            }
+    }
         });
     } else { console.warn("main.js: floatingUndoMoveBtn no encontrado, no se pudo añadir listener."); }
 
@@ -766,14 +756,39 @@ function initApp() {
                     }
                 } else {
                     console.warn(`[Botón 💪/👁️] Clic, pero no se encontró ninguna unidad en las coordenadas guardadas (${unitR}, ${unitC}).`);
-                }
+    }
             } else {
                 console.warn("[Botón 💪/👁️] Clic, pero no hay coordenadas de unidad seleccionada en el gameState.");
             }
         });
     } else { 
-        console.warn("main.js: floatingReinforceBtn no encontrado, no se pudo añadir listener."); 
+            console.warn("main.js: floatingReinforceBtn no encontrado, no se pudo añadir listener."); 
     }
+
+    if (domElements.floatingNextUnitBtn) {
+        domElements.floatingNextUnitBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (typeof selectNextIdleUnit === "function") {
+                selectNextIdleUnit();
+            } else {
+                console.error("Error: La función selectNextIdleUnit no está definida en gameFlow.js");
+            }
+        });
+    } else {
+        console.warn("main.js: floatingNextUnitBtn no encontrado.");
+    }
+
+    if (domElements.floatingConsolidateBtn) {
+        domElements.floatingConsolidateBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (selectedUnit && typeof consolidateRegiments === "function") {
+                consolidateRegiments(selectedUnit);
+            }
+        });
+    } else {
+        console.warn("main.js: floatingConsolidateBtn no encontrado.");
+    }
+/*
     if (typeof showWelcomeHelpModal === "function") {
         console.log("main.js: Llamando a showWelcomeHelpModal().");
         showWelcomeHelpModal(); 
@@ -789,7 +804,7 @@ function initApp() {
         if (typeof logMessage === "function") logMessage("Bienvenido a Hex General Evolved.");
         else console.warn("main.js: logMessage no definida.");
     }
-
+*/
     if (domElements.floatingManageBtn) {
         domElements.floatingManageBtn.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -812,7 +827,7 @@ function initApp() {
                 }
             } else {
                 logMessage("No hay unidad seleccionada para disolver.", "error");
-            }
+    }
         });
     } else {
         console.warn("main.js: disbandUnitBtn no encontrado, no se pudo añadir listener.");
@@ -840,6 +855,16 @@ function initApp() {
         });
     } else {
         console.warn("main.js: setAsCapitalBtn no encontrado, no se pudo añadir listener.");
+    } 
+
+    // ======================================================================
+    // 4. LÓGICA DE ARRANQUE ÚNICA Y DEFINITIVA (SE EJECUTA AL FINAL)
+    // ======================================================================
+    const lastUser = localStorage.getItem('lastUser');
+    if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
+        showMainMenu();
+    } else {
+        showLoginScreen();
     }
     
     console.log("main.js: initApp() FINALIZADO.");

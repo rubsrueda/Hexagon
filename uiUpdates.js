@@ -199,7 +199,7 @@ const UIManager = {
 
     hideAllActionButtons: function() {
          if (!this._domElements) return;
-         ['floatingUndoMoveBtn', 'floatingReinforceBtn', 'floatingSplitBtn', 'floatingBuildBtn', 'floatingPillageBtn', 'setAsCapitalBtn'].forEach(id => {
+         ['floatingUndoMoveBtn', 'floatingReinforceBtn', 'floatingSplitBtn', 'floatingBuildBtn', 'floatingPillageBtn', 'setAsCapitalBtn', 'floatingConsolidateBtn'].forEach(id => {
              if (this._domElements[id]) this._domElements[id].style.display = 'none';
          });
     },
@@ -245,6 +245,23 @@ const UIManager = {
             const unitsPlaced = unitsPlacedByPlayer?.[currentPlayer] || 0;
             const canDeploy = unitsPlaced < deploymentUnitLimit;
             this._domElements.floatingCreateDivisionBtn.style.display = (currentPhase === "deployment" && isHumanPlayerTurn && canDeploy) ? 'flex' : 'none';
+        }
+
+        if (this._domElements.floatingNextUnitBtn) {
+            const hasIdleUnits = units.some(u => 
+                u.player === currentPlayer && 
+                u.currentHealth > 0 && 
+                !u.hasMoved && 
+                !u.hasAttacked
+            );
+            const isHumanPlayerTurn = gameState.playerTypes[`player${currentPlayer}`] === 'human';
+
+            // Muestra el botón si es el turno de un jugador humano, la partida está en juego y hay unidades inactivas
+            if (currentPhase === "play" && isHumanPlayerTurn && hasIdleUnits) {
+                this._domElements.floatingNextUnitBtn.style.display = 'flex';
+            } else {
+                this._domElements.floatingNextUnitBtn.style.display = 'none';
+            }
         }
 
         if (isGameOver) {
@@ -297,27 +314,27 @@ const UIManager = {
     },
     
     showUnitContextualInfo: function(unit, isOwnUnit = true) {
-        // --- PREPARACIÓN INICIAL ---
+            // --- PREPARACIÓN INICIAL ---
         this.hideAllActionButtons();
         if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.style.display = 'flex';
         hexToBuildOn = null;
         if (!this._domElements.contextualInfoPanel || !unit) return;
 
-            // Guardar la selección actual en el estado del juego
+        // Guardar la selección actual en el estado del juego
         gameState.selectedHexR = unit.r;
         gameState.selectedHexC = unit.c;
 
-            // Reinicia el panel a su estado colapsado por defecto
-        if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
-        if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
+                // Reinicia el panel a su estado colapsado por defecto
+            if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.remove('is-expanded');
+            if (this._domElements.expandPanelBtn) this._domElements.expandPanelBtn.textContent = '▲';
 
-            // --- RELLENAR CONTENIDO DEL PANEL ---
+                // --- RELLENAR CONTENIDO DEL PANEL ---
         const isPlayerUnit = unit.player === gameState.currentPlayer;
         this._domElements.contextualTitle.textContent = `Unidad: ${unit.name} (J${unit.player})`;
         this._domElements.contextualContent.innerHTML = this._buildUnitDetailsHTML(unit);
 
-        // --- LÓGICA DE VISIBILIDAD DE BOTONES (MODIFICADA) ---
-        
+        // --- LÓGICA DE VISIBILIDAD DE BOTONES ---
+            
         // Primero, comprobamos si es un enemigo explorado
         const isScoutedEnemy = !isPlayerUnit && isEnemyScouted(unit);
 
@@ -332,61 +349,99 @@ const UIManager = {
             }
         }
         
-        // El resto de los botones (dividir, construir, etc.) solo deben aparecer para unidades propias.
+            // El resto de los botones (dividir, construir, etc.) solo deben aparecer para unidades propias.
         if (isPlayerUnit && gameState.currentPhase === 'play') {
             const canAct = !unit.hasMoved && !unit.hasAttacked;
 
                 // Botón Deshacer
-            if (unit.lastMove && !unit.hasAttacked) {
-                if (this._domElements.floatingUndoMoveBtn) this._domElements.floatingUndoMoveBtn.style.display = 'flex';
-            }
+                if (unit.lastMove && !unit.hasAttacked) {
+                    if (this._domElements.floatingUndoMoveBtn) this._domElements.floatingUndoMoveBtn.style.display = 'flex';
+                }
 
-                // Botones que solo aparecen si la unidad aún puede actuar
-            if (canAct) {
+                    // Botones que solo aparecen si la unidad aún puede actuar
+                if (canAct) {
                     // Botón Dividir
-                if ((unit.regiments?.length || 0) > 1 && this._domElements.floatingSplitBtn) {
-                    this._domElements.floatingSplitBtn.style.display = 'flex';
+                    if ((unit.regiments?.length || 0) > 1 && this._domElements.floatingSplitBtn) {
+                        this._domElements.floatingSplitBtn.style.display = 'flex';
+                    }
+
+            const unitHex = board[unit.r]?.[unit.c];
+
+            // <<== LÓGICA CLAVE PARA MOSTRAR "ASIGNAR HÉROE" 👤 ==>>
+            if (this._domElements.floatingAssignGeneralBtn && unitHex) {
+                const playerTechs = gameState.playerResources[unit.player]?.researchedTechnologies || [];
+                const hasLeadershipTech = playerTechs.includes("LEADERSHIP");
+                const hasHQ = unit.regiments.some(r => r.type === "Cuartel General");
+                const isAtRecruitmentPoint = unitHex.isCity || unitHex.isCapital || unitHex.structure === "Fortaleza";
+                const maxGenerals = gameState.cities.filter(c => c.owner === unit.player).length;
+                const currentGenerals = gameState.activeCommanders[unit.player]?.length || 0;
+                
+                // Condiciones para mostrar el botón:
+                        // 1. La unidad NO tiene ya un comandante.
+                        // 2. La unidad TIENE un "Cuartel General".
+                        // 3. La unidad ESTÁ en una ciudad o fortaleza.
+                        // 4. El jugador NO ha alcanzado su límite de generales activos.
+                if (!unit.commander && hasLeadershipTech && hasHQ && isAtRecruitmentPoint && currentGenerals < maxGenerals) {
+                    this._domElements.floatingAssignGeneralBtn.style.display = 'flex';
+                }
+            }
+            
+                    if (unitHex) {
+                            // *** LÓGICA DE SAQUEO RESTAURADA ***
+                        if (unitHex.owner !== null && unitHex.owner !== unit.player && this._domElements.floatingPillageBtn) {
+                            this._domElements.floatingPillageBtn.style.display = 'flex';
+                        }
+                        
+                            // Lógica de Construcción
+                        const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
+                        if (isBuilderUnit && this._domElements.floatingBuildBtn) {
+                            hexToBuildOn = { r: unit.r, c: unit.c };
+                            this._domElements.floatingBuildBtn.style.display = 'flex';
+            }
+                    }
+
+                    // Comprueba si hay al menos un tipo de regimiento que se repita y esté dañado.
+                    const regimentTypes = unit.regiments.map(r => r.type);
+                    const hasDamagedDuplicates = [...new Set(regimentTypes)].some(type => {
+                        const group = unit.regiments.filter(r => r.type === type);
+                        return group.length > 1 && group.some(r => r.health < REGIMENT_TYPES[type].health);
+                    });
+
+                    if (hasDamagedDuplicates && this._domElements.floatingConsolidateBtn) {
+                        this._domElements.floatingConsolidateBtn.style.display = 'flex';
+                    }
                 }
                 
-                const unitHex = board[unit.r]?.[unit.c];
-                if (unitHex) {
-                        // *** LÓGICA DE SAQUEO RESTAURADA ***
-                    if (unitHex.owner !== null && unitHex.owner !== unit.player && this._domElements.floatingPillageBtn) {
-                        this._domElements.floatingPillageBtn.style.display = 'flex';
-                    }
-                    
-                        // Lógica de Construcción
-                    const isBuilderUnit = unit.regiments.some(reg => REGIMENT_TYPES[reg.type]?.isSettler || REGIMENT_TYPES[reg.type]?.abilities?.includes("build_road"));
-                    if (isBuilderUnit && this._domElements.floatingBuildBtn) {
-                        hexToBuildOn = { r: unit.r, c: unit.c };
-                        this._domElements.floatingBuildBtn.style.display = 'flex';
+                    // *** LÓGICA DE CAPITAL CORREGIDA Y FUNCIONAL ***
+                    // Esta lógica es independiente de si la unidad ya actuó
+                const hexUnderUnit = board[unit.r]?.[unit.c];
+                if (hexUnderUnit && this._domElements.setAsCapitalBtn) {
+                    const isEligibleCity = hexUnderUnit.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexUnderUnit.structure);
+                    if (isEligibleCity && !hexUnderUnit.isCapital) {
+                        this._domElements.setAsCapitalBtn.style.display = 'block';
                     }
                 }
             }
             
-                // *** LÓGICA DE CAPITAL CORREGIDA Y FUNCIONAL ***
-                // Esta lógica es independiente de si la unidad ya actuó
-            const hexUnderUnit = board[unit.r]?.[unit.c];
-            if (hexUnderUnit && this._domElements.setAsCapitalBtn) {
-                const isEligibleCity = hexUnderUnit.isCity || ['Aldea', 'Ciudad', 'Metrópoli'].includes(hexUnderUnit.structure);
-                if (isEligibleCity && !hexUnderUnit.isCapital) {
-                    this._domElements.setAsCapitalBtn.style.display = 'block';
-                }
+            if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
+                this.attachAttackPredictionListener(unit);
+            } else { 
+                this.removeAttackPredictionListener();
             }
-        }
-        
-            // --- FINALIZACIÓN ---
-        if (isOwnUnit && gameState.currentPhase === 'play' && !unit.hasAttacked) {
-            this.attachAttackPredictionListener(unit);
-        } else { 
-            this.removeAttackPredictionListener();
-        }
-        
+            
         if (this._domElements.contextualInfoPanel) this._domElements.contextualInfoPanel.classList.add('visible');
     },
     
     _buildUnitDetailsHTML: function(unit) {
         let html = '';
+
+        // <<== SECCIÓN PARA EL GENERAL ==>>
+        if (unit.commander && COMMANDERS[unit.commander]) {
+            const cmdr = COMMANDERS[unit.commander];
+            html += `<p style="text-align: center; font-weight: bold; color: gold; margin-bottom: 5px;">
+                Liderada por: ${cmdr.sprite} ${cmdr.name}, ${cmdr.title}
+            </p>`;
+        }
 
         // --- Línea 1: Stats Consolidados de la Unidad ---
         // Salud
@@ -434,6 +489,8 @@ const UIManager = {
         
         return html;
     },
+    
+    
     
     _buildHexDetailsHTML: function(hexData) {
         let contentParts = [];
@@ -579,38 +636,91 @@ const UIManager = {
      * (NUEVA FUNCIÓN) Borra todas las unidades visuales del tablero y las vuelve a crear
      * desde el array de datos `units`. Es la solución definitiva para problemas de desincronización del DOM.
      */
-    renderAllUnitsFromData: function() {
-        if (!this._domElements.gameBoard) return;
+    // Reemplaza la función renderAllUnitsFromData entera en uiUpdates.js con esto:
+renderAllUnitsFromData: function() {
+    if (!this._domElements.gameBoard) return;
 
-        console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
+    console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
 
-        // Paso 1: Eliminar todos los divs de unidades existentes.
-        this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
+            // Paso 1: Eliminar todos los divs de unidades existentes.
+    this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
 
-        // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
-        for (const unit of units) {
-            // Se recrea el elemento DOM para cada unidad en la lista de datos.
-            const unitElement = document.createElement('div');
-            unitElement.className = `unit player${unit.player}`;
-            unitElement.textContent = unit.sprite || '?';
-            unitElement.dataset.id = unit.id;
-            const strengthDisplay = document.createElement('div');
-            strengthDisplay.className = 'unit-strength';
-            strengthDisplay.textContent = unit.currentHealth;
-            unitElement.appendChild(strengthDisplay);
-            
-            // Re-asignamos la nueva referencia del elemento al objeto de datos.
-            unit.element = unitElement;
+            // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
+    for (const unit of units) {
+                // Se recrea el elemento DOM para cada unidad en la lista de datos.
+        const unitElement = document.createElement('div');
+        unitElement.className = `unit player${unit.player}`;
 
-            // Lo añadimos al tablero.
-            this._domElements.gameBoard.appendChild(unitElement);
+            // <<== LÓGICA DE VISUALIZACIÓN DEL GENERAL ==>>
+            // Contenedor para el contenido principal (sprite y estandarte)
+        const mainContent = document.createElement('div');
+        mainContent.style.position = 'relative';
+        mainContent.style.display = 'flex';
+        mainContent.style.alignItems = 'center';
+        mainContent.style.justifyContent = 'center';
+        mainContent.style.width = '100%';
+        mainContent.style.height = '100%';
 
-            // Y lo posicionamos.
-            if (typeof positionUnitElement === 'function') {
-                positionUnitElement(unit);
-            }
+        // --- LÓGICA HÍBRIDA ---
+        const spriteValue = unit.sprite || '?';
+        const isImageSprite = spriteValue.includes('.') || spriteValue.includes('/');
+
+        if (isImageSprite) {
+            unitElement.style.backgroundImage = `url('${spriteValue}')`;
+        } else {
+            unitElement.style.backgroundImage = 'none';
+            mainContent.textContent = spriteValue; // El emoji va dentro
         }
-        console.log("[RENDER ALL] Re-dibujado completo finalizado.");
+
+        unitElement.appendChild(mainContent);
+
+        if (unit.commander && COMMANDERS[unit.commander]) {
+            const commanderSprite = COMMANDERS[unit.commander].sprite;
+            const commanderBanner = document.createElement('span');
+            commanderBanner.textContent = commanderSprite;
+            commanderBanner.className = 'commander-banner';
+            mainContent.appendChild(commanderBanner);
+        }
+        
+        unitElement.dataset.id = unit.id;
+        const strengthDisplay = document.createElement('div');
+        strengthDisplay.className = 'unit-strength';
+        strengthDisplay.textContent = unit.currentHealth;
+        unitElement.appendChild(strengthDisplay);
+        
+                // Re-asignamos la nueva referencia del elemento al objeto de datos.
+        unit.element = unitElement;
+
+                // Lo añadimos al tablero.
+        this._domElements.gameBoard.appendChild(unitElement);
+
+                // Y lo posicionamos.
+        if (typeof positionUnitElement === 'function') {
+            positionUnitElement(unit);
+        }
+    }
+    console.log("[RENDER ALL] Re-dibujado completo finalizado.");
+},
+
+
+    showRewardToast: function(message, icon = '🏆') {
+        if (!this._domElements.gameBoard) return;
+        
+        const toast = document.createElement('div');
+        toast.className = 'reward-toast';
+        toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+        
+        // Posicionarlo en el centro horizontal y un poco arriba
+        toast.style.left = '50%';
+        toast.style.top = '25%';
+        toast.style.transform = 'translateX(-50%)'; // Centrarlo correctamente
+
+        this._domElements.gameBoard.appendChild(toast);
+
+        // Se autodestruye cuando termina la animación
+        setTimeout(() => {
+            toast.remove();
+        }, 2500); // La duración de la animación
     },
 
     

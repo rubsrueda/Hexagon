@@ -114,6 +114,20 @@ const TECHNOLOGY_TREE_DATA = {
         position: { x: -200, y: -120 },
         tier: 1
     },
+
+    "LEADERSHIP": {
+        id: "LEADERSHIP",
+        name: "Liderazgo",
+        description: "Estudio del mando y la estrategia. Desbloquea la capacidad de asignar generales a las divisiones con Cuartel General.",
+        sprite: "⭐",
+        cost: { researchPoints: 30 },
+        unlocksUnits: [], 
+        unlocksStructures: [],
+        prerequisites: ["DRILL_TACTICS"],
+        position: { x: -400, y: -120 }, // Lo colocamos a la izquierda de las tácticas militares
+        tier: 1
+    },
+
     // <<< NUEVA TECNOLOGÍA: Medicina, para el Hospital de Campaña >>>
     "MEDICINE": {
         id: "MEDICINE",

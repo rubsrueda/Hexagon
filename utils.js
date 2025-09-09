@@ -1,28 +1,30 @@
 // utils.js
 // Funciones de utilidad general.
 
-function logMessage(msg) {
-    // Siempre mostrar el mensaje en la consola
-    console.log(msg);
-    /*
-    const logContainer = document.getElementById('gameLogContainer');
-    if (!logContainer) {
-        return; // No hacer nada si el contenedor no existe
+/**
+ * Registra un mensaje de juego. Lo envía a la consola del navegador
+ * y también a la consola de depuración en pantalla, si está disponible.
+ * @param {string} msg - El mensaje a mostrar.
+ * @param {string} type - El tipo de mensaje ('info', 'success', 'warning', 'error') para darle estilo.
+ */
+function logMessage(msg, type = 'info') {
+    // 1. Siempre registrar en la consola del navegador para la depuración profunda.
+    switch(type) {
+        case 'error':
+            console.error(msg);
+            break;
+        case 'warning':
+            console.warn(msg);
+            break;
+        default:
+            console.log(msg);
     }
 
-    // Crear un nuevo elemento para el mensaje
-    const messageElement = document.createElement('div');
-    messageElement.className = 'log-message';
-    messageElement.textContent = msg;
-
-    // Añadir el nuevo mensaje al contenedor
-    logContainer.prepend(messageElement); // prepend() lo añade al principio
-
-    // Limitar el número de mensajes en pantalla para no saturar
-    while (logContainer.children.length > 10) {
-        logContainer.removeChild(logContainer.lastChild);
+    // 2. Si la función de la consola en pantalla existe, la llamamos para mostrar el mensaje.
+    // Esto mantiene los archivos desacoplados: utils.js no necesita saber CÓMO funciona la consola, solo que existe.
+    if (typeof logToConsole === 'function') {
+        logToConsole(msg, type);
     }
-    */
 }
 
 function hexDistance(r1, c1, r2, c2) {
@@ -85,7 +87,7 @@ function getUnitOnHex(r, c) {
 }
 
 function isHexSupplied(startR, startC, playerId) {
-    console.log(`%c[DEBUG Suministro] Chequeando suministro para (${startR},${startC}) de J${playerId}`, "background: yellow; color: black;");
+   // console.log(`%c[DEBUG Suministro] Chequeando suministro para (${startR},${startC}) de J${playerId}`, "background: yellow; color: black;");
 
     if (!board || board.length === 0 || !board[0] || !board[startR] || !board[startR][startC]) {
         console.error(`[isHexSupplied] Tablero o hexágono inicial (${startR},${startC}) no inicializado/válido.`);
@@ -118,7 +120,7 @@ function isHexSupplied(startR, startC, playerId) {
         // Esta condición ya no es la misma que la del inicio para evitar doble conteo y mejorar la lógica.
         if (current.r !== startR || current.c !== startC) { // Si no es el hexágono de partida
             if (currentHexData.owner === playerId && (currentHexData.isCapital || currentHexData.structure === "Fortaleza")) {
-                console.log(`%c[isHexSupplied] (${startR},${startC}) está suministrada via ruta a fuente en (${current.r},${current.c}). SÍ SUMINISTRADA.`, "color: lightgreen;");
+                //console.log(`%c[isHexSupplied] (${startR},${startC}) está suministrada via ruta a fuente en (${current.r},${current.c}). SÍ SUMINISTRADA.`, "color: lightgreen;");
                 return true;
             }
         }
@@ -144,7 +146,7 @@ function isHexSupplied(startR, startC, playerId) {
             }
         }
     }
-    console.log(`%c[isHexSupplied] (${startR},${startC}) NO está suministrada (no se encontró ruta).`, "color: red;");
+    //console.log(`%c[isHexSupplied] (${startR},${startC}) NO está suministrada (no se encontró ruta).`, "color: red;");
     return false;
 }
 
@@ -157,7 +159,7 @@ function isHexSuppliedForReinforce(r, c, playerId) {
 
     // Caso 1: La unidad está DIRECTAMENTE en una Capital o Fortaleza propia.
     if (hexData.owner === playerId && (hexData.isCapital || hexData.structure === "Fortaleza")) {
-        console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
+        //console.log(`%c[DEBUG Reforzar] OK: Unidad en fuente de refuerzo directa. (owner:${hexData.owner}, isCapital:${hexData.isCapital}, structure:${hexData.structure})`, "color: green;");
         return true;
     }
 

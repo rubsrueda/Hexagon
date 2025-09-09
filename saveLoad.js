@@ -143,3 +143,78 @@ function handleLoadGame(event) {
     reader.readAsText(file);
     if (domElements.loadGameInput) domElements.loadGameInput.value = "";
 }
+
+// Archivo a modificar: saveLoad.js (añadir al final)
+
+/**
+ * (NUEVO) Exporta el perfil del jugador actual como un archivo .json descargable.
+ */
+function exportProfile() {
+    if (!PlayerDataManager.currentPlayer) {
+        logMessage("Error: No hay un perfil de jugador activo para exportar.", "error");
+        return;
+    }
+
+    try {
+        const profileData = PlayerDataManager.getCurrentPlayer();
+        const dataStr = JSON.stringify(profileData, null, 2); // El null, 2 formatea el JSON para que sea legible
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${profileData.username}_profile.json`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Limpieza
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        logMessage(`Perfil de '${profileData.username}' exportado con éxito.`);
+
+    } catch (error) {
+        logMessage("Error al exportar el perfil: " + error.message, "error");
+        console.error("Error de exportación:", error);
+    }
+}
+
+/**
+ * (NUEVO) Importa un perfil de jugador desde un archivo .json seleccionado.
+ * @param {Event} event - El evento 'change' del input de tipo file.
+ */
+function importProfile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const loadedProfile = JSON.parse(e.target.result);
+
+            // Validación simple para asegurar que es un perfil
+            if (!loadedProfile.username || !loadedProfile.credentials || !loadedProfile.heroes) {
+                throw new Error("El archivo no parece ser un perfil de jugador válido.");
+            }
+            
+            // Guardar el perfil importado en LocalStorage
+            const playerDataKey = `player_${loadedProfile.username.toLowerCase()}`;
+            localStorage.setItem(playerDataKey, JSON.stringify(loadedProfile));
+            
+            // Hacer que este sea el último usuario para el auto-login
+            localStorage.setItem('lastUser', loadedProfile.username);
+
+            logMessage(`Perfil de '${loadedProfile.username}' importado con éxito. Reiniciando para aplicar cambios...`);
+            
+            // Forzar un reinicio de la página para que el nuevo perfil se cargue limpiamente
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+
+        } catch (error) {
+            logMessage("Error al importar el perfil: " + error.message, "error");
+            console.error("Error de importación:", error);
+        }
+    };
+    reader.readAsText(file);
+}

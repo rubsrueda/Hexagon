@@ -65,14 +65,19 @@ const gameStateProxyHandler = {
 function resetGameStateVariables() {
     console.log("state.js: Ejecutando resetGameStateVariables() para escaramuza...");
 
+    const p1civ = domElements.player1Civ ? domElements.player1Civ.value : 'ninguna';
+    const p2civ = domElements.player2Civ ? domElements.player2Civ.value : 'ninguna';
+
+
     // 1. Crear el objeto de estado inicial completo (como objeto plano)
     const initialGameStateObject = {
         currentPlayer: 1,
-        currentPhase: "setup",
+        currentPhase: "deployment",
         turnNumber: 1,
         playerTypes: { player1: 'human', player2: 'ai_normal' },
         playerAiLevels: { player2: 'normal' },
-        playerCivilizations: { 1: 'ninguna', 2: 'ninguna' }, 
+        playerCivilizations: { 1: p1civ, 2: p2civ }, 
+        activeCommanders: { 1: [], 2: [] },
         capitalCityId: { 1: null, 2: null },
         playerResources: {
             // Crear copias profundas de los recursos iniciales
@@ -143,11 +148,9 @@ function resetGameStateVariables() {
     console.log("--- LOG ESTADO --- state.js -> resetGameStateVariables FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
 }
 
-
 async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId) {
-    console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId, "on campaign territory:", campaignTerritoryId, "(con Proxy de depuración)"); // Modificado log
+    console.log("state.js: Resetting and setting up tactical game for scenario:", scenarioData.scenarioId);
 
-    // 1. Crear el objeto de estado inicial completo (como objeto plano)
     const initialP1Resources = JSON.parse(JSON.stringify(scenarioData.playerSetup.initialResources || INITIAL_PLAYER_RESOURCES[0]));
     const initialP2Resources = JSON.parse(JSON.stringify(scenarioData.enemySetup.initialResources || INITIAL_PLAYER_RESOURCES[1]));
     if (scenarioData.enemySetup.aiProfile?.startsWith('ai_')) {
@@ -169,6 +172,7 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
             1: initialP1Resources,
             2: initialP2Resources
         },
+        activeCommanders: { 1: [], 2: [] }, // Se asegura de que SIEMPRE exista
         deploymentUnitLimit: scenarioData.deploymentUnitLimit || Infinity,
         unitsPlacedByPlayer: { 1: 0, 2: 0 },
         cities: [],
@@ -180,13 +184,13 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         selectedHexR: -1,
         selectedHexC: -1,
         preparingAction: null,
-        selectedUnit: null
+        selectedUnit: null,
+        // Y añadimos la propiedad de Civilizaciones que también faltaba aquí
+        playerCivilizations: { 1: 'ninguna', 2: 'ninguna' }
     };
 
-    // 2. --- ¡CAMBIO CRUCIAL! Asignar el objeto inicial ENCAPSULADO EN UN PROXY a la variable global gameState ---
     gameState = initialGameStateObject;
-    // --- FIN CAMBIO CRUCIAL ---
-
+    
 
     // Asegurarse de que las variables globales relacionadas con el tablero y unidades estén limpias
     board = [];
@@ -196,8 +200,8 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
     placementMode = { active: false, unitData: null, unitType: null };
     
     // Limpiar roles de la IA
-     if (typeof AiManager !== 'undefined' && AiManager.unitRoles) {
-        AiManager.unitRoles.clear();
+    if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.unitRoles) {
+        AiGameplayManager.unitRoles.clear();
     }
 
     // Limpiar variables de construcción/división de modales (guardas de seguridad)
@@ -220,6 +224,5 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
         if (typeof logMessage === "function") logMessage(`¡Comienza la batalla por ${scenarioData.displayName}!`);
     }
 
-    console.log("state.js: Finalizado resetAndSetupTacticalGame. gameState es ahora un Proxy.", JSON.parse(JSON.stringify(gameState)));
-    console.log("--- LOG ESTADO --- state.js -> resetGameStateVariables FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
+    console.log("state.js: Finalizado resetAndSetupTacticalGame.", JSON.parse(JSON.stringify(gameState)));
 }
