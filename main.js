@@ -186,6 +186,7 @@ function initApp() {
         });
     }
     
+//Juego en red    
 if (domElements.createNetworkGameBtn) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
              console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
@@ -456,11 +457,17 @@ if (domElements.createNetworkGameBtn) {
     if (domElements.player2TypeSelect) {} 
     else { console.warn("main.js: domElements.player2TypeSelect no encontrado."); }
 
+    //Partida local???
     if (domElements.startLocalGameBtn) { 
         domElements.startLocalGameBtn.addEventListener('click', () => { 
             console.log("main.js: Botón 'Empezar Partida (Local)' clickeado.");
-            if (typeof resetGameStateVariables === "function") resetGameStateVariables();
-            else { console.error("main.js: resetGameStateVariables no definida."); return; }
+            if (typeof resetGameStateVariables === "function") {
+                resetGameStateVariables(2);
+                gameState.myPlayerNumber = 1; // La lógica va DENTRO del 'if'
+            } else {
+                console.error("main.js: resetGameStateVariables no definida.");
+                return;
+            }
             gameState.isCampaignBattle = false; gameState.currentScenarioData = null; gameState.currentMapData = null;
             if (!domElements.player1TypeSelect || !domElements.player2TypeSelect) { console.error("main.js: Faltan elementos de selección de jugador para iniciar partida."); return; }
             if (!domElements.player1Civ || !domElements.player2Civ) {
@@ -478,6 +485,7 @@ if (domElements.createNetworkGameBtn) {
             const selectedBoardSize = domElements.boardSizeSelect.value;
             const selectedInitialUnits = domElements.initialUnitsCountSelect.value; 
             gameState.deploymentUnitLimit = selectedInitialUnits === "unlimited" ? Infinity : parseInt(selectedInitialUnits);
+            
             if (typeof showScreen === "function" && domElements.gameContainer) { showScreen(domElements.gameContainer); } 
             else { console.error("main.js: CRÍTICO: showScreen o domElements.gameContainer no disponibles."); }
             gameState.currentPhase = "deployment"; 
@@ -492,6 +500,30 @@ if (domElements.createNetworkGameBtn) {
             else console.warn("main.js: logMessage no definida.");
         });
     } else { console.warn("main.js: startLocalGameBtn no encontrado."); }
+
+
+    //iberia Magna
+    if (domElements.startIberiaMagnaBtn) {
+        // La función del listener ahora es 'async' para poder usar 'await'.
+        domElements.startIberiaMagnaBtn.addEventListener('click', async () => {
+            console.log("Iniciando modo de juego: Tronos de Iberia...");
+            logMessage("Cargando el mapa de la península, por favor espera...");
+
+            // 1. Prepara el estado del juego para 8 jugadores
+            resetGameStateForIberiaMagna(); // Esta función la creaste en el paso anterior.
+
+            // 2. ESPERA a que tu mapa CSV se cargue y se procese.
+            // El 'await' es la clave: el código no continuará hasta que el mapa esté listo.
+            await initializeIberiaMagnaData();
+            
+            // 3. Ahora que el mapa está listo, inicializa el tablero visual.
+            initializeIberiaMagnaMap();
+            
+            // 4. Muestra la pantalla del juego.
+            showScreen(domElements.gameContainer);
+        });
+    }
+
 
     if (domElements.expandPanelBtn && domElements.contextualInfoPanel) {
         domElements.expandPanelBtn.addEventListener('click', (e) => {
@@ -1039,7 +1071,7 @@ function executeConfirmedAction(action) {
 function iniciarPartidaLAN(settings) {
     //console.log("Iniciando partida LAN con la configuración:", settings);
     
-    if (typeof resetGameStateVariables === "function") resetGameStateVariables();
+    if (typeof resetGameStateVariables === "function") resetGameStateVariables(2);
 
     gameState.playerTypes = settings.playerTypes;
     gameState.playerCivilizations = settings.playerCivilizations;

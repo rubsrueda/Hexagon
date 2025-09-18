@@ -1,7 +1,7 @@
 const COMMANDERS = {
     "g_fabius": {
         id: "g_fabius", name: "Fabio Máximo", title: "El Cunctátor", rarity: "Común", sprite: "🏛️", description: "Un maestro de la defensa y la guerra de desgaste.",
-        activeSkill: { skill_id: "active_shield", scaling_override: [800, 900, 1000, 1200, 1400]},
+        activeSkill: { skill_id: "active_shield", scaling_override: [40, 45, 50, 55, 60]},
         passiveSkills: [
             { skill_id: "increase_defense", details: { filter_desc: "la Infantería", unit_filter: "infantry"}, scaling_override: [10, 12, 14, 16, 20] },
             { skill_id: "economic_morale_loss_reduction", scaling_override: [15, 18, 21, 25, 30] }

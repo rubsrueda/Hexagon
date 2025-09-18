@@ -49,9 +49,8 @@ function getHexNeighbors(r, c) {
     // Devolvemos un array vacío para que cualquier código que intente iterarlo no falle.
     if (typeof r !== 'number' || typeof c !== 'number' || isNaN(r) || isNaN(c)) {
         console.error(`getHexNeighbors fue llamado con coordenadas inválidas: r=${r}, c=${c}`);
-        return []; 
+        return [];
     }
-    // --- FIN DE LA GUARDA ---
 
     const neighbor_directions = [
         // Fila par
@@ -67,7 +66,9 @@ function getHexNeighbors(r, c) {
         neighbors.push({ r: r + dir.r, c: c + dir.c });
     }
 
-    // Filtrar para asegurarse de que los vecinos están dentro de los límites del tablero
+    // ¡LA LÍNEA CLAVE RESTAURADA!
+    // Filtra para asegurarse de que los vecinos están dentro de los límites del tablero actual.
+    // Esto es vital para toda la lógica del juego (movimiento, IA, etc.).
     return neighbors.filter(n =>
         board && board.length > 0 && n.r >= 0 && n.r < board.length &&
         board[0] && n.c >= 0 && n.c < board[0].length

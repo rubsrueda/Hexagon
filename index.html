@@ -75,6 +75,7 @@
         <button id="barracksBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Cuartel</button>
         <button id="startCampaignBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Comenzar Campaña</button>
         <button id="startSkirmishBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
+        <button id="startIberiaMagnaBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Tronos de Iberia</button>
         <button id="joinNetworkGameBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Unirse a Partida en Red</button>
         <button id="startTutorialBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial</button>
     </div>
@@ -539,6 +540,8 @@
     <script src="constants.js"></script>
     <script src="commanders.js"></script>
     <script src="state.js"></script>
+    <script src="utils.js"></script>
+    <script src="map_generation_utils.js"></script>
     <script src="playerDataManager.js"></script>
     <script src="technologyTree.js"></script> 
     <script src="worldMapData.js"></script>
@@ -547,6 +550,7 @@
     <script src="maps/tactical_britain_coast_map.js"></script>
     <script src="scenarios/tutorial_scenario.js"></script>
     <script src="scenarios/britain_defense_scenario.js"></script>
+    <script src="maps/iberia_map_data.js"></script>
     
     <!-- === ARCHIVOS DE PRUEBA DE IA (NUESTROS NUEVOS MAPAS) === -->
     <script src="maps/map_test_A1_SplitExpansion.js"></script>
@@ -566,7 +570,7 @@
     
     <!-- === LÓGICA PRINCIPAL DEL JUEGO (orden existente) === -->
     <script src="domElements.js"></script> 
-    <script src="utils.js"></script>
+    
     <script src="chronicle.js"></script> 
     <script src="cheats.js"></script> 
     <script src="debugConsole.js"></script>

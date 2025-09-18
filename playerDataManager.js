@@ -93,11 +93,19 @@ const PlayerDataManager = {
             },
             stats: { battlesWon: 0, battlesLost: 0, campaignsCompleted: 0 },
             currencies: { gold: 500, gems: 100, edicts: 10, influence: 0 },
-            heroes: [{ id: "g_fabius", level: 1, xp: 0, stars: 1, fragments: 0, skill_levels: { active: 1, passive1: 0, passive2: 0, passive3: 0 }, skill_points_unspent: 0 }],
+            heroes: [{ 
+                id: "g_fabius", 
+                level: 1, 
+                xp: 0, 
+                stars: 1, 
+                fragments: 0, 
+                skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 }, 
+                skill_points_unspent: 0 
+            }],
             inventory: { xp_books: 10, ascension_materials: {} }
         };
     },
-    
+
     addFragmentsToHero: function(heroId, amount) {
         if (!this.currentPlayer) return;
 
@@ -112,7 +120,7 @@ const PlayerDataManager = {
                 xp: 0,
                 stars: 0,       // Estrellas 0 indica que está bloqueado
                 fragments: 0,
-                skill_levels: { active: 1, passive1: 0, passive2: 0, passive3: 0 },
+                skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 },
                 skill_points_unspent: 0
             };
             this.currentPlayer.heroes.push(heroInstance);

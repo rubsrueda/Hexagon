@@ -516,7 +516,7 @@ function initializeBoardPanning() {
         const viewportHeight = viewport.clientHeight;
 
         // Limitar la escala
-        const MIN_SCALE = 0.4;
+        const MIN_SCALE = 0.1;
         const MAX_SCALE = 2.0;
         domElements.currentBoardScale = Math.max(MIN_SCALE, Math.min(domElements.currentBoardScale, MAX_SCALE));
 

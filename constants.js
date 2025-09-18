@@ -452,104 +452,140 @@ const BASE_INCOME = {
 
 // Habilidades de los héroes
 const SKILL_DEFINITIONS = {
-    // === HABILIDADES GENÉRICAS REUTILIZABLES ===
-    'passive_infantry_defense_buff': {
-        name: "Defensa de Infantería",
-        description_template: "Aumenta la defensa de la Infantería en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: { unit_category: ['heavy_infantry', 'light_infantry'] }
-    },
-    'passive_infantry_attack_buff': {
-        name: "Ataque de Infantería",
-        description_template: "Aumenta el ataque de la Infantería en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: { unit_category: ['heavy_infantry', 'light_infantry'] }
-    },
-    'passive_cavalry_attack_buff': {
-        name: "Ataque de Caballería",
-        description_template: "Aumenta el ataque de la Caballería en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: { unit_category: ['heavy_cavalry', 'light_cavalry'] }
-    },
-    'passive_cavalry_health_buff': {
-        name: "Salud de Caballería",
-        description_template: "Aumenta la salud de la Caballería en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: { unit_category: ['heavy_cavalry', 'light_cavalry'] }
-    },
-    'passive_archer_attack_buff': {
-        name: "Ataque de Arqueros",
-        description_template: "Aumenta el ataque de los Arqueros en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: { unit_type: 'Arqueros' }
-    },
-    'passive_siege_damage_buff': {
-        name: "Daño de Asedio",
-        description_template: "Aumenta el daño de asedio en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: { unit_category: 'artillery' }
-    },
-    'passive_all_troops_health_buff': {
-        name: "Salud de Tropas",
-        description_template: "Aumenta la salud de todas las tropas en un {X}%.",
-        effect_type: 'stat_modifier',
-        filters: {} // Vacío para aplicar a todos
-    },
-    'active_direct_damage': { name: "Golpe Certero", description_template: "Inflige daño directo (Poder {X}).", effect_type: 'damage' },
-    'active_shield': { name: "Escudo Defensivo", description_template: "Crea un escudo que absorbe {X} de daño.", effect_type: 'shield' },
-    'active_heal': { name: "Curación de Campo", description_template: "Cura a las tropas (Poder {X}).", effect_type: 'heal' },
-    'active_attack_buff': { name: "Grito de Guerra", description_template: "Aumenta el ataque de la división un {X}%.", effect_type: 'buff' },
-    'passive_skill_damage_buff': { name: "Genio Militar", description_template: "Aumenta el daño de habilidad un {X}%.", effect_type: 'stat_modifier' },
+    // scope: 'unit_stats' -> Se aplica en calculateRegimentStats (stats permanentes).
+    // scope: 'combat'     -> Se aplica en el flujo de combate (attackUnit/applyDamage).
+    // scope: 'global'     -> Se aplica en otras partes del juego (upkeep, construcción).
 
-    // === HABILIDADES ÚNICAS (Todas declaradas) ===
-    'active_damage_and_slow': { name: "Emboscada Ilergete", description_template: "Inflige daño (Poder {X}) y ralentiza un {Y}%." },
-    'passive_terrain_bonus': { name: "Guerra de Montaña", description_template: "Aumenta Atk/Def de Infantería un {X}% en Colinas/Bosques." },
-    'active_mass_attack_speed_buff': { name: "Juramento de Odio", description_template: "Aumenta el ataque ({X}%) y la marcha ({Y}%) de las tropas." },
-    'passive_inf_cav_health_buff': { name: "Veteranos de África", description_template: "Aumenta salud de Infantería y Caballería un {X}%." },
-    'active_garrison_attack_buff': { name: "Qart Hadasht", description_template: "Aumenta el ataque un {X}% al defender en ciudades/fortalezas." },
-    'active_berserk_rage': { name: "Furia Lusitana", description_template: "Aumenta ataque un {X}% pero reduce defensa un {Y}%." },
-    'passive_low_health_defense_buff': { name: "Invencible", description_template: "Bajo el 50% de salud, aumenta su defensa en {X}%." },
-    'passive_infantry_movement_buff': { name: "Tierra Quemada", description_template: "Aumenta la velocidad de marcha de la Infantería en 1." },
-    'active_debuff_enemy': { name: "Táctica Envolvente", description_template: "Inflige daño (Poder {X}) y reduce la defensa enemiga un {Y}%." },
-    'passive_all_troops_defense_buff': { name: "Legiones Disciplinadas", description_template: "Aumenta la defensa de todas las tropas un 10%." },
-    'active_heal_and_speed_buff': { name: "Consejo de la Cierva Blanca", description_template: "Cura (Poder {X}) y aumenta la marcha un {Y}%." },
-    'passive_counter_damage_reduction': { name: "Guerra Sertoriana", description_template: "Reduce el daño de contraataque recibido en {X}%." },
-    'passive_mixed_army_buff': { name: "Lealtad Hispana", description_template: "Aumenta el ataque de tropas mixtas (3+ tipos) en {X}%." },
-    'active_siege_conditional_damage': { name: "Majestad Gótica", description_template: "Inflige daño (Poder {X}). +20% de daño a guarniciones." },
-    'passive_garrison_defense_bonus': { name: "Código de Leovigildo", description_template: "Aumenta defensa de guarnición un {X}%." },
-    'active_finisher_damage': { name: "Carga Final", description_template: "Inflige daño masivo (Poder {X}). El daño aumenta a baja salud." },
-    'passive_glass_cannon': { name: "El Peso de la Traición", description_template: "La división recibe un 7% más de daño de ataques normales." },
-    'active_defensive_stance': { name: "Victoria de Covadonga", description_template: "Aumenta defensa ({X}%) y contraataque ({Y}%) pero inmoviliza a la unidad." },
-    'active_aoe_damage': { name: "Aceifa Fulminante", description_template: "Inflige daño en área (Poder {X}) a hasta 3 objetivos." },
-    'passive_full_army_buff': { name: "Señor de Valencia", description_template: "Aumenta atk, def y salud de tropas mixtas (3+ tipos) un {X}%." },
-    'passive_on_death_aoe_buff': { name: "Ganar Batallas Después de Muerto", description_template: "Al ser derrotado, aliados cercanos ganan {X}% de ataque." },
-    'active_heal_and_attack_buff': { name: "Fervor del Desierto", description_template: "Cura (Poder {X}) y aumenta el ataque un {Y}%." },
-    'passive_high_health_damage_buff': { name: "Batalla de Sagrajas", description_template: "Con más del 70% de salud, el daño aumenta un {X}%." },
-    'active_normal_attack_steroid': { name: "Siempre en la Brecha", description_template: "Aumenta el daño de ataque normal un {X}%." },
-    'active_cavalry_charge': { name: "Carga Relámpago", description_template: "Aumenta la marcha ({Y}%) e inflige daño (Poder {X})." },
-    'active_garrison_debuff_damage': { name: "Asalto Anfibio", description_template: "Inflige daño de asedio (Poder {X}) y reduce la defensa de la guarnición un {Y}%." },
-    'active_heal_and_skill_defense': { name: "Bendición Divina", description_template: "Cura (Poder {X}) y otorga {Y}% de reducción de daño de habilidad." },
-    'active_cavalry_buff_no_slow': { name: "¡Santiago y Cierra, España!", description_template: "Aumenta el ataque de caballería un {X}% y otorga inmunidad a ralentización." },
-    'active_garrison_damage_reduction': { name: "Sacrificio Leal", description_template: "La guarnición recibe {X}% menos de daño." },
-    'passive_garrison_conditional_attack': { name: "Defensa a ultranza", description_template: "Aumenta el ataque de guarnición un {X}% si está rodeada." },
-    'active_aoe_damage_with_dot': { name: "¡Desperta Ferro!", description_template: "Inflige daño en área (Poder {X}) y aplica Sangrado (Poder {Y})." },
-    'passive_infantry_rage': { name: "Furia Almogávar", description_template: "Aumenta el ataque de Infantería un {X}%, pero reduce su salud un 5%." },
-    'passive_counter_attack_buff': { name: "Venganza Catalana", description_template: "El daño de contraataque aumenta un {X}%." },
-    'active_aoe_debuff': { name: "Guerra de Desgaste", description_template: "Reduce ataque ({X}%) y defensa ({Y}%) de hasta 3 objetivos." },
-    'active_heal_debuff': { name: "Conspiración Palaciega", description_template: "Reduce la defensa un {X}% y la curación recibida un {Y}%." },
-    'active_siege_mine': { name: "Mina Socavadora", description_template: "Inflige daño de asedio masivo (Poder {X}) a una guarnición." },
-    'active_death_defiance': { name: "Voluntad de Hierro", description_template: "Durante 2 turnos, las tropas no pueden caer por debajo del 10% de su fuerza." },
-    'passive_low_health_defense_up': { name: "Batalla de Pavía", description_template: "Bajo el 50% de salud, la defensa aumenta en {X}%." },
-    'active_heal_and_skill_buff': { name: "Inspirar a las Tropas", description_template: "Cura (Poder {X}) y aumenta el daño de habilidad de tropas cercanas un 10%." },
-    'active_shield_and_counter': { name: "Disciplina de Hierro", description_template: "Otorga un escudo (Poder {X}) y aumenta el contraataque un {Y}%." },
-    'active_naval_aoe_damage_and_buff': { name: "Carga de la Liga Santa", description_template: "Inflige daño a hasta 5 flotas (Poder {X}) y aumenta el ataque de flotas aliadas un {Y}%." },
-    'active_naval_damage_and_debuff': { name: "Dominio de los Mares", description_template: "Inflige daño a una flota (Poder {X}) y reduce su ataque y marcha un {Y}%." },
-    'passive_naval_attack_defense_buff': { name: "Nunca Derrotado", description_template: "Aumenta ataque y defensa de unidades navales un {X}%." },
-    'active_siege_attack_buff': { name: "Asalto Metódico", description_template: "Aumenta el ataque de las tropas que atacan una ciudad en un {X}%." },
-    'passive_cavalry_infantry_speed_buff': { name: "Maestro de Flandes", description_template: "Aumenta la velocidad de marcha de Caballería e Infantería en 1." },
-    'active_heal_and_counter_buff': { name: "Indomable", description_template: "Cura (Poder {X}) y aumenta el contraataque en {Y}%." },
-    'passive_low_health_damage_up': { name: "Veterano Marcado", description_template: "Cuanta menos vida tiene, más daño inflige (hasta un +{X}% de ataque)." },
-    'active_defense_buff': { name: "Cabeza de Puente", description_template: "Aumenta la defensa de sus tropas en un {X}%." }
+    'increase_defense': {
+        id: 1, name: "Aumento de Defensa", scope: 'unit_stats',
+        description_template: "Aumenta la defensa base de las unidades filtradas en un {X}%.",
+        effect: { type: 'stat_modifier', stat: 'defense', is_percentage: true },
+        filters: { unit_category: ['infantry', 'all'] } 
+    },
+    'increase_attack': {
+        id: 2, name: "Aumento de Ataque", scope: 'unit_stats',
+        description_template: "Aumenta el ataque base de las unidades filtradas en un {X}%.",
+        effect: { type: 'stat_modifier', stat: 'attack', is_percentage: true },
+        filters: { unit_category: ['infantry', 'cavalry', 'artillery', 'naval', 'all'] } 
+    },
+    'active_attack_buff': { id: 33, name: "Grito de Guerra (Ataque)", description_template: "Al inicio del combate, aumenta el ataque del ejército un {X}% por 2 turnos.", 
+        scope: 'unit_stats', effect: { type: 'stat_modifier', stat: 'attack', is_percentage: true, duration: 2 },
+        filters: { unit_category: ['infantry', 'cavalry', 'artillery', 'naval', 'all']}
+    },
+
+    'increase_health': {
+        id: 3, name: "Aumento de Salud", scope: 'unit_stats',
+        description_template: "Aumenta la salud máxima de las unidades filtradas en un {X}%.",
+        effect: { type: 'stat_modifier', stat: 'health', is_percentage: true },
+        filters: { unit_category: ['infantry', 'cavalry', 'all'] } 
+    },
+    'increase_movement': {
+        id: 4, name: "Marcha Forzada", scope: 'unit_stats',
+        description_template: "Aumenta el movimiento de las unidades filtradas en {X}.",
+        effect: { type: 'stat_modifier', stat: 'movement', is_percentage: false, value: 1 },
+        filters: { unit_category: ['infantry', 'cavalry', 'all'] } 
+    },
+
+    'conditional_terrain_buff': {
+        id: 5, name: "Bonus de Terreno", scope: 'combat',
+        description_template: "En terreno favorable, aumenta ataque y defensa en un {X}%.",
+        trigger: { event: 'on_terrain', condition: ['hills', 'forest', 'city', 'fortress'] },
+        effects: [ { type: 'stat_modifier', stat: 'attack', is_percentage: true }, { type: 'stat_modifier', stat: 'defense', is_percentage: true } ],
+        filters: { unit_category: ['infantry'] } 
+    },
+    'increase_skill_damage': { 
+        id: 6, name: "Genio Militar", scope: 'global',
+        description_template: "Aumenta el daño infligido por habilidades activas en un {X}%.",
+        effect: {type:'skill_damage_increase', is_percentage:true} 
+    },
+     'conditional_low_health_buff': {
+        id: 13, name: "Furia del Herido", scope: 'combat',
+        description_template: "Con salud por debajo del 50%, modifica un stat en un {X}%.",
+        trigger: { event: 'on_health_threshold', condition: { threshold: 50, comparison: 'less_than' } },
+        effect: { type: 'stat_modifier', is_percentage: true } // Stat (atk/def) se toma del 'details' del héroe
+    },
+    'trigger_on_being_attacked': {
+        id: 9, name: "Respuesta Defensiva", scope: 'combat',
+        description_template: "Al ser atacado, tiene un 10% de prob. de ganar un {X}% de bonificación temporal.",
+        trigger: { event: 'on_being_attacked', probability: 10 },
+        effect: { type: 'temp_buff', is_percentage: true } // Stat (atk/def) se toma del 'details'
+    },
+    'increase_counter_attack': {
+        id: 18, name: "Contraataque Mejorado", scope: 'combat',
+        description_template: "Aumenta el daño de contraataque en un {X}%.",
+        trigger: { event: 'on_counter_attack' },
+        effect: { type: 'stat_modifier', stat: 'attack', is_percentage: true }
+    },
+    'active_shield': { 
+        id: 10, name: "Aumento de Defensa", scope: 'unit_stats',
+        description_template: "Al inicio del combate, crea un escudo que absorbe {X} de daño.",
+        effect: { type: 'stat_modifier', stat: 'defense', is_percentage: false },
+        filters: { unit_category: ['all'] } 
+    },
+
+    'conditional_numerical_advantage': { 
+        id: 15, name: "Tácticas de Guerrilla", scope: 'combat',
+        description_template: "Bajo ciertas condiciones numéricas, modifica un stat un {X}%.",
+        trigger: { event: 'on_numerical_status' }, 
+        effect: { type: 'stat_modifier', is_percentage: true } 
+    },
+    'trigger_on_kill': { 
+        id: 16, name: "Recompensa del Vencedor", scope: 'combat',
+        description_template: "Al destruir un enemigo, restaura un recurso (oro o moral).",
+        trigger: { event: 'on_kill' }, 
+        effect: { type: 'restore_resource' } 
+    },
+    'passive_glass_cannon': {
+        id: 19, name: "El Peso de la Traición", scope: 'combat',
+        description_template: "La división recibe un {X}% más de daño de ataques normales.",
+        trigger: { event: 'on_being_attacked' },
+        effect: { type: 'damage_taken_increase', is_percentage: true, value: 7 }
+    },
+    'trigger_on_death': {
+        id: 21, name: "Legado del Caído", scope: 'combat',
+        description_template: "Al morir, las unidades aliadas cercanas ganan un {X}% de ataque.",
+        trigger: { event: 'on_death' }, 
+        effect: { type: 'aoe_buff', stat: 'attack', is_percentage: true, radius: 1 } 
+    },
+    'conditional_high_health_buff': {
+        id: 22, name: "Ímpetu Inicial", scope: 'combat',
+        description_template: "Con salud por encima del 70%, modifica un stat en un {X}%.",
+        trigger: { event: 'on_health_threshold', condition: { threshold: 70, comparison: 'greater_than' } },
+        effect: { type: 'stat_modifier' }
+    },
+    // (AQUÍ IRÍAN EL RESTO de habilidades con sus descripciones completas)
+
+    'active_damage_and_debuff': { id: 4, name: "Ataque Debilitante", description_template: "Tiene una prob. de infligir daño directo (Poder {X}) y aplicar un debuff.", scope: 'combat',  trigger: { event: 'on_attack_roll', probability: 20 }, effects: [ { type: 'direct_damage' }, { type: 'apply_temp_debuff' } ]},
+    'active_direct_damage': { id: 7, name: "Golpe Certero", description_template: "Tiene una prob. de infligir daño directo (Poder {X}).", scope: 'combat',  trigger: { event: 'on_attack_roll', probability: 15 }, effect: { type: 'direct_damage' } },
+    'active_stat_buff': { id: 10, name: "Buff de Táctico", description_template: "Al inicio del combate, aplica un buff temporal múltiple.", scope: 'combat',  trigger: { event: 'on_battle_start' }, effect: { type: 'apply_temp_buff_multiple', duration: 3 } },
+    'active_heal_and_buff': { id: 17, name: "Bendición del General", description_template: "Al inicio del turno en combate, cura y aplica un buff.", scope: 'combat',  trigger: { event: 'on_turn_start_in_combat' }, effects: [ { type: 'heal' }, { type: 'apply_temp_buff' } ]},
+    'active_defensive_stance': { id: 20, name: "Postura Defensiva", description_template: "Al inicio del combate, adopta una postura defensiva.", scope: 'combat',  trigger: { event: 'on_battle_start' }, effect: { type: 'apply_stance', duration: 1 } },
+    'active_aoe_damage': { id: 26, name: "Ataque en Área", description_template: "Tiene una prob. de infligir daño a múltiples objetivos.", scope: 'combat',  trigger: { event: 'on_attack_roll', probability: 10 }, effect: { type: 'aoe_damage' } },
+    'active_unique_defensa_de_granada': { id: 31, name: "Defensa de Granada", description_template: "Habilidad única de El Zagal para la defensa.", scope: 'combat', type: 'active'},
+    'active_immortality': { id: 35, name: "Inmortalidad Temporal", description_template: "Cuando la salud baja del 20%, la división no puede morir por 2 turnos.", scope: 'combat',  trigger: { event: 'on_health_threshold', condition: { threshold: 20, comparison: 'less_than' } }, effect: { type: 'apply_buff', stat: 'death_defiance', duration: 2 } },
+    'active_shield_and_counter': { id: 37, name: "Guardia con Escudo", description_template: "Al inicio del combate, crea un escudo y aumenta el contraataque.", scope: 'combat',  trigger: { event: 'on_battle_start' }, effects: [ { type: 'apply_shield' }, { type: 'apply_temp_buff', stat: 'counter_attack', is_percentage: true } ]},
+    'active_defense_buff': { id: 44, name: "Reforzar Defensa", description_template: "Al inicio del combate, aumenta la defensa del ejército un {X}% por 2 turnos.", scope: 'combat',  trigger: { event: 'on_battle_start' }, effect: { type: 'apply_temp_buff', stat: 'defense', is_percentage: true, duration: 2 } },
+    'active_heal': { id: 45, name: "Curación de Campo", description_template: "Al final de cada ronda de duelos, la división se cura {X} de salud.", scope: 'combat',  trigger: { event: 'on_turn_end_in_combat' }, effect: { type: 'heal' }},
+    'passive_unique_lealtad_castellana': { id: 23, name: "Lealtad Castellana", description_template: "Si El Cid es un comandante aliado en el campo, esta división gana un 5% de ataque.", scope: 'combat' },
+    'passive_unique_aura_de_santidad': { id: 24, name: "Aura de Santidad", description_template: "Otorga 5% de reducción de daño a divisiones aliadas adyacentes.", scope: 'combat'},
+    'passive_unique_maestro_tactico': { id: 27, name: "Maestro Táctico", description_template: "Reduce el daño de ataques normales recibido un {X}%.", scope: 'combat' },
+    'passive_unique_victoria_sin_batalla': { id: 30, name: "Victoria sin Batalla", description_template: "Las tropas sufren un {X}% menos de bajas al contraatacar desde una ciudad.", scope: 'combat' },
+    'passive_unique_guerra_de_granada': { id: 29, name: "Guerra de Granada", description_template: "Aumenta el ataque en llanuras un {X}%.", scope: 'combat'},
+    'passive_unique_senor_de_la_frontera': { id: 30, name: "Señor de la Frontera", description_template: "Aumenta el ataque en territorio aliado un {X}%.", scope: 'combat' },
+    'passive_unique_experto_en_polvora': { id: 32, name: "Experto en Pólvora", description_template: "Reduce el daño recibido de Artillería un {X}%.", scope: 'combat' },
+    'passive_unique_rompefilas': { id: 34, name: "Rompefilas", description_template: "Ataques normales tienen 10% de prob. de infligir {X} de daño en área.", scope: 'combat' },
+    'passive_unique_lider_adorado': { id: 36, name: "Líder Adorado", description_template: "Aumenta la ganancia de moral de todas las fuentes un {X}%.", scope: 'global' },
+    'passive_unique_tribunal_de_los_tumultos': { id: 38, name: "Tribunal de los Tumultos", description_template: "Reduce el daño de habilidad recibido un {X}%.", scope: 'combat' },
+    'passive_unique_almirante_experimentado': { id: 39, name: "Almirante Experimentado", description_template: "Reduce el daño recibido de otras flotas un {X}%.", scope: 'combat' },
+    'passive_unique_diplomacia_y_acero': { id: 40, name: "Diplomacia y Acero", description_template: "Reduce el daño recibido de guarniciones un {X}%.", scope: 'combat'},
+    'passive_unique_tercio_viejo': { id: 43, name: "Tercio Viejo", description_template: "Aumenta el ataque al luchar fuera de territorio aliado un {X}%.", scope: 'combat' },
+
+    // === HABILIDADES GLOBALES Y ECONÓMICAS ===
+    'economic_morale_loss_reduction': { id: 11, name: "Administrador Estoico", description_template: "Reduce la pérdida de moral por falta de pago un {X}%.", scope: 'global' },
+    'economic_build_cost_reduction': { id: 12, name: "Arquitecto", description_template: "Reduce el coste de construcción de Piedra un {X}%.", scope: 'global' },
+    'economic_xp_gain_buff': { id: 13, name: "Instructor Veterano", description_template: "Aumenta la ganancia de experiencia de todas las fuentes un {X}%.", scope: 'global'},
+    'economic_healing_cost_reduction': { id: 41, name: "Logista Experto", description_template: "Reduce el coste en oro para reforzar regimientos un {X}%.", scope: 'global' },
+    'economic_casualty_reduction': { id: 42, name: "Médico de Campo", description_template: "Reduce el número de bajas permanentes en combate un {X}%.", scope: 'global'}
 };
 
 // --- INGRESOS BASE DE ORO POR CONTROL TERRITORIAL ---

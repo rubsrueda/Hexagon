@@ -522,35 +522,96 @@ function moveRegimentToOriginalUnit(index) {
 function updateAdvancedSplitModalDisplay() {
     if (!domElements.originalUnitRegimentsList || !domElements.newUnitRegimentsList) return;
     
-    // Calcula los stats para ambas divisiones (original y nueva)
-    let originalStats = calculateRegimentStats(_tempOriginalRegiments, _unitBeingSplit.player);
-    let newStats = calculateRegimentStats(_tempNewUnitRegiments, _unitBeingSplit.player, null); 
+    // Calcula stats
+    let originalTempUnit = { player: _unitBeingSplit.player, regiments: _tempOriginalRegiments };
+    calculateRegimentStats(originalTempUnit); // La función modificará este objeto
+    let originalStats = originalTempUnit; // Los stats están ahora DENTRO del objeto
+
+    let newTempUnit = { player: _unitBeingSplit.player, regiments: _tempNewUnitRegiments };
+    calculateRegimentStats(newTempUnit); // La función modificará este otro objeto
+    let newStats = newTempUnit; // Los stats están aquí
     
     // --- Panel de la Unidad Original ---
     domElements.originalUnitRegimentCount.textContent = `(${_tempOriginalRegiments.length})`; // Solo el contador
     domElements.originalUnitPreviewStats.textContent = `A/D: ${originalStats.attack}/${originalStats.defense}`; // Stats A/D
     domElements.originalUnitPreviewHealth.textContent = `Salud: ${originalStats.maxHealth}`; // Salud
     
-    domElements.originalUnitRegimentsList.innerHTML = '';
-    _tempOriginalRegiments.forEach((reg, i) => {
-        const li = document.createElement('li');
-        // <<== CAMBIO: Solo se muestra el sprite y la flecha. Se añade un 'title' para el tooltip. ==>>
-        li.innerHTML = `${reg.sprite} <span class="regiment-actions" title="Mover">➡️</span>`;
-        li.title = `${reg.type} (Salud: ${reg.health})`; // Tooltip con nombre y salud
-        li.onclick = () => moveRegimentToNewUnit(i);
-        domElements.originalUnitRegimentsList.appendChild(li);
-    });
-
-    // --- Panel de la Nueva Unidad ---
     domElements.newUnitRegimentCount.textContent = `(${_tempNewUnitRegiments.length})`;
     domElements.newUnitPreviewStats.textContent = `A/D: ${newStats.attack}/${newStats.defense}`;
     domElements.newUnitPreviewHealth.textContent = `Salud: ${newStats.maxHealth}`;
 
+    // Función auxiliar para crear el elemento de sprite (img o span)
+    const createSpriteElement = (reg) => {
+        const spriteValue = reg.sprite;
+        let spriteElement;
+        if (spriteValue.includes('.png') || spriteValue.includes('.jpg') || spriteValue.includes('.gif')) {
+            spriteElement = document.createElement('img');
+            spriteElement.src = spriteValue;
+            spriteElement.alt = reg.type;
+            spriteElement.style.width = '24px';
+            spriteElement.style.height = '24px';
+            spriteElement.style.verticalAlign = 'middle';
+        } else {
+            spriteElement = document.createElement('span');
+            spriteElement.textContent = spriteValue;
+        }
+        return spriteElement;
+    };
+    
+    // --- PARA MOSTRAR SALUD ---
+    const createRegimentDisplay = (reg) => {
+        const regData = REGIMENT_TYPES[reg.type];
+        const container = document.createElement('span');
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        
+        const spriteEl = createSpriteElement(reg);
+        const healthText = document.createTextNode(` (${reg.health}/${regData.health})`);
+
+        container.appendChild(spriteEl);
+        container.appendChild(healthText);
+        return container;
+    };
+    
+    // Rellenar lista de Unidad Original
+    domElements.originalUnitRegimentsList.innerHTML = '';
+    _tempOriginalRegiments.forEach((reg, i) => {
+        const li = document.createElement('li');
+        li.style.justifyContent = 'space-between'; // Asegura que el botón se vaya a la derecha
+
+        const regDisplay = createRegimentDisplay(reg);
+        
+        const actionSpan = document.createElement('span');
+        actionSpan.className = 'regiment-actions';
+        actionSpan.title = 'Mover';
+        actionSpan.textContent = '➡️';
+        
+        li.appendChild(regDisplay); // Contenedor con sprite y salud
+        li.appendChild(document.createTextNode(' ')); // Añade un espacio
+        li.appendChild(actionSpan);
+        
+        li.title = `${reg.type} (Salud: ${reg.health})`;
+        li.onclick = () => moveRegimentToNewUnit(i);
+        domElements.originalUnitRegimentsList.appendChild(li);
+    });
+
+    // Rellenar lista de Nueva Unidad
     domElements.newUnitRegimentsList.innerHTML = '';
     _tempNewUnitRegiments.forEach((reg, i) => {
         const li = document.createElement('li');
-        // <<== CAMBIO: Solo se muestra la flecha y el sprite. Se añade un 'title' para el tooltip. ==>>
-        li.innerHTML = `<span class="regiment-actions" title="Devolver">⬅️</span> ${reg.sprite}`;
+        li.style.justifyContent = 'space-between';
+
+        const regDisplay = createRegimentDisplay(reg);
+
+        const actionSpan = document.createElement('span');
+        actionSpan.className = 'regiment-actions';
+        actionSpan.title = 'Devolver';
+        actionSpan.textContent = '⬅️';
+        
+        li.appendChild(actionSpan);
+        li.appendChild(document.createTextNode(' ')); // Añade un espacio
+        li.appendChild(regDisplay);
+
         li.title = `${reg.type} (Salud: ${reg.health})`;
         li.onclick = () => moveRegimentToOriginalUnit(i);
         domElements.newUnitRegimentsList.appendChild(li);
@@ -640,8 +701,47 @@ function populateAvailableUnitsForCategory(category) {
                 unitsInCategory++;
                 const unitEntry = document.createElement('div');
                 unitEntry.className = 'unit-entry';
-                unitEntry.innerHTML = `<span>${regiment.sprite} ${type}</span><div class="quantity-controls" data-type="${type}"><button class="quantity-btn minus">-</button><input type="number" class="quantity-input" value="0" min="0" readonly><button class="quantity-btn plus">+</button></div>`;
+
+                // Contenedor para el sprite y el nombre
+                const unitInfoSpan = document.createElement('span');
                 
+                // Lógica condicional para el sprite (img o span)
+                const spriteValue = regiment.sprite;
+                let spriteElement;
+
+                if (spriteValue.includes('.png') || spriteValue.includes('.jpg') || spriteValue.includes('.gif')) {
+                    // Si es una ruta de imagen, crea un elemento <img>
+                    spriteElement = document.createElement('img');
+                    spriteElement.src = spriteValue;
+                    spriteElement.alt = type;
+                    spriteElement.style.width = '24px'; // Ajusta el tamaño como necesites
+                    spriteElement.style.height = '24px';
+                    spriteElement.style.marginRight = '8px';
+                    spriteElement.style.verticalAlign = 'middle';
+                } else {
+                    // Si no, crea un elemento <span> para el emoji/texto
+                    spriteElement = document.createElement('span');
+                    spriteElement.textContent = spriteValue;
+                    spriteElement.style.marginRight = '8px';
+                }
+
+                // --- Añadimos la salud máxima ---
+                const healthText = ` (${regiment.health}/${regiment.health})`;
+                
+                unitInfoSpan.appendChild(spriteElement);
+                unitInfoSpan.appendChild(document.createTextNode(type + healthText)); // Se añade la salud al texto
+
+                // 4. Crear los controles de cantidad
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'quantity-controls';
+                controlsDiv.dataset.type = type;
+                controlsDiv.innerHTML = `<button class="quantity-btn minus">-</button><input type="number" class="quantity-input" value="0" min="0" readonly><button class="quantity-btn plus">+</button>`;
+                
+                // 5. Añadir todo al 'unitEntry' principal
+                unitEntry.appendChild(unitInfoSpan);
+                unitEntry.appendChild(controlsDiv);
+
+                // La lógica de los listeners se mantiene igual
                 const controls = unitEntry.querySelector('.quantity-controls');
                 const input = controls.querySelector('.quantity-input');
                 controls.querySelector('.plus').addEventListener('click', () => {
@@ -687,39 +787,59 @@ function removeRegimentFromBuilder(type) {
     }
 }
 
-// Actualiza el panel de resumen de la derecha (costes, stats, etc.).
+// PÉGA ESTA FUNCIÓN COMPLETA EN modalLogic.js
+
+// Actualiza todo el panel de resumen de la división en construcción.
 function updateDivisionSummary() {
-    if (!domElements.divisionCompositionList) return;
-    
-    // Actualiza la lista de regimientos
-    const compositionCounter = {};
-    currentDivisionBuilder.forEach(reg => {
-        compositionCounter[reg.type] = (compositionCounter[reg.type] || 0) + 1;
-    });
-    domElements.divisionCompositionList.innerHTML = '';
-    for (const type in compositionCounter) {
-        const li = document.createElement('li');
-        li.textContent = `${compositionCounter[type]} x ${REGIMENT_TYPES[type].sprite} ${type}`;
-        domElements.divisionCompositionList.appendChild(li);
+    if (!domElements.divisionCompositionList || !domElements.divisionCostSummary || !domElements.divisionStatsSummary || !domElements.divisionRegimentCount) {
+        console.error("updateDivisionSummary: Faltan elementos del DOM del panel de resumen.");
+        return;
     }
-    
-    // Calcula costes y stats
-    let totalCost = {};
+
+    // 1. Calcular Coste Total
+    const finalCost = { oro: 0, puntosReclutamiento: 0 };
     currentDivisionBuilder.forEach(reg => {
-        for (const res in reg.cost) {
-            if (res !== 'upkeep') totalCost[res] = (totalCost[res] || 0) + reg.cost[res];
+        const costData = REGIMENT_TYPES[reg.type]?.cost || {};
+        for (const res in costData) {
+            if (res !== 'upkeep') {
+                finalCost[res] = (finalCost[res] || 0) + costData[res];
+            }
         }
     });
-    const stats = calculateRegimentStats(currentDivisionBuilder, gameState.currentPlayer);
+    const costString = Object.entries(finalCost)
+        .filter(([, val]) => val > 0)
+        .map(([res, val]) => `${val} ${res}`)
+        .join(', ') || '0 Recursos';
+    domElements.divisionCostSummary.textContent = costString;
     
-    // Muestra la información
-    domElements.divisionCostSummary.textContent = `${totalCost.oro || 0} Oro, ${totalCost.puntosReclutamiento || 0} PR`;
-    domElements.divisionStatsSummary.textContent = `A:${stats.attack} D:${stats.defense} M:${stats.movement}`;
+    // 2. Calcular Stats Agregados
+    // Creamos un objeto de unidad temporal para pasar a nuestra función de cálculo.
+    let tempDivisionObject = {
+        player: gameState.currentPlayer,
+        regiments: currentDivisionBuilder
+    };
+    calculateRegimentStats(tempDivisionObject); // La función modificará este objeto.
+    
+    const statsString = `A: ${tempDivisionObject.attack} D: ${tempDivisionObject.defense} M: ${tempDivisionObject.movement}`;
+    domElements.divisionStatsSummary.textContent = statsString;
+
+    // 3. Actualizar Contador de Regimientos
     domElements.divisionRegimentCount.textContent = `${currentDivisionBuilder.length} / ${MAX_REGIMENTS_PER_DIVISION}`;
+
+    // 4. Rellenar la lista de composición
+    const regimentCounts = {};
+    currentDivisionBuilder.forEach(reg => {
+        regimentCounts[reg.type] = (regimentCounts[reg.type] || 0) + 1;
+    });
     
-    // Habilita/deshabilita el botón final
-    const playerCanAfford = (gameState.playerResources[gameState.currentPlayer].oro >= (totalCost.oro || 0)) && (gameState.playerResources[gameState.currentPlayer].puntosReclutamiento >= (totalCost.puntosReclutamiento || 0));
-    domElements.finalizeUnitManagementBtn.disabled = currentDivisionBuilder.length === 0 || !playerCanAfford;
+    domElements.divisionCompositionList.innerHTML = Object.entries(regimentCounts)
+        .map(([type, count]) => `<li>${REGIMENT_TYPES[type]?.sprite || '?'} ${type} x ${count}</li>`)
+        .join('');
+
+    // 5. Habilitar/deshabilitar el botón de finalizar
+    if (domElements.finalizeUnitManagementBtn) {
+        domElements.finalizeUnitManagementBtn.disabled = currentDivisionBuilder.length === 0;
+    }
 }
 
 function handleFinalizeDivision() {
@@ -728,96 +848,65 @@ function handleFinalizeDivision() {
         return;
     }
 
-    // 1. Calcular el coste total de la división
+    // 1. Calcular el coste total y validar recursos
     const finalCost = {};
     currentDivisionBuilder.forEach(reg => {
-        for (const res in reg.cost) {
+        const costData = REGIMENT_TYPES[reg.type]?.cost || {};
+        for (const res in costData) {
             if (res !== 'upkeep') {
-                finalCost[res] = (finalCost[res] || 0) + reg.cost[res];
+                finalCost[res] = (finalCost[res] || 0) + costData[res];
             }
         }
     });
 
-    // 2. Validar que el jugador puede pagar
     const playerRes = gameState.playerResources[gameState.currentPlayer];
     for (const res in finalCost) {
         if ((playerRes[res] || 0) < finalCost[res]) {
-            logMessage(`No tienes suficiente ${res} para crear esta división.`);
+            logMessage(`No tienes suficientes recursos para crear esta división.`);
             return;
         }
     }
     
-    // 3. Deducir los recursos si puede pagar
+    // 2. Deducir los recursos
     for (const res in finalCost) {
         playerRes[res] -= finalCost[res];
     }
     
-    // 4. Calcular los stats finales de la nueva división
-    const stats = calculateRegimentStats(currentDivisionBuilder, gameState.currentPlayer);
-
-    // 5. Crear el objeto de la nueva unidad CON TODAS SUS PROPIEDADES INICIALES
+    // 3. Crear el objeto "cáscara" de la unidad
     const newDivisionDataObject = {
-        id: null, 
+        id: null, // Se asignará en placeFinalizedDivision
         player: gameState.currentPlayer,
         name: domElements.divisionNameInput.value.trim() || "Nueva División",
         commander: null,
-        // <<== MODIFICACIÓN LÓGICA NECESARIA: Asignamos un ID único a cada regimiento para poder rastrearlo ==>>
-        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)).map((reg, index) => ({
-            ...reg,
-            // Asignamos el ID único aquí. Es crucial para el diagnóstico.
-            id: `r${Date.now()}${index}`
-        })),
-        
-        // Stats calculados
-        attack: stats.attack,
-        defense: stats.defense,
-        maxHealth: stats.maxHealth,
-        currentHealth: stats.maxHealth, // Nace con la salud al máximo
-        movement: stats.movement,
-        currentMovement: stats.movement, // Movimiento completo al nacer
-        visionRange: stats.visionRange,
-        attackRange: stats.attackRange,
-        initiative: stats.initiative,
-        sprite: stats.sprite,
-        
-        // Propiedades de estado y experiencia
-        level: 0,
-        experience: 0,
-        maxExperience: 500, // O el valor que tuvieras en constants.js
-        morale: 50,         // <-- LA LÍNEA CLAVE QUE FALTABA
-        maxMorale: 125,      // <-- AÑADIDO PARA CONSISTENCIA
-        isDemoralized: false,// <-- AÑADIDO PARA CONSISTENCIA
-        
-        // Propiedades de acción y posición
-        r: -1, 
-        c: -1,
-        element: null,
-        //hasMoved: gameState.currentPhase !== 'deployment', //no puede actuar en la fase de despliegue, pero si lo permitimos en juego.
-        //hasAttacked: gameState.currentPhase !== 'deployment',
-        hasMoved:false,
+        regiments: JSON.parse(JSON.stringify(currentDivisionBuilder)),
+        r: -1, c: -1, element: null, 
+        hasMoved: false,
         hasAttacked: false,
-        hasRetaliatedThisTurn: false,
-        
-        // Otras propiedades
+        level: 0, experience: 0, 
+        morale: 50, maxMorale: 125,
         cost: finalCost,
-        isSettler: currentDivisionBuilder.some(reg => reg.isSettler === true),
-        lastMove: null // Inicializar lastMove como nulo
+        isSettler: currentDivisionBuilder.some(reg => REGIMENT_TYPES[reg.type]?.isSettler === true)
     };
-    
-    //console.log(`%c[VIAJE-1] Unidad CREADA en el cliente. ID debería ser null.`, 'color: #90EE90; font-weight: bold;', newDivisionDataObject);
+
+    // 4. Pasar el objeto completo para que se rellene con stats
+    calculateRegimentStats(newDivisionDataObject);
+
+    // 5. Inicializar salud y movimiento usando los valores recién calculados
+    newDivisionDataObject.currentHealth = newDivisionDataObject.maxHealth;
+    newDivisionDataObject.currentMovement = newDivisionDataObject.movement;
     
     // 6. Activar el modo de colocación
     placementMode.active = true;
     placementMode.unitData = newDivisionDataObject;
     
-    // 7. Ocultar el modal
     if (domElements.unitManagementModal) {
         domElements.unitManagementModal.style.display = 'none';
     }
     
-    logMessage(`División "${newDivisionDataObject.name}" lista. Haz clic para colocarla.`);
+    logMessage(`División "${newDivisionDataObject.name}" lista. Haz clic en un hexágono válido para colocarla.`);
     if (UIManager) UIManager.updatePlayerAndPhaseInfo();
 }
+
 
 function handleFinalizeSplit() {
     if (!_unitBeingSplit || _tempOriginalRegiments.length === 0 || _tempNewUnitRegiments.length === 0) {
@@ -867,7 +956,7 @@ function populateUnitDetailList(unit) {
 
     domElements.unitDetailTitle.textContent = `Gestión de: ${unit.name}`;
 
-    // Creamos un nuevo contenedor para la información del general
+    // Contenedor para la información del general
     let commanderHTML = '';
     if (unit.commander && COMMANDERS[unit.commander]) {
         const cmdr = COMMANDERS[unit.commander];
@@ -883,7 +972,8 @@ function populateUnitDetailList(unit) {
             </div>
         `;
     }
-    // --- Rellenar Stats Principales de la División (el contenedor ahora tendrá todo) ---
+    
+    // Rellenar Stats Principales
     const statsContainer = domElements.unitDetailModal.querySelector('.unit-main-stats');
     if (statsContainer) {
         // Inyectamos el HTML del comandante (si existe) y luego los stats
@@ -943,9 +1033,10 @@ function populateUnitDetailList(unit) {
     // <<== Comprobamos si la unidad es del jugador actual para el "modo consulta" ==>>
     const isOwnUnit = unit.player === gameState.currentPlayer;
 
+    // --- INICIO DE LA SOLUCIÓN ---
     unit.regiments.forEach(reg => {
         const regData = REGIMENT_TYPES[reg.type];
-        if (!regData) return; 
+        if (!regData) return;
 
         const maxHealth = regData.health;
         const currentHealth = reg.health;
@@ -954,32 +1045,56 @@ function populateUnitDetailList(unit) {
         const li = document.createElement('li');
         li.className = 'regiment-detail-item';
 
-        let innerHTML = `
-            <span class="regiment-icon">${regData.sprite}</span>
-            <span class="regiment-name">${getAbbreviatedName(reg.type)}</span>
-            <div class="regiment-health-bar-container">
-                <div class="regiment-health-bar" style="width: ${healthPercentage}%;"></div>
-            </div>
-            <span class="regiment-health-text">${currentHealth}/${maxHealth}</span>
-        `;
-        
-        // <<== MODIFICACIÓN: El botón de reforzar solo se muestra si la unidad es propia y cumple condiciones ==>>
-        if (isOwnUnit && currentHealth < maxHealth && isHexSuppliedForReinforce(unit.r, unit.c, unit.player)) {
-            innerHTML += `<button class="reinforce-regiment-btn" title="Reforzar este regimiento (Coste en oro)">➕</button>`;
+        // 2. Crear el icono (condicionalmente como <img> o <span>)
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'regiment-icon';
+        const spriteValue = regData.sprite;
+        if (spriteValue.includes('.png') || spriteValue.includes('.jpg') || spriteValue.includes('.gif')) {
+            const img = document.createElement('img');
+            img.src = spriteValue;
+            img.alt = reg.type;
+            img.style.width = '24px';
+            img.style.height = '24px';
+            img.style.verticalAlign = 'middle';
+            iconSpan.appendChild(img);
         } else {
-             // Para unidades enemigas o unidades propias sanas/sin suministro, mostramos un hueco para mantener el alineado.
-             innerHTML += `<div class="reinforce-placeholder"></div>`;
+            iconSpan.textContent = spriteValue;
         }
-        
-        li.innerHTML = innerHTML;
 
-        // Añadir el listener al botón de reforzar solo si lo creamos
-        const reinforceBtn = li.querySelector('.reinforce-regiment-btn');
-        if (reinforceBtn) {
+        // 3. Crear los demás elementos programáticamente
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'regiment-name';
+        nameSpan.textContent = getAbbreviatedName(reg.type);
+
+        const healthBarContainer = document.createElement('div');
+        healthBarContainer.className = 'regiment-health-bar-container';
+        healthBarContainer.innerHTML = `<div class="regiment-health-bar" style="width: ${healthPercentage}%;"></div>`;
+
+        const healthTextSpan = document.createElement('span');
+        healthTextSpan.className = 'regiment-health-text';
+        healthTextSpan.textContent = `${currentHealth}/${maxHealth}`;
+
+        // 4. Montar la estructura usando appendChild
+        li.appendChild(iconSpan);
+        li.appendChild(nameSpan);
+        li.appendChild(healthBarContainer);
+        li.appendChild(healthTextSpan);
+        
+        // 5. Añadir el botón de reforzar o el placeholder (sin cambios)
+        if (isOwnUnit && currentHealth < maxHealth && isHexSuppliedForReinforce(unit.r, unit.c, unit.player)) {
+            const reinforceBtn = document.createElement('button');
+            reinforceBtn.className = 'reinforce-regiment-btn';
+            reinforceBtn.title = 'Reforzar este regimiento (Coste en oro)';
+            reinforceBtn.textContent = '➕';
             reinforceBtn.onclick = (e) => {
                 e.stopPropagation();
                 RequestReinforceRegiment(unit, reg);
             };
+            li.appendChild(reinforceBtn);
+        } else {
+             const placeholder = document.createElement('div');
+             placeholder.className = 'reinforce-placeholder';
+             li.appendChild(placeholder);
         }
         
         listEl.appendChild(li);
@@ -987,7 +1102,6 @@ function populateUnitDetailList(unit) {
 
     // --- Lógica del Botón de Disolver ---
     if (domElements.disbandUnitBtn) {
-        const isOwnUnit = unit.player === gameState.currentPlayer;
         const hex = board[unit.r]?.[unit.c];
         // Se puede disolver si la unidad es propia y está en territorio propio
         const canDisband = isOwnUnit && hex && hex.owner === unit.player;
@@ -1492,23 +1606,44 @@ function openHeroDetailModal(heroInstance) {
         let name, description;
         const isLvl5 = skillInstanceLevel >= 5;
 
-        // Habilidad del registro central
+        // Comprobación si la habilidad es del registro o personalizada
         if (skillData.skill_id && SKILL_DEFINITIONS[skillData.skill_id]) {
             const definition = SKILL_DEFINITIONS[skillData.skill_id];
             name = definition.name;
             const scalingValues = skillData.scaling_override || definition.default_scaling;
-            const levelIndex = Math.max(0, skillInstanceLevel - 1);
-            const currentValue = scalingValues[levelIndex];
+            let tempDesc = definition.description_template;
             
-            // Reemplazar placeholders en la descripción
-            let tempDesc = definition.description_template.replace('{X}', Array.isArray(currentValue) ? currentValue.dmg || currentValue.atk || currentValue.def || currentValue[0] : currentValue);
-            if(Array.isArray(currentValue) && (currentValue.slow || currentValue.spd || currentValue[1])) tempDesc = tempDesc.replace('{Y}', currentValue.slow || currentValue.spd || currentValue[1]);
+            // Comprobamos SI EXISTEN valores de escalado antes de intentar usarlos
+            if (scalingValues) { 
+                const levelIndex = Math.max(0, skillInstanceLevel - 1);
+                const currentValue = scalingValues[levelIndex];
+                
+                // Aplicar el valor o valores al template
+                if (currentValue !== undefined) {
+                    tempDesc = tempDesc.replace('{X}', Array.isArray(currentValue) ? (currentValue.dmg || currentValue.atk || currentValue.def || currentValue[0]) : currentValue);
+                    if (Array.isArray(currentValue) && (currentValue.slow || currentValue.spd || currentValue.length > 1)) {
+                        tempDesc = tempDesc.replace('{Y}', currentValue.slow || currentValue.spd || currentValue[1]);
+                    }
+                }
+            }
+
             description = tempDesc;
-        } else { // Fallback para habilidades personalizadas
+
+        } else { // Fallback para habilidades 100% personalizadas (sin skill_id)
             name = skillData.name;
-            const levelIndex = Math.max(0, skillInstanceLevel - 1);
-            const currentValue = skillData.scaling[levelIndex];
-            description = skillData.description.replace('X', Array.isArray(currentValue) ? currentValue[0] : currentValue);
+            description = skillData.description; // Usar descripción directa
+            
+            // <<== CORRECCIÓN TAMBIÉN PARA HABILIDADES PERSONALIZADAS ==>>
+            if (skillData.scaling) { // Comprobar si tiene escalado
+                const levelIndex = Math.max(0, skillInstanceLevel - 1);
+                const currentValue = skillData.scaling[levelIndex];
+                if (currentValue !== undefined) {
+                    description = description.replace('X', Array.isArray(currentValue) ? currentValue[0] : currentValue);
+                    if (Array.isArray(currentValue) && currentValue.length > 1) {
+                         description = description.replace('Y', currentValue[1]);
+                    }
+                }
+            }
         }
         
         let upgradeButtonHTML = (isUnlocked && canUpgradeSkills && !isLvl5) ? `<button class="skill-upgrade-btn" data-skill-key="${skillKey}" title="Mejorar Habilidad">+</button>` : '';

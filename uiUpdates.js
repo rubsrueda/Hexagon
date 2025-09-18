@@ -637,70 +637,70 @@ const UIManager = {
      * desde el array de datos `units`. Es la solución definitiva para problemas de desincronización del DOM.
      */
     // Reemplaza la función renderAllUnitsFromData entera en uiUpdates.js con esto:
-renderAllUnitsFromData: function() {
-    if (!this._domElements.gameBoard) return;
+    renderAllUnitsFromData: function() {
+        if (!this._domElements.gameBoard) return;
 
-    console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
+        console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
 
-            // Paso 1: Eliminar todos los divs de unidades existentes.
-    this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
+                // Paso 1: Eliminar todos los divs de unidades existentes.
+        this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
 
-            // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
-    for (const unit of units) {
-                // Se recrea el elemento DOM para cada unidad en la lista de datos.
-        const unitElement = document.createElement('div');
-        unitElement.className = `unit player${unit.player}`;
+                // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
+        for (const unit of units) {
+                    // Se recrea el elemento DOM para cada unidad en la lista de datos.
+            const unitElement = document.createElement('div');
+            unitElement.className = `unit player${unit.player}`;
 
-            // <<== LÓGICA DE VISUALIZACIÓN DEL GENERAL ==>>
-            // Contenedor para el contenido principal (sprite y estandarte)
-        const mainContent = document.createElement('div');
-        mainContent.style.position = 'relative';
-        mainContent.style.display = 'flex';
-        mainContent.style.alignItems = 'center';
-        mainContent.style.justifyContent = 'center';
-        mainContent.style.width = '100%';
-        mainContent.style.height = '100%';
+                // <<== LÓGICA DE VISUALIZACIÓN DEL GENERAL ==>>
+                // Contenedor para el contenido principal (sprite y estandarte)
+            const mainContent = document.createElement('div');
+            mainContent.style.position = 'relative';
+            mainContent.style.display = 'flex';
+            mainContent.style.alignItems = 'center';
+            mainContent.style.justifyContent = 'center';
+            mainContent.style.width = '100%';
+            mainContent.style.height = '100%';
 
-        // --- LÓGICA HÍBRIDA ---
-        const spriteValue = unit.sprite || '?';
-        const isImageSprite = spriteValue.includes('.') || spriteValue.includes('/');
+            // --- LÓGICA HÍBRIDA ---
+            const spriteValue = unit.sprite || '?';
+            const isImageSprite = spriteValue.includes('.') || spriteValue.includes('/');
 
-        if (isImageSprite) {
-            unitElement.style.backgroundImage = `url('${spriteValue}')`;
-        } else {
-            unitElement.style.backgroundImage = 'none';
-            mainContent.textContent = spriteValue; // El emoji va dentro
+            if (isImageSprite) {
+                unitElement.style.backgroundImage = `url('${spriteValue}')`;
+            } else {
+                unitElement.style.backgroundImage = 'none';
+                mainContent.textContent = spriteValue; // El emoji va dentro
+            }
+
+            unitElement.appendChild(mainContent);
+
+            if (unit.commander && COMMANDERS[unit.commander]) {
+                const commanderSprite = COMMANDERS[unit.commander].sprite;
+                const commanderBanner = document.createElement('span');
+                commanderBanner.textContent = commanderSprite;
+                commanderBanner.className = 'commander-banner';
+                mainContent.appendChild(commanderBanner);
+            }
+            
+            unitElement.dataset.id = unit.id;
+            const strengthDisplay = document.createElement('div');
+            strengthDisplay.className = 'unit-strength';
+            strengthDisplay.textContent = unit.currentHealth;
+            unitElement.appendChild(strengthDisplay);
+            
+                    // Re-asignamos la nueva referencia del elemento al objeto de datos.
+            unit.element = unitElement;
+
+                    // Lo añadimos al tablero.
+            this._domElements.gameBoard.appendChild(unitElement);
+
+                    // Y lo posicionamos.
+            if (typeof positionUnitElement === 'function') {
+                positionUnitElement(unit);
+            }
         }
-
-        unitElement.appendChild(mainContent);
-
-        if (unit.commander && COMMANDERS[unit.commander]) {
-            const commanderSprite = COMMANDERS[unit.commander].sprite;
-            const commanderBanner = document.createElement('span');
-            commanderBanner.textContent = commanderSprite;
-            commanderBanner.className = 'commander-banner';
-            mainContent.appendChild(commanderBanner);
-        }
-        
-        unitElement.dataset.id = unit.id;
-        const strengthDisplay = document.createElement('div');
-        strengthDisplay.className = 'unit-strength';
-        strengthDisplay.textContent = unit.currentHealth;
-        unitElement.appendChild(strengthDisplay);
-        
-                // Re-asignamos la nueva referencia del elemento al objeto de datos.
-        unit.element = unitElement;
-
-                // Lo añadimos al tablero.
-        this._domElements.gameBoard.appendChild(unitElement);
-
-                // Y lo posicionamos.
-        if (typeof positionUnitElement === 'function') {
-            positionUnitElement(unit);
-        }
-    }
-    console.log("[RENDER ALL] Re-dibujado completo finalizado.");
-},
+        console.log("[RENDER ALL] Re-dibujado completo finalizado.");
+    },
 
 
     showRewardToast: function(message, icon = '🏆') {

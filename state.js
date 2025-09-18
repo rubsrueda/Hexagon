@@ -62,35 +62,26 @@ const gameStateProxyHandler = {
      }
 };
 
-function resetGameStateVariables() {
-    console.log("state.js: Ejecutando resetGameStateVariables() para escaramuza...");
+function resetGameStateVariables(playerCount = 2) { // <-- Acepta un parámetro, con 2 como valor por defecto
+    console.log(`state.js: Ejecutando resetGameStateVariables() para ${playerCount} jugadores...`);
 
     const p1civ = domElements.player1Civ ? domElements.player1Civ.value : 'ninguna';
     const p2civ = domElements.player2Civ ? domElements.player2Civ.value : 'ninguna';
 
-
-    // 1. Crear el objeto de estado inicial completo (como objeto plano)
     const initialGameStateObject = {
+        numPlayers: playerCount, // <-- Usa el parámetro
         currentPlayer: 1,
+        eliminatedPlayers: [],
         currentPhase: "deployment",
         turnNumber: 1,
-        playerTypes: { player1: 'human', player2: 'ai_normal' },
-        playerAiLevels: { player2: 'normal' },
-        playerCivilizations: { 1: p1civ, 2: p2civ }, 
-        activeCommanders: { 1: [], 2: [] },
-        capitalCityId: { 1: null, 2: null },
-        playerResources: {
-            // Crear copias profundas de los recursos iniciales
-            1: JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[0])),
-            2: JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[1]))
-        },
-        deploymentUnitLimit: 3,
-        unitsPlacedByPlayer: { 1: 0, 2: 0 },
+        playerTypes: {},
+        playerAiLevels: {},
+        playerCivilizations: {},
+        activeCommanders: {},
+        capitalCityId: {},
+        playerResources: {},
+        unitsPlacedByPlayer: {},
         isCampaignBattle: false,
-        currentCampaignId: null,
-        currentCampaignTerritoryId: null,
-        currentScenarioData: null,
-        currentMapData: null,
         cities: [],
         justPanned: false,
         selectedHexR: -1,
@@ -99,34 +90,27 @@ function resetGameStateVariables() {
         selectedUnit: null
     };
 
-    // Aplicar bonus de oro a la IA J2 en el objeto inicial
-    if (initialGameStateObject.playerResources[2]) {
-        initialGameStateObject.playerResources[2].oro = 12500;
+    // Este bucle ahora creará los jugadores necesarios dinámicamente
+    for (let i = 1; i <= playerCount; i++) {
+        initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(INITIAL_PLAYER_RESOURCES[i - 1]));
+        initialGameStateObject.playerResources[i].researchedTechnologies = ["ORGANIZATION"];
+        initialGameStateObject.activeCommanders[i] = [];
+        initialGameStateObject.capitalCityId[i] = null;
+        initialGameStateObject.unitsPlacedByPlayer[i] = 0;
     }
+    
+    // Asignaciones específicas para escaramuza (se pueden mover a la llamada si es necesario)
+    initialGameStateObject.playerTypes['player1'] = domElements.player1TypeSelect.value;
+    initialGameStateObject.playerTypes['player2'] = domElements.player2TypeSelect.value;
+    initialGameStateObject.playerCivilizations[1] = p1civ;
+    initialGameStateObject.playerCivilizations[2] = p2civ;
 
-    // --- ¡CORRECCIÓN CLAVE AQUÍ! Inicializar researchedTechnologies en el objeto ANTES del Proxy ---
-    // Asegurarse de que el array researchedTechnologies existe para ambos jugadores
-    // e inicializarlo con "ORGANIZATION" si aún no existe o está vacío.
-    initialGameStateObject.playerResources[1].researchedTechnologies = initialGameStateObject.playerResources[1].researchedTechnologies || [];
-    if (!initialGameStateObject.playerResources[1].researchedTechnologies.includes("ORGANIZATION")) {
-        initialGameStateObject.playerResources[1].researchedTechnologies.push("ORGANIZATION");
-    }
-
-    initialGameStateObject.playerResources[2].researchedTechnologies = initialGameStateObject.playerResources[2].researchedTechnologies || [];
-     if (!initialGameStateObject.playerResources[2].researchedTechnologies.includes("ORGANIZATION")) {
-        initialGameStateObject.playerResources[2].researchedTechnologies.push("ORGANIZATION");
-    }
-    // --- FIN CORRECCIÓN ---
-
-    // 2. --- ¡CAMBIO CRUCIAL! Asignar el objeto inicial ENCAPSULADO EN UN PROXY a la variable global gameState ---
-    // Esto sobrescribe la referencia anterior de gameState (si la había) con el nuevo Proxy.
     gameState = initialGameStateObject;
-    // --- FIN CAMBIO CRUCIAL ---
 
-    // Resetear otras variables globales que no son parte de gameState
+    // Reseteo de variables globales
     board = [];
     units = [];
-    selectedUnit = null; // Asegurarnos de que la variable global también se limpia
+    selectedUnit = null;
     unitIdCounter = 0;
     placementMode = { active: false, unitData: null, unitType: null };
     
@@ -142,10 +126,8 @@ function resetGameStateVariables() {
     if (typeof _unitBeingSplit !== 'undefined') _unitBeingSplit = null;
     if (typeof _tempOriginalRegiments !== 'undefined') _tempOriginalRegiments = [];
     if (typeof _tempNewUnitRegiments !== 'undefined') _tempNewUnitRegiments = [];
-
-
-    console.log("state.js: gameState (Proxy) reseteado para escaramuza.", JSON.parse(JSON.stringify(gameState)));
-    console.log("--- LOG ESTADO --- state.js -> resetGameStateVariables FIN: researchedTechnologies =", JSON.parse(JSON.stringify(gameState?.playerResources?.[1]?.researchedTechnologies || [])));
+    
+    console.log(`state.js: gameState reseteado para ${playerCount} jugadores.`);
 }
 
 async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignTerritoryId) {
@@ -225,4 +207,66 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
     }
 
     console.log("state.js: Finalizado resetAndSetupTacticalGame.", JSON.parse(JSON.stringify(gameState)));
+}
+
+function resetGameStateForIberiaMagna() {
+    console.log("state.js: Ejecutando resetGameStateForIberiaMagna() para 8 jugadores...");
+
+    const numPlayers = 8;
+    const initialResources = INITIAL_PLAYER_RESOURCES_MAGNA; // Usamos la nueva constante
+
+    // 1. Crear el objeto de estado inicial completo
+    const initialGameStateObject = {
+        numPlayers: numPlayers,
+        currentPlayer: 1,
+        eliminatedPlayers: [], // (NUEVO) Array para rastrear jugadores derrotados
+        currentPhase: "deployment", // O directamente "play" si no hay fase de despliegue
+        turnNumber: 1,
+        
+        // Estructuras de datos para N jugadores
+        playerTypes: {},
+        playerAiLevels: {},
+        playerCivilizations: {},
+        activeCommanders: {},
+        capitalCityId: {},
+        playerResources: {},
+        unitsPlacedByPlayer: {},
+
+        // Propiedades de estado generales
+        isCampaignBattle: false, // Esto es una partida "Magna", no una misión de campaña
+        cities: [],
+        justPanned: false,
+        selectedHexR: -1,
+        selectedHexC: -1,
+        preparingAction: null,
+        selectedUnit: null
+    };
+
+    // 2. Rellenar los datos para cada uno de los 8 jugadores
+    for (let i = 1; i <= numPlayers; i++) {
+        const playerKey = `player${i}`;
+        
+        // Asumimos que todos son humanos por ahora. Esto se podría configurar en una futura pantalla de lobby.
+        initialGameStateObject.playerTypes[playerKey] = 'human'; 
+        
+        // Copiamos los recursos iniciales para cada jugador
+        initialGameStateObject.playerResources[i] = JSON.parse(JSON.stringify(initialResources[i - 1]));
+        
+        // Inicializamos el resto de arrays/objetos
+        initialGameStateObject.playerCivilizations[i] = 'ninguna'; // Se puede asignar después
+        initialGameStateObject.activeCommanders[i] = [];
+        initialGameStateObject.capitalCityId[i] = null;
+        initialGameStateObject.unitsPlacedByPlayer[i] = 0;
+    }
+
+    // 3. Asignar el nuevo objeto de estado a la variable global
+    gameState = initialGameStateObject;
+
+    // 4. Resetear las otras variables globales
+    board = [];
+    units = [];
+    selectedUnit = null;
+    unitIdCounter = 0;
+    
+    console.log("state.js: gameState reseteado para Tronos de Iberia.", JSON.parse(JSON.stringify(gameState)));
 }

@@ -66,6 +66,7 @@ domElements.player2NameDiv = null;
 domElements.player2NameInput = null;
 domElements.importProfileInput = null;
 domElements.exportProfileBtn_float = null;
+domElements.startIberiaMagnaBtn = null;
 
 
 // Antiguo botón startGameBtn se renombra a startLocalGameBtn
@@ -242,7 +243,8 @@ function initializeDomElements() {
     domElements.player2NameInput = document.getElementById('player2NameInput'); 
     domElements.importProfileInput = document.getElementById('importProfileInput');
     domElements.exportProfileBtn_float = document.getElementById('exportProfileBtn_float');
-
+    domElements.startIberiaMagnaBtn = document.getElementById('startIberiaMagnaBtn');
+    
     domElements.floatingConsoleBtn = document.getElementById('floatingConsoleBtn'); 
     domElements.mainMenuScreenEl = document.getElementById('mainMenuScreen');
     domElements.setupScreen = document.getElementById('setupScreen');

@@ -152,9 +152,8 @@ function resetUnitsForNewTurn(playerNumber) {
         // Si la unidad pertenece al jugador cuyo turno está COMENZANDO...
         if (unit.player === playerNumber) {
             // Se resetean sus acciones y su movimiento
-            const statsFromRegiments = calculateRegimentStats(unit.regiments, unit.player);
-            unit.movement = statsFromRegiments.movement;
-            unit.currentMovement = unit.movement;
+            calculateRegimentStats(unit); // Le pasamos la unidad completa. La función actualiza sus stats directamente.
+            unit.currentMovement = unit.movement; // Simplemente restauramos el movimiento actual al máximo recién calculado.
             unit.hasMoved = false;
             unit.hasAttacked = false;
             unit.isFlanked = false; // Se resetea el estado de flanqueo al inicio de su turno
@@ -724,6 +723,29 @@ function endTacticalBattle(winningPlayerNumber) {
 
 }
 
+/**
+ * Inicia el turno de despliegue para un jugador de IA.
+ * Es una función simple que llama al manager de despliegue.
+ */
+function simpleAiDeploymentTurn() {
+    const aiPlayerNumber = gameState.currentPlayer;
+    console.log(`[simpleAiDeploymentTurn] INICIO para Jugador IA ${aiPlayerNumber}.`);
+
+    // Llama al manager de despliegue que ya existe y funciona.
+    if (typeof AiDeploymentManager !== 'undefined' && AiDeploymentManager.deployUnitsAI) {
+        AiDeploymentManager.deployUnitsAI(aiPlayerNumber);
+    } else {
+        console.error("[simpleAiDeploymentTurn] AiDeploymentManager no está definido. Revisa que ai_deploymentLogic.js esté cargado.");
+    }
+    
+    // La IA de despliegue termina su turno automáticamente después de colocar sus unidades.
+    if (domElements.endTurnBtn && !domElements.endTurnBtn.disabled) {
+        // Usamos un pequeño retardo para que la colocación visual termine antes de pasar al siguiente.
+        setTimeout(() => {
+            if(domElements.endTurnBtn) domElements.endTurnBtn.click();
+        }, 1000); 
+    }
+}
 
 function simpleAiTurn() {
     console.log(`[simpleAiTurn] INICIO para Jugador IA ${gameState.currentPlayer}.`);
@@ -1180,54 +1202,6 @@ function handleChangeCapital(r, c) {
     return true;
 }
 
-/**
- * Calcula los stats combinados de una división a partir de sus regimientos.
- * Este tipo de función probablemente ya exista o necesite ser creada si no.
- * Devuelve un objeto con: attack, defense, maxHealth, movement, visionRange, attackRange.
- * @param {Array<object>} regimentsArray - El array de regimientos que componen la unidad.
- * @param {number} playerNum - El número del jugador (para bonus de civilización).
- * @returns {object} Objeto con los stats calculados.
- */
-function calculateRegimentStats(regimentsArray, playerNum) {
-    let finalStats = { attack: 0, defense: 0, maxHealth: 0, movement: Infinity, visionRange: 0, attackRange: 0, initiative: 0, sprite: '❓', is_naval: false, category: '' };
-    
-    if (!regimentsArray || regimentsArray.length === 0) {
-        return finalStats;
-    }
-
-    const playerCivName = gameState?.playerCivilizations?.[playerNum] || 'ninguna';
-    const civBonuses = CIVILIZATIONS[playerCivName]?.bonuses?.unitTypeBonus || {};
-
-    for (const reg of regimentsArray) {
-        const baseRegData = REGIMENT_TYPES[reg.type];
-        if (!baseRegData) continue;
-
-        const unitBonuses = civBonuses[reg.type] || {};
-
-        // Sumar stats base y bonus de nivel (si aplicase aquí, sino se hace después)
-        const effectiveAttack = (baseRegData.attack || 0) + (unitBonuses.attackBonus || 0);
-        const effectiveDefense = (baseRegData.defense || 0) + (unitBonuses.defenseBonus || 0);
-        
-        finalStats.attack += effectiveAttack;
-        finalStats.defense += effectiveDefense;
-        finalStats.maxHealth += baseRegData.health || 0;
-        finalStats.movement = Math.min(finalStats.movement, (baseRegData.movement || 0) + (unitBonuses.movementBonus || 0));
-        finalStats.visionRange = Math.max(finalStats.visionRange, baseRegData.visionRange || 0);
-        finalStats.attackRange = Math.max(finalStats.attackRange, (baseRegData.attackRange || 0) + (unitBonuses.attackRange || 0));
-        finalStats.initiative = Math.max(finalStats.initiative, baseRegData.initiative || 0);
-        finalStats.is_naval = finalStats.is_naval || baseRegData.is_naval;
-        
-        // Sprite: usar el del primer regimiento o uno por defecto
-        if (!finalStats.sprite || finalStats.sprite === '❓') {
-            finalStats.sprite = baseRegData.sprite || '❓';
-        }
-    }
-
-    finalStats.movement = (finalStats.movement === Infinity) ? 0 : finalStats.movement; // Si no hay movimiento, 0
-
-    return finalStats;
-}
-
 // --- EJEMPLO DE CÓMO SE USARÍA DESDE UN BOTÓN DE LA UI ---
 /*
 // Suponiendo que tienes un botón en el HTML: <button id="setAsCapitalBtn">Establecer como Capital</button>
@@ -1254,7 +1228,7 @@ if (setCapitalBtn) {
 
 function handleEndTurn() {
     console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
-    
+
     // --- LÓGICA DE RED (SIN CAMBIOS) ---
     const isNetworkGame = typeof NetworkManager !== 'undefined' && NetworkManager.conn && NetworkManager.conn.open;
     if (isNetworkGame) {
@@ -1291,33 +1265,19 @@ function handleEndTurn() {
         moveToNextTutorialStep();
         if (gameState.currentPhase === "gameOver") { return; }
     }
-    
+
     const playerEndingTurn = gameState.currentPlayer;
 
-    // --- SECCIÓN 1: LÓGICA DE FASE DE DESPLIEGUE ---
+    // --- SECCIÓN 1: LÓGICA DE FASE DE DESPLIEGUE (MODIFICADA PARA N JUGADORES) ---
     if (gameState.currentPhase === "deployment") {
-        if (playerEndingTurn === 1 && gameState.playerTypes.player2.startsWith('ai_')) {
-            // IA despliega, y el juego pasa a fase "play".
-            logMessage(`IA (Jugador 2) desplegando...`);
-            if (AiDeploymentManager && AiDeploymentManager.deployUnitsAI) { 
-                AiDeploymentManager.deployUnitsAI(2);
-            }
-            
+        // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
+        if (playerEndingTurn < gameState.numPlayers) {
+            gameState.currentPlayer++;
+            logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
+        } else {
+            // Si es el último jugador, termina la fase de despliegue y empieza el juego
             gameState.currentPhase = "play";
-            gameState.currentPlayer = 1;
-            gameState.turnNumber = 1;
-            resetUnitsForNewTurn(1); // Prepara las unidades del J1 para el primer turno
-            logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
-
-        } else if (playerEndingTurn === 1 && gameState.playerTypes.player2 === 'human') {
-            // Pasa el turno al jugador 2 humano para que despliegue.
-            gameState.currentPlayer = 2;
-            logMessage(`Despliegue: Turno Jugador 2.`);
-
-        } else if (playerEndingTurn === 2) {
-            // El jugador 2 (sea humano o IA) termina el despliegue.
-            gameState.currentPhase = "play";
-            gameState.currentPlayer = 1;
+            gameState.currentPlayer = 1; // El juego siempre empieza con el jugador 1
             gameState.turnNumber = 1;
             resetUnitsForNewTurn(1); // Prepara las unidades del J1 para el primer turno
             logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
@@ -1325,28 +1285,42 @@ function handleEndTurn() {
     }
     // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
     else if (gameState.currentPhase === "play") {
-        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno.
+        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno (igual que antes)
         updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn);
         handleUnitUpkeep(playerEndingTurn);
         handleHealingPhase(playerEndingTurn);
         const tradeGold = calculateTradeIncome(playerEndingTurn);
         if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
-        
-        // B. Cambio de jugador.
-        gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
-        if (gameState.currentPlayer === 1) gameState.turnNumber++;
-        logMessage(`Comienza el Turno ${gameState.turnNumber} del Jugador ${gameState.currentPlayer}.`);
 
-        // <<== LLAMADA AL CRONISTA ==>>
-        if (typeof Chronicle !== 'undefined') {
-            Chronicle.logEvent('turn_start');
-        }
+        // B. LÓGICA DE CAMBIO DE JUGADOR PARA N JUGADORES
+        let nextPlayer = gameState.currentPlayer;
+        let attempts = 0; // Para evitar un bucle infinito si todos son eliminados
+
+        do {
+            // Avanza al siguiente número de jugador en la secuencia
+            nextPlayer = (nextPlayer % gameState.numPlayers) + 1;
+            
+            // Si el siguiente jugador es el 1, significa que hemos completado una ronda completa.
+            if (nextPlayer === 1) {
+                gameState.turnNumber++;
+                if (typeof Chronicle !== 'undefined') {
+                    Chronicle.logEvent('turn_start');
+                }
+            }
+            
+            attempts++;
+            // Repite si el 'siguiente jugador' está en la lista de eliminados
+        } while (gameState.eliminatedPlayers.includes(nextPlayer) && attempts < gameState.numPlayers);
+
+        // Asigna el nuevo jugador actual
+        gameState.currentPlayer = nextPlayer;
+        logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer}.`);
 
         // C. Tareas de PREPARACIÓN para el jugador que EMPIEZA el turno.
         resetUnitsForNewTurn(gameState.currentPlayer);
         handleBrokenUnits(gameState.currentPlayer);
-
+        
         // D. Lógica de ingresos pasivos (XP, investigación, comida) para el jugador que EMPIEZA.
         units.forEach(unit => {
             if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
@@ -1394,10 +1368,19 @@ function handleEndTurn() {
     if (UIManager) UIManager.updateAllUIDisplays();
     
     // Llamar a la IA si AHORA es su turno, y solo si estamos en la fase de 'play'.
-    if (gameState.currentPhase === 'play' && gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_')) {
+    const isAiTurn = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
+    if (gameState.currentPhase === 'play' && isAiTurn) {
+        // Lógica de juego (esta ya la tenías y está bien)
         if (checkVictory()) return;
         setTimeout(simpleAiTurn, 700);
+
+    } else if (gameState.currentPhase === 'deployment' && isAiTurn) {
+        // ¡NUEVA LÓGICA! Si es el turno de la IA durante el despliegue...
+        // Llamamos a la nueva función que acabamos de crear.
+        setTimeout(simpleAiDeploymentTurn, 700);
+        
     } else if (gameState.currentPhase === 'play') {
+        // Lógica para jugador humano (ya la tenías)
         if (checkVictory) checkVictory();
     }
 }

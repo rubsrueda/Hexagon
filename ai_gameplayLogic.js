@@ -633,37 +633,32 @@ const AiGameplayManager = {
     },
 
     createUnitObject: function(definition, playerNumber, spot) {
-        const stats = calculateRegimentStats(definition.regiments, playerNumber);
+        // PASO 1: Se crea el objeto base de la unidad.
         const unit = {
             id: `u${unitIdCounter++}`,
             player: playerNumber,
             name: definition.name,
             commander: null,
             regiments: definition.regiments.map(r => ({ ...r, id: `r${Date.now()}${Math.random()}`})),
-            ...stats,
-            currentHealth: stats.maxHealth,
-            movement: stats.movement, // <<== CORRECCIÓN: Usar el stat base para el movimiento total
-            currentMovement: stats.movement, // <<== CORRECCIÓN: Nace con todo su movimiento
             r: spot.r,
             c: spot.c,
-            
-            // <<== LA LÍNEA MÁS IMPORTANTE DE LA SOLUCIÓN ==>>
-            // Forzamos explícitamente que la unidad NO ha actuado, sin importar la fase del juego.
             hasMoved: false,
             hasAttacked: false,
-            
             level: 0,
             experience: 0,
             morale: 50,
             maxMorale: 125,
         };
         
-        // La llamada a recalculateUnitStats es buena práctica para aplicar bonus de nivel/civ si los hubiera
-        if (typeof recalculateUnitStats === "function") {
-            recalculateUnitStats(unit);
-        }
+        // PASO 2: (CORREGIDO) Se llama a la función de stats pasándole el objeto completo.
+        // Esta lo modificará, añadiendo .attack, .maxHealth, etc.
+        calculateRegimentStats(unit);
         
-        // Log de diagnóstico para confirmar el estado de la unidad al nacer
+        // PASO 3: Se usa la información recién añadida para establecer los valores iniciales.
+        unit.currentHealth = unit.maxHealth;
+        unit.currentMovement = unit.movement;
+
+        // Log de diagnóstico para confirmar
         console.log(`[IA createUnitObject] Unidad ${unit.name} creada con hasMoved: ${unit.hasMoved}`);
         
         return unit;

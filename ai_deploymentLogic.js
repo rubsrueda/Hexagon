@@ -2,6 +2,7 @@
 console.log("ai_deploymentLogic.js CARGADO - Módulo de IA para la Fase de Despliegue.");
 
 const AiDeploymentManager = {
+    
     deployUnitsAI: function(playerNumber) {
         console.group(`%c[IA DEPLOY] Proceso de Despliegue para Jugador ${playerNumber}`, "background: #333; color: #ffa500; font-size: 1.2em;");
         try {
@@ -30,7 +31,12 @@ const AiDeploymentManager = {
                 playerResources.oro -= unitDefinition.cost;
                 const newUnitData = this.createUnitObject(unitDefinition, playerNumber, placementSpot);
                 placeFinalizedDivision(newUnitData, placementSpot.r, placementSpot.c);
-                AiGameplayManager.unitRoles.set(newUnitData.id, unitDefinition.role); // Asigna el rol en el manager de gameplay
+                
+                // <<== Se asegura que llama a AiGameplayManager ==>>
+                if (typeof AiGameplayManager !== 'undefined' && AiGameplayManager.unitRoles) {
+                    AiGameplayManager.unitRoles.set(newUnitData.id, unitDefinition.role);
+                }
+
                 tempOccupiedSpots.add(`${placementSpot.r},${placementSpot.c}`);
                 deployedCount++;
             }
@@ -113,36 +119,62 @@ const AiDeploymentManager = {
     },
 
     findBestSpotForMission: function(mission, availableSpots, unitDefinition) {
-        if (!availableSpots || availableSpots.length === 0) return null;
         const targetHex = mission.objectiveHex;
         const adjacentHexes = getHexNeighbors(targetHex.r, targetHex.c);
         let validAdjacentSpots = [];
         
         for (const spot of availableSpots) {
             if (adjacentHexes.some(adj => adj.r === spot.r && adj.c === spot.c)) {
+                const spotTerrain = board[spot.r]?.[spot.c]?.terrain;
                 const category = unitDefinition.regiments[0]?.category;
-                const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(spot.terrain);
-                if (!isImpassable) validAdjacentSpots.push(spot);
+                
+                // CORRECCIÓN: Validar si el terreno es intransitable para la categoría de la unidad
+                const isImpassable = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[category]?.includes(spotTerrain) || TERRAIN_TYPES[spotTerrain]?.isImpassableForLand;
+
+                if (!isImpassable) {
+                    validAdjacentSpots.push(spot);
+                }
             }
         }
-        if (validAdjacentSpots.length === 0) return null;
+
+        if (validAdjacentSpots.length === 0) {
+            console.warn(`-> No se encontró ningún spot de despliegue ADYACENTE y VÁLIDO para la misión en (${targetHex.r},${targetHex.c}).`);
+            return null;
+        }
+
+        // Ordenar por el mejor terreno defensivo (colinas > bosque > llanura)
         validAdjacentSpots.sort((a, b) => {
             const scoreA = (a.terrain === 'hills') ? 3 : (a.terrain === 'forest') ? 2 : 1;
             const scoreB = (b.terrain === 'hills') ? 3 : (b.terrain === 'forest') ? 2 : 1;
             return scoreB - scoreA;
         });
+        
         return validAdjacentSpots[0];
     },
 
+    // EN: ai_deploymentLogic.js
+// --- REEMPLAZA TU FUNCIÓN CON ESTA ---
+
     createUnitObject: function(definition, playerNumber, spot) {
-        const stats = calculateRegimentStats(definition.regiments, playerNumber);
-        return {
-            id: `u${unitIdCounter++}`, player: playerNumber, name: `${definition.name} IA`,
+        const newUnit = {
+            id: `u${unitIdCounter++}`,
+            player: playerNumber,
+            name: `${definition.name} IA`,
             regiments: definition.regiments.map(r => ({ ...r, id: `r${Date.now()}${Math.random()}`})),
-            ...stats, currentHealth: stats.maxHealth, currentMovement: stats.movement,
-            r: spot.r, c: spot.c, hasMoved: false, hasAttacked: false, level: 0,
-            experience: 0, morale: 50, maxMorale: 125,
+            r: spot.r, c: spot.c,
+            hasMoved: false, hasAttacked: false, level: 0,
+            experience: 0, morale: 50, maxMorale: 125
         };
+
+        // Llama a la nueva función central para añadir los stats
+        calculateRegimentStats(newUnit);
+
+        // Asigna la vida y movimiento usando los stats recién añadidos
+        newUnit.currentHealth = newUnit.maxHealth;
+        newUnit.currentMovement = newUnit.movement;
+        
+        console.log(`[IA DEPLOY] Unidad ${newUnit.name} creada con stats: Atk=${newUnit.attack}, Def=${newUnit.defense}`);
+        return newUnit;
     },
 
     findChokepointsNear: function(capital) {
