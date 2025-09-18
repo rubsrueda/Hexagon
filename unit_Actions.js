@@ -119,18 +119,57 @@ function handlePlacementModeClick(r, c) {
     }
 
     if (canPlace) {
-        placeFinalizedDivision(unitToPlace, r, c);
+        // --- INICIO DE LA INTEGRACIÓN DE RED ---
         
-        // Finalizar y salir del modo colocación
-        placementMode.active = false;
-        placementMode.unitData = null;
-        placementMode.recruitHex = null;
-        if (UIManager) UIManager.clearHighlights();
-        
-        logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
-        if (UIManager) {
-            UIManager.updateAllUIDisplays();
-            UIManager.hideContextualPanel();
+        // Comprobamos si estamos en un juego de red.
+        if (isNetworkGame()) {
+            console.log("[Red] La colocación es válida. Preparando para enviar acción al anfitrión...");
+            
+            const replacer = (key, value) => (key === 'element' ? undefined : value);
+            const cleanUnitData = JSON.parse(JSON.stringify(unitToPlace, replacer));
+            
+            // Creamos el paquete de la acción.
+            const action = {
+                type: 'placeUnit',
+                payload: { 
+                    playerId: gameState.myPlayerNumber,
+                    unitData: cleanUnitData,
+                    r: r,
+                    c: c
+                }
+            };
+            
+            // El anfitrión se procesa a sí mismo, el cliente envía una petición.
+            if (NetworkManager.esAnfitrion) {
+                processActionRequest(action); 
+            } else {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            }
+            
+            // Salimos del modo de colocación localmente para el jugador que hizo la acción.
+            placementMode.active = false;
+            placementMode.unitData = null;
+            placementMode.recruitHex = null;
+            if (UIManager) UIManager.clearHighlights();
+            logMessage(`Petición para colocar ${unitToPlace.name} procesada/enviada...`);
+
+        } else {
+            // --- CÓDIGO ORIGINAL PARA JUEGO LOCAL (SE MANTIENE INTACTO) ---
+            
+            console.log("[Local] La colocación es válida. Ejecutando lógíca local.");
+            placeFinalizedDivision(unitToPlace, r, c);
+            
+            // Finalizar y salir del modo colocación
+            placementMode.active = false;
+            placementMode.unitData = null;
+            placementMode.recruitHex = null;
+            if (UIManager) UIManager.clearHighlights();
+            
+            logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
+            if (UIManager) {
+                UIManager.updateAllUIDisplays();
+                UIManager.hideContextualPanel();
+            }
         }
 
     } else {

@@ -813,28 +813,57 @@ function updateDivisionSummary() {
     domElements.divisionCostSummary.textContent = costString;
     
     // 2. Calcular Stats Agregados
-    // Creamos un objeto de unidad temporal para pasar a nuestra función de cálculo.
-    let tempDivisionObject = {
-        player: gameState.currentPlayer,
-        regiments: currentDivisionBuilder
-    };
-    calculateRegimentStats(tempDivisionObject); // La función modificará este objeto.
-    
+    let tempDivisionObject = { player: gameState.currentPlayer, regiments: currentDivisionBuilder };
+    calculateRegimentStats(tempDivisionObject);
     const statsString = `A: ${tempDivisionObject.attack} D: ${tempDivisionObject.defense} M: ${tempDivisionObject.movement}`;
     domElements.divisionStatsSummary.textContent = statsString;
 
     // 3. Actualizar Contador de Regimientos
     domElements.divisionRegimentCount.textContent = `${currentDivisionBuilder.length} / ${MAX_REGIMENTS_PER_DIVISION}`;
-
-    // 4. Rellenar la lista de composición
+    
+    // 4. Rellenar la lista de composición (MODO CORREGIDO)
     const regimentCounts = {};
     currentDivisionBuilder.forEach(reg => {
         regimentCounts[reg.type] = (regimentCounts[reg.type] || 0) + 1;
     });
     
-    domElements.divisionCompositionList.innerHTML = Object.entries(regimentCounts)
-        .map(([type, count]) => `<li>${REGIMENT_TYPES[type]?.sprite || '?'} ${type} x ${count}</li>`)
-        .join('');
+    domElements.divisionCompositionList.innerHTML = ''; // Limpiar la lista primero
+
+    // Iterar y construir cada elemento de la lista de forma segura
+    for (const [type, count] of Object.entries(regimentCounts)) {
+        const regiment = REGIMENT_TYPES[type];
+        if (!regiment) continue;
+
+        const li = document.createElement('li');
+        li.style.display = 'flex';
+        li.style.alignItems = 'center';
+
+        const spriteValue = regiment.sprite;
+        let spriteElement;
+
+        // Crear <img> o <span> según el tipo de sprite
+        if (spriteValue.includes('.png') || spriteValue.includes('.jpg') || spriteValue.includes('.gif')) {
+            spriteElement = document.createElement('img');
+            spriteElement.src = spriteValue;
+            spriteElement.alt = type;
+            spriteElement.style.width = '24px';
+            spriteElement.style.height = '24px';
+            spriteElement.style.marginRight = '8px';
+        } else {
+            spriteElement = document.createElement('span');
+            spriteElement.textContent = spriteValue;
+            spriteElement.style.marginRight = '8px';
+        }
+        
+        li.appendChild(spriteElement);
+
+        // Añadir el texto con nombre, contador y salud
+        const textNode = document.createTextNode(`${type} x ${count} (${regiment.health}/${regiment.health})`);
+        li.appendChild(textNode);
+
+        domElements.divisionCompositionList.appendChild(li);
+    }
+    // --- FIN DE LA CORRECCIÓN ---
 
     // 5. Habilitar/deshabilitar el botón de finalizar
     if (domElements.finalizeUnitManagementBtn) {

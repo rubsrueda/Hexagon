@@ -1069,52 +1069,48 @@ function executeConfirmedAction(action) {
 }
 
 function iniciarPartidaLAN(settings) {
-    //console.log("Iniciando partida LAN con la configuración:", settings);
-    
-    if (typeof resetGameStateVariables === "function") resetGameStateVariables(2);
+    resetGameStateVariables(2); // Reinicia el estado para 2 jugadores
 
     gameState.playerTypes = settings.playerTypes;
     gameState.playerCivilizations = settings.playerCivilizations;
     gameState.deploymentUnitLimit = settings.deploymentUnitLimit;
     gameState.isCampaignBattle = false;
-    gameState.currentScenarioData = null;
-    gameState.currentMapData = null;
 
     showScreen(domElements.gameContainer);
     gameState.currentPhase = "deployment"; 
+    
+    // El anfitrión es J1, el cliente es J2
     gameState.myPlayerNumber = NetworkManager.esAnfitrion ? 1 : 2;
-
     console.log(`[iniciarPartidaLAN] Lógica de red iniciada. Soy Jugador: ${gameState.myPlayerNumber}`);
 
     if (NetworkManager.esAnfitrion) {
-        console.log("[iniciarPartidaLAN - Anfitrión] Generando el mapa y estado inicial...");
+        console.log("[Anfitrión] Generando el mapa y el estado inicial...");
         initializeNewGameBoardDOMAndData(settings.resourceLevel, settings.boardSize);
         
-        // --- ¡SOLUCIÓN DE IDENTIDAD! ---
-        // Creamos una copia del gameState para enviarla, y de esa copia eliminamos la identidad del anfitrión.
-        const gameStateCopyForBroadcast = JSON.parse(JSON.stringify(gameState));
-        delete gameStateCopyForBroadcast.myPlayerNumber; // ¡El cliente no debe saber quién es el anfitrión!
-        // --- FIN SOLUCIÓN ---
-        
+        // El anfitrión crea una "fotografía" del estado del juego
         const replacer = (key, value) => (key === 'element' ? undefined : value);
+        const gameStateCopy = JSON.parse(JSON.stringify(gameState, replacer));
+        delete gameStateCopy.myPlayerNumber; // El cliente no necesita saber nuestra identidad
+
         const initialGameSetupPacket = {
             type: 'initialGameSetup',
             payload: {
                 board: JSON.parse(JSON.stringify(board, replacer)),
-                gameState: JSON.parse(JSON.stringify(gameStateCopyForBroadcast, replacer)),
+                gameState: gameStateCopy,
                 units: JSON.parse(JSON.stringify(units, replacer)),
-                unitIdCounter: unitIdCounter,
-                settings: settings
+                unitIdCounter: unitIdCounter
             }
         };
 
+        // Y la envía al cliente
         NetworkManager.enviarDatos(initialGameSetupPacket);
         
         UIManager.updateAllUIDisplays();
-        if (UIManager) UIManager.updateTurnIndicatorAndBlocker(); 
+        UIManager.updateTurnIndicatorAndBlocker();
         logMessage(`¡Partida iniciada! Eres el Anfitrión (Jugador 1).`);
 
     } else {
+        // El cliente no hace NADA. Simplemente espera la "fotografía" del anfitrión.
         logMessage("Esperando datos del anfitrión para sincronizar la partida...");
     }
 }
@@ -1262,12 +1258,13 @@ function processActionRequest(action) {
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
-                //console.log(`%c[VIAJE-4] Anfitrión PROCESANDO 'placeUnit'. Chequeando si id es null... ID Recibido:`, 'color: #DAA520; font-weight: bold;', payload.unitData.id);
-                if (payload.unitData.id === null) { // Solo si el ID no ha sido asignado
+                // EL ANFITRIÓN ES EL ÚNICO QUE ASIGNA EL ID
+                if (payload.unitData.id === null) { 
                     payload.unitData.id = `u${unitIdCounter++}`;
-                    console.log(`[Red - Anfitrión] ID Asignado: ${payload.unitData.id} a la nueva unidad de J${payload.playerId}`);
+                    console.log(`[Anfitrión] ID Asignado: ${payload.unitData.id} a la nueva unidad de J${payload.playerId}`);
                 }
-
+                
+                // El anfitrión ejecuta la acción en su propio estado del juego
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
                 actionExecuted = true;
             }
@@ -1307,6 +1304,56 @@ function processActionRequest(action) {
         const actionToBroadcast = { type: action.type, payload: cleanPayload };
         console.log(`%c[VIAJE-6] Anfitrión retransmitiendo acción '${action.type}' a todos los jugadores.`, 'color: #FF69B4; font-weight: bold;');
         NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
+    }
+}
+
+function reconstruirJuegoDesdeDatos(datos) {
+    try {
+        // Guardamos nuestra identidad, que es lo único que nos pertenece
+        const miIdentidadLocal = gameState.myPlayerNumber;
+
+        // Limpiar el estado y el tablero local
+        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
+        board = [];
+        units = [];
+
+        // Sincronizamos el estado principal (esto sobrescribe nuestra identidad temporalmente)
+        Object.assign(gameState, datos.gameState);
+        unitIdCounter = datos.unitIdCounter;
+        
+        // ¡Restauramos nuestra verdadera identidad!
+        gameState.myPlayerNumber = miIdentidadLocal;
+        
+        // Reconstruir el tablero desde los datos del anfitrión
+        const boardData = datos.board;
+        const boardSize = { rows: boardData.length, cols: boardData[0].length };
+        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
+        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
+        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
+
+        for (let r = 0; r < boardSize.rows; r++) {
+            for (let c = 0; c < boardSize.cols; c++) {
+                const hexElement = createHexDOMElementWithListener(r, c);
+                domElements.gameBoard.appendChild(hexElement);
+                board[r][c] = { ...boardData[r][c], element: hexElement, unit: null };
+            }
+        }
+        
+        // Reconstruir las unidades desde los datos del anfitrión
+        datos.units.forEach(unitData => {
+            placeFinalizedDivision(unitData, unitData.r, unitData.c);
+        });
+
+        // Refrescar toda la UI con el estado recién sincronizado
+        renderFullBoardVisualState();
+        UIManager.updateAllUIDisplays();
+        UIManager.updateTurnIndicatorAndBlocker();
+
+        logMessage("¡Sincronización con el anfitrión completada! La partida está lista.");
+
+    } catch (error) {
+        console.error("Error crítico al reconstruir el juego en el cliente:", error);
+        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
 }
 
