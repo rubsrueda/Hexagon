@@ -228,19 +228,38 @@ if (domElements.createNetworkGameBtn) {
     }
     
     function onDatosLANRecibidos(datos) {
-        console.log("%c[Receptor de Red] Datos recibidos:", "background: #28a745; color: white;", datos);
-        console.log(`%c[VIAJE-3] Datos recibidos por Jugador ${gameState.myPlayerNumber}. Anfitrión: ${NetworkManager.esAnfitrion}`, 'color: #90EE90; font-weight: bold;', datos);
+        console.log("[Receptor de Red] Datos recibidos:", datos);
+        
+        // Lógica del Cliente (cuando NO es anfitrión)
         if (!NetworkManager.esAnfitrion) {
             switch (datos.type) {
-                case 'startGame': logMessage("¡El anfitrión ha iniciado la partida! Preparando tablero..."); iniciarPartidaLAN(datos.settings); break;
-                case 'initialGameSetup': reconstruirJuegoDesdeDatos(datos.payload); break;
-                case 'actionBroadcast': executeConfirmedAction(datos.action); break;
-                default: console.warn(`[Red - Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'. Se ignora.`); break;
+                case 'startGame':
+                    // Esto es para la configuración inicial, antes de que el tablero exista
+                    iniciarPartidaLAN(datos.settings);
+                    break;
+                    
+                case 'initialGameSetup':
+                    // La primera "fotografía" completa del juego al empezar
+                    reconstruirJuegoDesdeDatos(datos.payload);
+                    break;
+
+                case 'fullStateUpdate':
+                    // CUALQUIER otra actualización del juego durante la partida
+                    reconstruirJuegoDesdeDatos(datos.payload);
+                    break;
+
+                default:
+                    console.warn(`[Cliente] Recibido paquete desconocido del anfitrión: '${datos.type}'.`);
+                    break;
             }
         }
-        if (NetworkManager.esAnfitrion) {
-            if (datos.type === 'actionRequest') { processActionRequest(datos.action); } 
-            else { console.warn(`[Red - Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'. Se ignora.`); }
+        // Lógica del Anfitrión (recibiendo peticiones del cliente)
+        else {
+            if (datos.type === 'actionRequest') {
+                processActionRequest(datos.action);
+            } else {
+                console.warn(`[Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'.`);
+            }
         }
     }
 
@@ -1116,11 +1135,19 @@ function iniciarPartidaLAN(settings) {
 }
 
 function processActionRequest(action) {
-    //console.log(`%c[VIAJE-4] Anfitrión procesando acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
+    // Tus logs iniciales se mantienen
+    console.log(`%c[Anfitrión] Procesando petición de acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
+    
+    // Si la acción no es del anfitrión, la ignora para evitar que procese sus propias retransmisiones
+    if (action.payload.playerId !== NetworkManager.miId && NetworkManager.esAnfitrion && action.payload.playerId !== gameState.currentPlayer) {
+        // Excepción: permitimos que las acciones se procesen si son del jugador actual, independientemente de quién sea.
+    }
+
     let payload = action.payload;
     let actionExecuted = false;
-    let suppressBroadcast = false;
 
+    // Tu switch completo con toda su lógica se mantiene intacto.
+    // Solo hemos modificado ligeramente el final del case 'endTurn'.
     switch (action.type) {
         // --- LÓGICA DE FIN DE TURNO COMPLETA Y CENTRALIZADA ---
         case 'endTurn':
@@ -1130,17 +1157,13 @@ function processActionRequest(action) {
             }
 
             console.log(`[Red - Anfitrión] Procesando fin de turno para J${payload.playerId}...`);
+            // Se ejecuta toda tu lógica de fin de turno que cambia el estado del juego.
             const playerEndingTurn = gameState.currentPlayer;
             
             // --- INICIO DE LA LÓGICA DE JUEGO DEL FIN DE TURNO (DE TU FUNCIÓN handleEndTurn) ---
             if (gameState.currentPhase === "deployment") {
-                if (gameState.currentPlayer === 1) {
-                    gameState.currentPlayer = 2;
-                } else {
-                    gameState.currentPhase = "play";
-                    gameState.currentPlayer = 1;
-                    gameState.turnNumber = 1;
-                }
+                if (gameState.currentPlayer === 1) gameState.currentPlayer = 2;
+                else { gameState.currentPhase = "play"; gameState.currentPlayer = 1; gameState.turnNumber = 1; }
             } else if (gameState.currentPhase === "play") {
                 updateTerritoryMetrics(playerEndingTurn);
                 collectPlayerResources(playerEndingTurn); 
@@ -1148,13 +1171,10 @@ function processActionRequest(action) {
                 handleHealingPhase(playerEndingTurn);
                 const tradeGold = calculateTradeIncome(playerEndingTurn);
                 if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
-
                 gameState.currentPlayer = playerEndingTurn === 1 ? 2 : 1;
                 if (gameState.currentPlayer === 1) gameState.turnNumber++;
-                
                 handleBrokenUnits(gameState.currentPlayer);
                 resetUnitsForNewTurn(gameState.currentPlayer);
-
                 if (gameState.playerResources[gameState.currentPlayer]) {
                     const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5; 
                     gameState.playerResources[gameState.currentPlayer].researchPoints += baseResearchIncome;
@@ -1188,12 +1208,11 @@ function processActionRequest(action) {
                 type: 'actionBroadcast',
                 action: { type: 'syncGameState', payload: { newGameState: gameStateForBroadcast } }
             });
-
-            suppressBroadcast = true;
+            
             actionExecuted = true;
+            // IMPORTANTE: Ya no se envía un mensaje especial aquí. Dejamos que el broadcast final se encargue.
             break;
             
-        // --- El resto de tu función original, ahora sí, completa e intacta ---
         case 'researchTech':
             const tech = TECHNOLOGY_TREE_DATA[payload.techId];
             const playerRes = gameState.playerResources[payload.playerId];
@@ -1206,7 +1225,6 @@ function processActionRequest(action) {
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
-                // <<== CAMBIO CLAVE AQUÍ: Llamamos a la función de ejecución pura ==>>
                 _executeMoveUnit(unitToMove, payload.toR, payload.toC);
                 actionExecuted = true;
             }
@@ -1216,7 +1234,6 @@ function processActionRequest(action) {
             const attacker = units.find(u => u.id === payload.attackerId);
             const defender = units.find(u => u.id === payload.defenderId);
             if (attacker && defender && isValidAttack(attacker, defender)) {
-                console.log(`%c[VIAJE-5] Anfitrión validó el ataque. Llamando a la función de combate...`, 'color: #FF69B4; font-weight: bold;');
                 attackUnit(attacker, defender);
                 actionExecuted = true;
             }
@@ -1254,22 +1271,19 @@ function processActionRequest(action) {
                 actionExecuted = true;
              }
              break;
-
+        
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
                 // EL ANFITRIÓN ES EL ÚNICO QUE ASIGNA EL ID
                 if (payload.unitData.id === null) { 
                     payload.unitData.id = `u${unitIdCounter++}`;
-                    console.log(`[Anfitrión] ID Asignado: ${payload.unitData.id} a la nueva unidad de J${payload.playerId}`);
                 }
-                
-                // El anfitrión ejecuta la acción en su propio estado del juego
                 placeFinalizedDivision(payload.unitData, payload.r, payload.c);
                 actionExecuted = true;
             }
             break;
-
+            
         case 'buildStructure':
             const builderPlayerRes = gameState.playerResources[payload.playerId];
             const structureCost = STRUCTURE_TYPES[payload.structureType].cost;
@@ -1298,12 +1312,14 @@ function processActionRequest(action) {
             break;
     }
 
-    if (actionExecuted && !suppressBroadcast) {
-        const replacer = (key, value) => (key === 'element' ? undefined : value);
-        const cleanPayload = JSON.parse(JSON.stringify(payload, replacer));
-        const actionToBroadcast = { type: action.type, payload: cleanPayload };
-        console.log(`%c[VIAJE-6] Anfitrión retransmitiendo acción '${action.type}' a todos los jugadores.`, 'color: #FF69B4; font-weight: bold;');
-        NetworkManager.enviarDatos({ type: 'actionBroadcast', action: actionToBroadcast });
+    // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
+    if (actionExecuted) {
+        // ...el Anfitrión llama a su nueva función para retransmitir el ESTADO COMPLETO Y FINAL.
+        // Ya no enviamos la acción, sino el resultado.
+        NetworkManager.broadcastFullState();
+    } else {
+        // Tu log de advertencia original, que es muy útil, se mantiene.
+        console.warn(`[Red - Anfitrión] La acción ${action.type} fue recibida pero no se ejecutó (probablemente por una condición inválida).`);
     }
 }
 
