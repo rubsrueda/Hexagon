@@ -251,9 +251,6 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
     mergeUnits(mergingUnit, targetUnit);
 }
 
-
-
-
 function placeFinalizedDivision(unitData, r, c) {
     if (!unitData) { console.error("[placeFinalizedDivision] Intento de colocar unidad con datos nulos."); return; }
     if (!unitData.id) unitData.id = `u${unitIdCounter++}`;
@@ -325,6 +322,10 @@ function splitUnit(originalUnit, targetR, targetC) {
         UIManager.updateUnitStrengthDisplay(originalUnit);
         UIManager.showUnitContextualInfo(originalUnit, true);
     }
+
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('unit_split');
+    }
     logMessage(`División completada.`);
     return true; 
 }
@@ -335,8 +336,6 @@ function recalculateUnitHealth(unit) {
     unit.currentHealth = newTotalHealth;
     if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
 }
-
-
 
 function mergeUnits(mergingUnit, targetUnit) {
     if (!mergingUnit || !targetUnit || mergingUnit.player !== targetUnit.player || mergingUnit.id === targetUnit.id) {
@@ -353,22 +352,30 @@ function mergeUnits(mergingUnit, targetUnit) {
         logMessage(`Límite de regimientos excedido.`, "warning");
         return false;
     }
-    if (window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`)) {
+
+    // <<== CORRECCIÓN: Comprobación para la IA, salta la confirmación ==>>
+    const isHumanPlayer = gameState.playerTypes[`player${mergingUnit.player}`] === 'human';
+    const confirmation = isHumanPlayer ? 
+        window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`) : 
+        true; // La IA siempre confirma
+
+    if (confirmation) {
+        if (gameState.isTutorialActive) {
+            TutorialManager.notifyActionCompleted('unit_merged');
+        }
         if (mergingUnit.commander && !targetUnit.commander) {
             targetUnit.commander = mergingUnit.commander;
         }
-        mergingUnit.regiments.forEach(reg => {
-            targetUnit.regiments.push(JSON.parse(JSON.stringify(reg)));
-        });
         const oldTargetHealth = targetUnit.currentHealth;
         mergingUnit.regiments.forEach(reg => targetUnit.regiments.push(reg));
 
         calculateRegimentStats(targetUnit);
+        // La salud se suma, sin exceder el nuevo máximo
         targetUnit.currentHealth = Math.min(oldTargetHealth + mergingUnit.currentHealth, targetUnit.maxHealth);
 
         handleUnitDestroyed(mergingUnit, null);
         
-        // <<== CORRECCIÓN CLAVE: El movimiento actual se recarga ==>>
+        // <<==El movimiento actual se recarga ==>>
         targetUnit.hasMoved = false;
         targetUnit.hasAttacked = false;
         targetUnit.currentMovement = targetUnit.movement; // Se recarga el movimiento de la nueva mega-unidad
@@ -377,6 +384,11 @@ function mergeUnits(mergingUnit, targetUnit) {
             UIManager.showUnitContextualInfo(targetUnit, true);
             UIManager.renderAllUnitsFromData();
         }
+
+        if (gameState.isTutorialActive) {
+            TutorialManager.notifyActionCompleted('unitHasMerge');
+        }
+
         logMessage(`Fusión completa.`, "success");
         return true;
     }
@@ -522,6 +534,19 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 
 function selectUnit(unit) {
     console.log(`[DEBUG selectUnit] INICIO - Intentando seleccionar: ${unit?.name || 'unidad nula'}`);
+
+    if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
+        const currentStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
+        // Comprobamos si el paso actual espera la selección de una unidad
+        if (currentStep && currentStep.actionCondition.toString().includes('unit_selected_by_objective')) {
+            // Comprobamos si la unidad seleccionada es la del objetivo
+            const targetCoords = currentStep.highlightHexCoords;
+            if (targetCoords && targetCoords[0].r === unit.r && targetCoords[0].c === unit.c) {
+                TutorialManager.notifyActionCompleted('unit_selected_by_objective');
+            }
+        }
+    }
+    
     if (!unit) {
         console.warn("[selectUnit] Intento de seleccionar unidad nula.");
         if (typeof deselectUnit === "function") deselectUnit();
@@ -830,7 +855,7 @@ async function moveUnit(unit, toR, toC) {
         renderSingleHexVisuals(fromR, fromC); 
         return;
     }
-    
+    if (gameState.isTutorialActive) gameState.tutorial.unitHasMoved = true;
     logMessage(`${unit.name} movida. Mov. restante: ${unit.currentMovement}.`);
     if (typeof positionUnitElement === "function") positionUnitElement(unit); 
     if (UIManager) {
@@ -904,9 +929,14 @@ function isValidAttack(attacker, defender) {
         // logMessage(`${attacker.name} no puede atacar a una unidad aliada.`);
         return false;
     }
-    if (gameState.currentPhase === 'play' && attacker.player === gameState.currentPlayer && attacker.hasAttacked) {
-        // logMessage(`${attacker.name} ya ha atacado este turno.`);
-        return false;
+
+    if (gameState.isTutorialActive && gameState.tutorial.force_attack_allowed) {
+        console.log("[TUTORIAL] 'force_attack_allowed' está activo. Saltando validación de 'hasAttacked'.");
+    } else {
+        // Esta es la comprobación normal para el resto del juego.
+        if (gameState.currentPhase === 'play' && attacker.player === gameState.currentPlayer && attacker.hasAttacked) {
+            return false;
+        }
     }
 
     // --- Depuración de Datos ---
@@ -950,6 +980,20 @@ function isValidAttack(attacker, defender) {
 async function attackUnit(attackerDivision, defenderDivision) {
     console.log(`%c[VIAJE-DESTINO FINAL] La función de combate 'attackUnit' ha sido ejecutada. Atacante: ${attackerDivision.name}, Defensor: ${defenderDivision.name}`, 'background: #222; color: #bada55; font-size: 1.2em; font-weight: bold;');
     // <<== NUEVA LLAMADA AL CRONISTA ==>>
+     if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
+        
+        // Primero, notificamos siempre que se ha completado un ataque (útil para el paso 8).
+        TutorialManager.notifyActionCompleted('attack_completed');
+        
+        // Ahora, una comprobación específica y segura para el paso 10.
+        // Si el paso actual del tutorial está esperando la condición "flank_attack_completed",
+        // entonces CUALQUIER ataque cumplirá la condición.
+        const currentTutorialStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
+        if (currentTutorialStep && currentTutorialStep.actionCondition && currentTutorialStep.actionCondition.toString().includes('flank_attack_completed')) {
+            TutorialManager.notifyActionCompleted('flank_attack_completed');
+        }
+    }
+        
     if (typeof Chronicle !== 'undefined') {
         Chronicle.logEvent('battle_start', { attacker: attackerDivision, defender: defenderDivision });
     }
@@ -1066,6 +1110,9 @@ async function attackUnit(attackerDivision, defenderDivision) {
 
         // 4. Aplicar resultados
         if (defenderDestroyed) {
+            if (gameState.isTutorialActive && defenderDivision.player === 2) {
+                    gameState.tutorial.enemyDefeated = true; // Flag para el tutorial
+                }
             // Se pasa el atacante original como vencedor
             handleUnitDestroyed(defenderDivision, attackerDivision);
         }
@@ -1707,6 +1754,13 @@ function handleUnitDestroyed(destroyedUnit, victorUnit) {
         return;
     }
 
+    if (window.TUTORIAL_MODE_ACTIVE === true && destroyedUnit.player === 2) {
+        console.warn("[TUTORIAL] Bloqueada la destrucción de la unidad ENEMIGA de práctica.");
+        // Aunque no la destruyamos, notificamos que el ataque que LLEVARÍA a la destrucción, ocurrió.
+        TutorialManager.notifyActionCompleted('flank_attack_completed');
+        return;
+    }
+
     // Determinar si es una destrucción por combate o por otras causas (fusión, rendición)
     const isCombatDestruction = victorUnit && victorUnit.player !== destroyedUnit.player;
 
@@ -1714,6 +1768,11 @@ function handleUnitDestroyed(destroyedUnit, victorUnit) {
     
     if (isCombatDestruction) {
         logMessage(`¡${destroyedUnit.name} ha sido destruida por ${victorUnit.name}!`);
+
+        if (gameState.isTutorialActive && destroyedUnit.player === 2) {
+             // Notifica que un enemigo (jugador 2 en el tutorial) ha sido derrotado
+             TutorialManager.notifyActionCompleted('enemy_defeated');
+        }
 
         if (typeof Chronicle !== 'undefined') {
             Chronicle.logEvent('unit_destroyed', { destroyedUnit, victorUnit });
@@ -2039,6 +2098,10 @@ function _executePillageAction(pillagerUnit) {
     pillagerUnit.hasAttacked = true;
     pillagerUnit.hasMoved = true; 
 
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('pillage_completed');
+    }
+
     logMessage(`¡Saqueo exitoso! Obtienes ${goldGained} de oro. El territorio pierde estabilidad.`);
 
     // Actualizar la UI
@@ -2335,6 +2398,10 @@ async function _executeMoveUnit(unit, toR, toC, isMergeMove = false) {
         Chronicle.logEvent('move', { unit: unit, toR: toR, toC: toC });
     }
 
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('unit_moved');
+    }
+
     // --- Lógica de consumir bonificación (sin cambios) ---
     if (targetHexData.destroyedUnitBonus && targetHexData.destroyedUnitBonus.claimedBy === null) {
         const bonus = targetHexData.destroyedUnitBonus;
@@ -2519,6 +2586,9 @@ function consolidateRegiments(unit) {
     unit.hasAttacked = true;
 
     // 5. Feedback al jugador y actualización de la UI
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('consolidation_completed');
+    }
     Chronicle.logEvent('consolidate', { unit }); // (Opcional, si quieres añadirlo a la Crónica)
     logMessage(`La división "${unit.name}" ha reorganizado sus fuerzas.`, "success");
     UIManager.updateUnitStrengthDisplay(unit);

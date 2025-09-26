@@ -26,7 +26,9 @@ function showScreen(screenToShow) {
         domElements.lanLobbyScreen,  // Mantenemos el antiguo por si acaso.
         domElements.worldMapScreenEl, 
         domElements.gameContainer, 
-        domElements.scenarioBriefingModalEl
+        domElements.scenarioBriefingModalEl,
+        domElements.inboxModal, 
+        domElements.deseosModal
     ];
 
     // Ocultamos todas las pantallas de la lista.
@@ -81,25 +83,27 @@ function setupMainMenuListeners() { // Esta función será llamada por main.js -
 
     domElements.startCampaignBtnEl.addEventListener('click', initializeCampaignMode);
     domElements.startSkirmishBtnEl.addEventListener('click', () => showScreen(domElements.setupScreen)); 
+        
     domElements.startTutorialBtn.addEventListener('click', () => {
-        if (typeof resetAndSetupTacticalGame === "function") {
-            const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
-            const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
-            if (tutorialScenario && tutorialMap) {
-                resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial"); 
-                showScreen(domElements.gameContainer); 
-                if (typeof UIManager !== 'undefined' && UIManager.updateAllUIDisplays) {
-                    UIManager.updateAllUIDisplays();
-                } else {
-                    console.warn("UIManager.updateAllUIDisplays no disponible en campaignManager para el tutorial.");
-                }
-            } else {
-                console.error("TutorialManager: Datos de escenario/mapa de tutorial no encontrados.");
-                if (typeof logMessage === "function") logMessage("Error: Datos del tutorial no cargados.");
-            }
-        } else {
-            console.error("TutorialManager: La función resetAndSetupTacticalGame no está definida.");
-        }
+        // 1. Carga el mapa y el estado base del juego
+        const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
+        const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
+        
+        // <<== MODIFICACIÓN: Llamamos a resetAndSetupTacticalGame primero ==>>
+        resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+        
+        // 2. Muestra la pantalla del juego
+        showScreen(domElements.gameContainer);
+        
+        // <<== MODIFICACIÓN: Inicializamos el estado del tutorial DESPUÉS ==>>
+        // Esto asegura que la fase se establece correctamente.
+        initializeTutorialState(); 
+        
+        // 3. Forzamos el estado inicial a 'deployment' para los primeros pasos.
+        gameState.currentPhase = "deployment";
+        
+        // 4. Inicia la secuencia del tutorial
+        TutorialManager.start(TUTORIAL_SCRIPTS.completo);
     });
     domElements.backToMainMenuBtn_fromCampaign.addEventListener('click', () => showScreen(domElements.mainMenuScreenEl)); 
     domElements.backToMainMenuBtn_fromSetup.addEventListener('click', () => showScreen(domElements.mainMenuScreenEl)); 

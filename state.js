@@ -149,6 +149,7 @@ async function resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaign
             player2: scenarioData.enemySetup.aiProfile || "ai_normal"
         },
         currentPlayer: 1,
+        eliminatedPlayers: [],
         turnNumber: 0,
         playerResources: {
             1: initialP1Resources,

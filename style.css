@@ -725,8 +725,9 @@ html, body {
 #floatingUndoMoveBtn       { bottom: 280px; left: 20px; }
 #floatingConsolidateBtn    { bottom: 320px; left: 20px; display: none; } 
 #floatingAssignGeneralBtn  { bottom: 380px; left: 20px; display: none;}
-#floatingNextUnitBtn       { bottom: 32px; left: 20px; display: none; }
+#floatingNextUnitBtn       { bottom: 440px; left: 20px; display: none; }
 #floatingManageBtn         { bottom: 320px; left: 20px; display: none; }
+#floatingInboxBtn          { bottom: 400px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; padding: 0; display: flex; justify-content: center; align-items: center; }
 
 /* --- Estados Deshabilitados --- */
 .floating-btn:disabled, #floatingUndoMoveBtn:disabled, #floatingReinforceBtn:disabled, #floatingSplitBtn:disabled, #floatingBuildBtn:disabled {
@@ -1127,6 +1128,25 @@ html, body {
 #lan-player-list { list-style: none; padding-left: 10px; }
 #lan-start-game-btn { display: block; margin: 15px auto 0; width: 60%; padding: 12px; background-color: #28a745; }
 
+
+
+/* Modal: Gachas */
+#gachaResultList li {
+    padding: 8px;
+    border-bottom: 1px solid #ced4da;
+    font-size: 1.1em;
+}
+
+    #gachaResultList li:last-child {
+        border-bottom: none;
+    }
+
+    /* Colores por rareza en los resultados */
+    .rarity-COMUN { color: #6c757d; }
+    .rarity-RARO { color: #007bff; font-weight: bold; }
+    .rarity-EPICO { color: #8a2be2; font-weight: bold; }
+    .rarity-LEGENDARIO { color: #ffc107; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+
 /* ========================================================================== */
 /* 8. ANIMACIONES (@keyframes)
 /* ========================================================================== */
@@ -1169,6 +1189,51 @@ html, body {
 .hex.highlight-debug { background-color: cyan !important; border: 2px dashed red !important; z-index: 998; }
 .tutorial-highlight { box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlight 1.5s infinite alternate ease-in-out; z-index: 2002 !important; position: relative; }
 .hex.tutorial-highlight-hex { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlightHex 1.5s infinite alternate ease-in-out; z-index: 100 !important; }
+
+/* Estilo para el panel de mensajes del tutorial */
+.tutorial-panel {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    background-color: rgba(26, 32, 44, 0.95);
+    color: #edf2f7;
+    padding: 15px 25px;
+    border-radius: 8px;
+    border: 2px solid #f6e05e;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+    max-width: 600px;
+    text-align: center;
+    font-size: 1.1em;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+/* El efecto de brillo para resaltar un elemento de la UI */
+.tutorial-highlight {
+    box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
+    animation: pulseHighlight 1.5s infinite alternate ease-in-out;
+    z-index: 2002 !important;
+    position: relative; /* Necesario para que el z-index funcione correctamente */
+}
+
+/* El efecto de brillo para resaltar un hexágono en el mapa */
+.hex.tutorial-highlight-hex {
+    box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
+    animation: pulseHighlightHex 1.5s infinite alternate ease-in-out;
+    z-index: 100 !important;
+}
+
+@keyframes pulseHighlight {
+    from { transform: scale(1); }
+    to { transform: scale(1.03); }
+}
+
+@keyframes pulseHighlightHex {
+    from { filter: brightness(1.2); }
+    to { filter: brightness(1.5); }
+}
 
 /* ========================================================================== */
 /* 10. MEDIA QUERIES (Diseño Adaptable)
@@ -1222,6 +1287,24 @@ html, body {
         transform: translateY(-80px) scale(0.8);
         opacity: 0;
     }
+}
+
+
+/*
+   REGLA 1: Le dice a la "lámina de cristal" del menú que ignore los clics del ratón.
+   Ahora los clics pasarán a través de ella como si no existiera.
+*/
+#mainMenuScreen.modal {
+    pointer-events: none;
+}
+
+/*
+   REGLA 2: Le dice a la caja de contenido (que tiene los botones como "Cuartel")
+   que SÍ debe aceptar clics. Esto "reactiva" la capacidad de hacer clic
+   solo para esa área.
+*/
+#mainMenuScreen .modal-content {
+    pointer-events: auto;
 }
 
 /* ========================================================================== */

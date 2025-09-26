@@ -92,7 +92,8 @@ const PlayerDataManager = {
                 passwordHash: this._hash(password)
             },
             stats: { battlesWon: 0, battlesLost: 0, campaignsCompleted: 0 },
-            currencies: { gold: 500, gems: 100, edicts: 10, influence: 0 },
+            // (MODIFICADO) Añadimos la nueva moneda
+            currencies: { gold: 500, gems: 100, edicts: 10, influence: 0, sellos_guerra: 10 },
             heroes: [{ 
                 id: "g_fabius", 
                 level: 1, 
@@ -102,7 +103,12 @@ const PlayerDataManager = {
                 skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 }, 
                 skill_points_unspent: 0 
             }],
-            inventory: { xp_books: 10, ascension_materials: {} }
+            inventory: { xp_books: 10, ascension_materials: {} },
+            // (NUEVO) Añadimos el objeto para rastrear el pity system del gacha
+            gacha_state: {
+                pulls_since_last_legendary: 0,
+                pulls_since_last_epic: 0
+            }
         };
     },
 
@@ -111,26 +117,34 @@ const PlayerDataManager = {
 
         let heroInstance = this.currentPlayer.heroes.find(h => h.id === heroId);
         
-        // Si el jugador no tiene ni una instancia del héroe (ni siquiera "bloqueada")
+        // Si el jugador no tiene al héroe en absoluto.
         if (!heroInstance) {
             console.log(`Creando nueva entrada para fragmentos de un héroe no poseído: ${heroId}`);
-            heroInstance = {
+            // Creamos una NUEVA variable para el nuevo objeto, NO redeclaramos la anterior.
+            const newHero = {
                 id: heroId,
-                level: 0,       // Nivel 0 indica que no está "activo"
+                level: 0,
                 xp: 0,
-                stars: 0,       // Estrellas 0 indica que está bloqueado
-                fragments: 0,
+                stars: 0,
+                fragments: 0, 
                 skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 },
                 skill_points_unspent: 0
             };
-            this.currentPlayer.heroes.push(heroInstance);
+            this.currentPlayer.heroes.push(newHero);
+            // Ahora asignamos la nueva instancia a nuestra variable principal.
+            heroInstance = newHero; 
         }
-
+        
+        // Garantizamos que la propiedad 'fragments' existe.
+        if (typeof heroInstance.fragments === 'undefined' || heroInstance.fragments === null) {
+            heroInstance.fragments = 0;
+        }
+        
+        // Ahora, podemos sumar los fragmentos de forma segura.
         heroInstance.fragments += amount;
         logMessage(`Has obtenido ${amount} fragmentos de ${COMMANDERS[heroId].name}. Total: ${heroInstance.fragments}.`);
         
-        // Aquí se podría añadir la lógica para "desbloquear" al héroe si alcanza los fragmentos necesarios.
-        // Lo dejaremos para la Fase 2 para mantener los pasos claros.
+        this.saveCurrentPlayer();
     },
 
     useXpBook: function(heroId) {
@@ -232,5 +246,34 @@ const PlayerDataManager = {
 
     getCurrentPlayer: function() {
         return this.currentPlayer;
-    }
+    }, 
+
+    /**
+     * Añade Sellos de Guerra al inventario del jugador actual.
+     * @param {number} amount - La cantidad de sellos a añadir.
+     */
+    addWarSeals: function(amount) {
+        if (!this.currentPlayer) return;
+        this.currentPlayer.currencies.sellos_guerra = (this.currentPlayer.currencies.sellos_guerra || 0) + amount;
+        logMessage(`Has obtenido ${amount} Sellos de Guerra. Total: ${this.currentPlayer.currencies.sellos_guerra}.`, "success");
+        this.saveCurrentPlayer();
+    },
+
+    /**
+     * Gasta Sellos de Guerra, validando si el jugador tiene suficientes.
+     * @param {number} amount - La cantidad a gastar.
+     * @returns {boolean} True si se pudieron gastar, false en caso contrario.
+     */
+    spendWarSeals: function(amount) {
+        if (!this.currentPlayer) return false;
+        if ((this.currentPlayer.currencies.sellos_guerra || 0) < amount) {
+            logMessage("No tienes suficientes Sellos de Guerra.", "warning");
+            return false;
+        }
+        this.currentPlayer.currencies.sellos_guerra -= amount;
+        this.saveCurrentPlayer();
+        return true;
+    },
+
 };
+

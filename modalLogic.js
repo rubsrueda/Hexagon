@@ -104,7 +104,7 @@ function addModalEventListeners() {
     });
 
     window.addEventListener('click', (event) => {
-        if (event.target.matches('.modal')) {
+        if (event.target.matches('.modal') && !event.target.classList.contains('no-close-on-click')) {
             event.target.style.display = 'none';
             if (event.target.id === 'advancedSplitUnitModal' || event.target.id === 'createDivisionModal' || event.target.id === 'buildStructureModal') {
                 if (typeof cancelPreparingAction === "function") cancelPreparingAction();
@@ -958,6 +958,9 @@ function handleFinalizeSplit() {
         UIManager.highlightPossibleSplitHexes(_unitBeingSplit);
     } 
     if (typeof logMessage === "function") logMessage(`Haz clic en un hex adyacente para colocar la nueva unidad.`);
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('unit_split');
+    }
     
     _unitBeingSplit = null;
     _tempOriginalRegiments = [];
@@ -1166,6 +1169,13 @@ function handleReinforceRegiment(division, regiment) {
 
     // Usamos el `confirm` de siempre para la interacción
     if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+
+        if (gameState.isTutorialActive) {
+            // Usamos el nombre de la bandera que espera el paso 23 del guion
+            TutorialManager.notifyActionCompleted('unitReinforced'); 
+        }
+        
+        if (gameState.isTutorialActive) gameState.tutorial.unitReinforced = true;
         playerRes.oro -= totalCost;
         regiment.health = regData.health; // Restaurar salud del regimiento
         
@@ -1247,8 +1257,8 @@ function populateWikiRegimentsTab() {
     const table = document.getElementById('wikiRegimentsTable');
     if (!table) return;
 
-    // 1. Añadimos una nueva cabecera de columna para las limitaciones.
-    let html = `
+    // 1. Limpiar tabla y crear cabecera
+    table.innerHTML = `
         <thead>
             <tr>
                 <th>Icono</th>
@@ -1260,66 +1270,72 @@ function populateWikiRegimentsTab() {
                 <th>Salud</th>
                 <th>Mov.</th>
                 <th>Rango</th>
-                <th>Limitaciones Terreno</th> 
+                <th>Limitaciones Terreno</th>
             </tr>
         </thead>
-        <tbody>
     `;
+    const tbody = document.createElement('tbody');
 
-    // Función auxiliar para puntuar con estrellas
-    const getStars = (value, max, higherIsBetter = true) => {
+    // Funciones auxiliares (se mantienen igual)
+    const getStars = (value, max) => {
         const score = (value / max) * 5;
         const fullStars = Math.floor(score);
         let stars = '⭐'.repeat(fullStars);
-        if (score - fullStars > 0.5) stars += '✨'; // Media estrella
+        if (score - fullStars > 0.5) stars += '✨';
         return `<span class="wiki-stars" title="${value}">${stars}</span>`;
     };
-
-    // Obtenemos los valores máximos para normalizar la puntuación de estrellas
     const maxAttack = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.attack));
     const maxDefense = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.defense));
     const maxHealth = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.health));
     const maxMovement = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.movement));
     const maxRange = Math.max(...Object.values(REGIMENT_TYPES).map(r => r.attackRange));
 
+    // 2. Iterar y construir filas y celdas
     for (const type in REGIMENT_TYPES) {
         const reg = REGIMENT_TYPES[type];
+        const tr = tbody.insertRow(); // Crear una nueva fila
 
-        // 2. Lógica para obtener las limitaciones de terreno
+        // Celda de Icono (con la lógica corregida)
+        const iconCell = tr.insertCell();
+        iconCell.className = 'wiki-regiment-icon';
+        const spriteValue = reg.sprite;
+        if (spriteValue.includes('.png') || spriteValue.includes('.jpg')) {
+            const img = document.createElement('img');
+            img.src = spriteValue;
+            img.style.width = '24px';
+            img.style.height = '24px';
+            img.style.verticalAlign = 'middle';
+            iconCell.appendChild(img);
+        } else {
+            iconCell.textContent = spriteValue;
+        }
+
+        // Celdas de texto
+        tr.insertCell().textContent = type;
+        tr.insertCell().textContent = `${reg.cost.oro || 0} Oro, ${reg.cost.puntosReclutamiento || 0} PR`;
+        tr.insertCell().textContent = `${reg.cost.upkeep || 0} Oro`;
+        tr.insertCell().innerHTML = getStars(reg.attack, maxAttack);
+        tr.insertCell().innerHTML = getStars(reg.defense, maxDefense);
+        tr.insertCell().innerHTML = getStars(reg.health, maxHealth);
+        tr.insertCell().innerHTML = getStars(reg.movement, maxMovement);
+        tr.insertCell().innerHTML = getStars(reg.attackRange, maxRange);
+
+        // Celda de Limitaciones (lógica sin cambios)
         let limitationsStr = 'Ninguna';
-        if (reg.category && !reg.is_naval) { // Las unidades navales tienen su propia lógica
+        if (reg.category && !reg.is_naval) {
             const categoryLimitations = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY[reg.category] || [];
             const allLandLimitations = IMPASSABLE_TERRAIN_BY_UNIT_CATEGORY.all_land || [];
-            const allLimitations = [...new Set([...allLandLimitations, ...categoryLimitations])]; // Combinar y eliminar duplicados
-
+            const allLimitations = [...new Set([...allLandLimitations, ...categoryLimitations])];
             if (allLimitations.length > 0) {
-                limitationsStr = allLimitations
-                    .map(terrainKey => TERRAIN_TYPES[terrainKey]?.name || terrainKey) // Usar nombres amigables (ej. "Bosque")
-                    .join(', ');
+                limitationsStr = allLimitations.map(t => TERRAIN_TYPES[t]?.name || t).join(', ');
             }
         } else if (reg.is_naval) {
             limitationsStr = "Solo Agua";
         }
-        
-        // 3. Añadimos la nueva celda <td> a la fila.
-        html += `
-            <tr>
-                <td class="wiki-regiment-icon">${reg.sprite}</td>
-                <td>${type}</td>
-                <td>${reg.cost.oro || 0} Oro, ${reg.cost.puntosReclutamiento || 0} PR</td>
-                <td>${reg.cost.upkeep || 0} Oro</td>
-                <td>${getStars(reg.attack, maxAttack)}</td>
-                <td>${getStars(reg.defense, maxDefense)}</td>
-                <td>${getStars(reg.health, maxHealth)}</td>
-                <td>${getStars(reg.movement, maxMovement)}</td>
-                <td>${getStars(reg.attackRange, maxRange)}</td>
-                <td>${limitationsStr}</td> 
-            </tr>
-        `;
+        tr.insertCell().textContent = limitationsStr;
     }
 
-    html += `</tbody>`;
-    table.innerHTML = html;
+    table.appendChild(tbody);
 }
 
 /**
@@ -1330,8 +1346,8 @@ function populateWikiStructuresTab() {
     const incomeTable = document.getElementById('wikiIncomeTable');
     if (!structuresTable || !incomeTable) return;
 
-    // Rellenar tabla de estructuras
-    let sHtml = `
+    // --- Tabla de Estructuras (con la corrección) ---
+    structuresTable.innerHTML = `
         <thead>
             <tr>
                 <th>Icono</th>
@@ -1340,25 +1356,39 @@ function populateWikiStructuresTab() {
                 <th>Efectos</th>
             </tr>
         </thead>
-        <tbody>
     `;
+    const sTbody = document.createElement('tbody');
     for(const type in STRUCTURE_TYPES){
         const s = STRUCTURE_TYPES[type];
-        const costStr = Object.entries(s.cost).map(([res, val]) => `${val} ${res}`).join(', ');
-        sHtml += `
-            <tr>
-                <td class="wiki-regiment-icon">${s.sprite}</td>
-                <td>${s.name}</td>
-                <td>${costStr}</td>
-                <td>${s.defenseBonus ? `+${s.defenseBonus} Defensa. ` : ''}${s.allowsRecruitment ? 'Permite reclutar. ' : ''}</td>
-            </tr>
-        `;
-    }
-    sHtml += `</tbody>`;
-    structuresTable.innerHTML = sHtml;
+        const sTr = sTbody.insertRow();
+        
+        // Celda de Icono (con la lógica corregida)
+        const sIconCell = sTr.insertCell();
+        sIconCell.className = 'wiki-regiment-icon';
+        const spriteValue = s.sprite;
+        if (spriteValue.includes('.png') || spriteValue.includes('.jpg')) {
+            const img = document.createElement('img');
+            img.src = spriteValue;
+            img.style.width = '24px';
+            img.style.height = '24px';
+            img.style.verticalAlign = 'middle';
+            sIconCell.appendChild(img);
+        } else {
+            sIconCell.textContent = spriteValue;
+        }
 
-    // Rellenar tabla de ingresos
-    let iHtml = `
+        // Celdas de texto
+        sTr.insertCell().textContent = s.name;
+        const costStr = Object.entries(s.cost).map(([res, val]) => `${val} ${res}`).join(', ');
+        sTr.insertCell().textContent = costStr;
+        let effectsStr = (s.defenseBonus ? `+${s.defenseBonus} Defensa. ` : '') +
+                         (s.allowsRecruitment ? 'Permite reclutar. ' : '');
+        sTr.insertCell().textContent = effectsStr;
+    }
+    structuresTable.appendChild(sTbody);
+
+    // --- Tabla de Ingresos (sin cambios, ya era segura) ---
+    incomeTable.innerHTML = `
         <thead>
             <tr>
                 <th>Fuente</th>
@@ -1373,7 +1403,6 @@ function populateWikiStructuresTab() {
             <tr><td>Capital</td><td>${GOLD_INCOME.PER_CAPITAL}</td></tr>
         </tbody>
     `;
-    incomeTable.innerHTML = iHtml;
 }
 
 /**
@@ -1776,6 +1805,11 @@ function assignHeroToUnit(unit, commanderId) {
     playerActiveCommanders.push(commanderId);
     
     unit.commander = commanderId;
+
+    if (gameState.isTutorialActive) {
+        // Usamos la bandera que el guion está esperando
+        TutorialManager.notifyActionCompleted('hero_assigned'); 
+    }
     
     Chronicle.logEvent('commander_assigned', { unit, commander: COMMANDERS[commanderId] }); // (Opcional, para la crónica)
     logMessage(`¡El general ${COMMANDERS[commanderId].name} ha tomado el mando de la división "${unit.name}"!`);
@@ -1785,3 +1819,90 @@ function assignHeroToUnit(unit, commanderId) {
     UIManager.showUnitContextualInfo(unit, true);
     UIManager.renderAllUnitsFromData();
 }
+
+// AÑADIR ESTE BLOQUE AL FINAL DE modalLogic.js
+
+/**
+ * Abre el modal del "Altar de los Deseos" y actualiza los datos.
+ */
+function openDeseosModal() {
+    const modal = document.getElementById('deseosModal');
+    if (!modal || !PlayerDataManager.currentPlayer) return;
+
+    // Actualizar el contador de sellos
+    document.getElementById('sellosCount').textContent = PlayerDataManager.currentPlayer.currencies.sellos_guerra || 0;
+    
+    // Ocultar resultados de tiradas anteriores al abrir
+    document.getElementById('gachaResultContainer').style.display = 'none';
+
+    // Llama a la función centralizada para mostrar la pantalla
+    showScreen(modal);
+}
+
+/**
+ * Muestra los resultados de una tirada de gacha en el modal.
+ * @param {Array<object>} results - El array de objetos de resultado devuelto por GachaManager.
+ */
+function showGachaResults(results) {
+    const resultContainer = document.getElementById('gachaResultContainer');
+    const resultList = document.getElementById('gachaResultList');
+    if (!resultContainer || !resultList) return;
+    
+    resultList.innerHTML = ''; // Limpiar resultados anteriores
+    
+    // Animar la aparición de cada resultado
+    results.forEach((res, index) => {
+        setTimeout(() => {
+            const heroData = COMMANDERS[res.heroId];
+            const li = document.createElement('li');
+
+            // Añadir clase de rareza para el color del CSS
+            const rarityKey = res.rarity.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            li.classList.add(`rarity-${rarityKey}`);
+
+            li.innerHTML = `Has obtenido <strong>${res.fragments} fragmentos</strong> de [${res.rarity}] ${heroData.sprite} ${heroData.name}`;
+            
+            // Animación simple de entrada
+            li.style.opacity = '0';
+            li.style.transition = 'opacity 0.3s ease-in-out';
+            resultList.appendChild(li);
+            requestAnimationFrame(() => li.style.opacity = '1');
+            
+        }, index * 100); // Aparece un resultado cada 100ms
+    });
+
+    resultContainer.style.display = 'block';
+
+    // Actualizar el contador de sellos en la UI después de haberlos gastado.
+    document.getElementById('sellosCount').textContent = PlayerDataManager.currentPlayer.currencies.sellos_guerra || 0;
+}
+
+/**
+ * Escucha eventos del DOM relacionados con el modal del gacha.
+ * Se debe llamar una vez al iniciar la aplicación.
+ */
+function setupGachaModalListeners() {
+    const openBtn = document.getElementById('openDeseosBtn');
+    const closeBtn = document.getElementById('closeDeseosBtn');
+    const wishOnceBtn = document.getElementById('wishOnceBtn');
+    const wishTenTimesBtn = document.getElementById('wishTenTimesBtn');
+
+    if (openBtn) openBtn.addEventListener('click', openDeseosModal);
+    
+    if (closeBtn) closeBtn.addEventListener('click', () => {
+        document.getElementById('deseosModal').style.display = 'none';
+    });
+    
+    if (wishOnceBtn) wishOnceBtn.addEventListener('click', () => {
+        const activeBannerId = document.querySelector('.banner.active').dataset.bannerId;
+        GachaManager.executeWish(activeBannerId, 1);
+    });
+    
+    if (wishTenTimesBtn) wishTenTimesBtn.addEventListener('click', () => {
+        const activeBannerId = document.querySelector('.banner.active').dataset.bannerId;
+        GachaManager.executeWish(activeBannerId, 10);
+    });
+}
+
+// Asegurarse de que los listeners se configuran cuando el DOM está listo
+document.addEventListener('DOMContentLoaded', setupGachaModalListeners);

@@ -44,9 +44,9 @@ domElements.expandPanelBtn = null;
 // NUEVO: Botones de la pantalla de configuración y lobby
 domElements.startLocalGameBtn = null;
 domElements.createNetworkGameBtn = null;
-domElements.joinNetworkGameBtn = null; // En el menú principal
-domElements.hostLobbyScreen = null; // Nueva pantalla de lobby
-domElements.barracksModal  = null; // Nueva pantalla de cuartel
+domElements.joinNetworkGameBtn = null;
+domElements.hostLobbyScreen = null;
+domElements.barracksModal  = null;
 domElements.shortGameCodeEl = null;
 domElements.hostStatusEl = null;
 domElements.hostPlayerListEl = null;
@@ -62,8 +62,6 @@ domElements.loginErrorMessage = null;
 domElements.currentGeneralName = null;
 domElements.player2NameDiv = null;  
 domElements.player2NameInput = null; 
-domElements.player2NameDiv = null;
-domElements.player2NameInput = null;
 domElements.importProfileInput = null;
 domElements.exportProfileBtn_float = null;
 domElements.startIberiaMagnaBtn = null;
@@ -78,33 +76,27 @@ domElements.resourceLevelSelect = null;
 domElements.initialUnitsCountSelect = null;
 domElements.backToMainMenuBtn_fromSetup = null;
 domElements.boardSizeSelect = null;
-
 domElements.worldMapImageEl = null;
 domElements.territoryMarkerContainerEl = null;
 domElements.campaignMessagesEl = null;
 domElements.backToMainMenuBtn_fromCampaign = null;
-
 domElements.scenarioBriefingModalEl = null;
 domElements.scenarioTitleEl = null; 
 domElements.scenarioImageEl = null; 
 domElements.scenarioDescriptionEl = null;
 domElements.startScenarioBattleBtnEl = null;
 domElements.closeScenarioBriefingBtnEl = null;
-
 domElements.gameBoard = null;
 domElements.floatingMenuBtn = null;
 domElements.floatingEndTurnBtn = null;
 domElements.floatingMenuPanel = null;
-
 domElements.contextualInfoPanel = null;
 domElements.closeContextualPanelBtn = null;
 domElements.gameMessagesMobile = null; 
-
 domElements.floatingCreateDivisionBtn = null;
 domElements.floatingTechTreeBtn = null;
 domElements.closeTechTreeBtn = null; 
 domElements.floatingConsoleBtn = null; 
-
 domElements.createDivisionModal = null;
 domElements.divisionNameInput = null;
 domElements.availableRegimentsListEl = null;
@@ -112,18 +104,15 @@ domElements.currentDivisionRegimentsListEl = null;
 domElements.totalDivisionCostDisplay = null;
 domElements.totalDivisionStatsDisplay = null;
 domElements.finalizeCreateDivisionBtn = null; 
-
 domElements.floatingManageBtn = null;
 domElements.unitDetailModal = null;
 domElements.closeUnitDetailModalBtn = null;
 domElements.unitDetailTitle = null;
 domElements.unitDetailRegimentList = null;
-
 domElements.buildStructureModal = null;
 domElements.buildHexCoordsDisplay = null;
 domElements.availableStructuresListModalEl = null;
 domElements.confirmBuildBtn = null; 
-
 domElements.splitUnitConfirmationModal = null; 
 domElements.splitUnitNameDisplay_simple = null;
 domElements.splitUnitCurrentRegiments_simple = null;
@@ -133,7 +122,6 @@ domElements.splitOriginalUnitRemainingRegiments_simple = null;
 domElements.confirmSplitBtn_simple = null; 
 domElements.cancelSplitBtn_simple = null; 
 domElements.closeSplitConfirmationBtn_simple = null; 
-
 domElements.advancedSplitUnitModal = null;
 domElements.closeAdvancedSplitModalBtn = null;
 domElements.advancedSplitUnitNameDisplay = null;
@@ -147,7 +135,6 @@ domElements.newUnitPreviewHealth = null;
 domElements.newUnitRegimentsList = null;
 domElements.finalizeAdvancedSplitBtn = null; 
 domElements.cancelAdvancedSplitBtn = null; 
-
 domElements.floatingAssignGeneralBtn = null;
 domElements.floatingUndoMoveBtn = null;
 domElements.floatingNextUnitBtn = null;
@@ -155,14 +142,11 @@ domElements.floatingConsolidateBtn = null;
 domElements.floatingReinforceBtn = null;
 domElements.floatingSplitBtn = null;
 domElements.floatingBuildBtn = null;
-
 domElements.createDivisionBtn = null; 
 domElements.endTurnBtn = null;
 domElements.saveGameBtn = null;
 domElements.loadGameInput = null;
-
 domElements.messagesDisplay = null;
-
 domElements.closeWelcomeHelpBtn = null; 
 domElements.welcomeHelpTitleEl = null;
 domElements.welcomeHelpSectionsEl = null;
@@ -173,18 +157,21 @@ domElements.setAsCapitalBtn = null;
 domElements.player1Civ = null;
 domElements.player2Civ = null;
 
+domElements.floatingInboxBtn = null;
+domElements.inboxModal = null;
+
 // Nuevas propiedades para el modal de detalles de unidad rediseñado
-    domElements.unitDetailTotalHealthBar = null;
-    domElements.unitDetailTotalHealthText = null;
-    domElements.unitDetailCombatStats = null;
-    domElements.unitDetailMovementStats = null;
-    domElements.unitDetailVisionStats = null;
-    domElements.unitDetailMorale = null;
-    domElements.unitDetailXP = null;
-    domElements.disbandUnitBtn = null;
-    domElements.floatingWikiBtn = null;
-    domElements.wikiModal = null;
-    domElements.closeWikiModalBtn = null;
+domElements.unitDetailTotalHealthBar = null;
+domElements.unitDetailTotalHealthText = null;
+domElements.unitDetailCombatStats = null;
+domElements.unitDetailMovementStats = null;
+domElements.unitDetailVisionStats = null;
+domElements.unitDetailMorale = null;
+domElements.unitDetailXP = null;
+domElements.disbandUnitBtn = null;
+domElements.floatingWikiBtn = null;
+domElements.wikiModal = null;
+domElements.closeWikiModalBtn = null;
 
 // Variables para el control de Zoom
 domElements.isPinching = false;
@@ -193,6 +180,7 @@ domElements.currentBoardScale = 1;
 
 // Elementos para el Lobby LAN (Antiguos eliminados o re-purposed, esta es la lista limpia)
 domElements.skirmishOptionsContainer = null;
+domElements.techTreeScreen = null;
 
 function initializeDomElements() {
     if (domElements.domElementsInitialized) return;
@@ -224,12 +212,8 @@ function initializeDomElements() {
     domElements.doNotShowAgainCheckbox = document.getElementById('doNotShowAgainCheckbox');
     domElements.startGameFromHelpBtn = document.getElementById('startGameFromHelpBtn');
     domElements.setAsCapitalBtn = document.getElementById('setAsCapitalBtn');
-
     domElements.floatingTechTreeBtn = document.getElementById('floatingTechTreeBtn');
-    
     domElements.closeTechTreeBtn = document.getElementById('closeTechTreeBtn');
-
-
     domElements.loginScreen = document.getElementById('loginScreen');
     domElements.usernameInput = document.getElementById('usernameInput');
     domElements.passwordInput = document.getElementById('passwordInput');
@@ -239,39 +223,32 @@ function initializeDomElements() {
     domElements.currentGeneralName = document.getElementById('currentGeneralName');
     domElements.player2NameDiv = document.getElementById('player2NameDiv');        
     domElements.player2NameInput = document.getElementById('player2NameInput');   
-    domElements.player2NameDiv = document.getElementById('player2NameDiv');
-    domElements.player2NameInput = document.getElementById('player2NameInput'); 
     domElements.importProfileInput = document.getElementById('importProfileInput');
     domElements.exportProfileBtn_float = document.getElementById('exportProfileBtn_float');
     domElements.startIberiaMagnaBtn = document.getElementById('startIberiaMagnaBtn');
-    
     domElements.floatingConsoleBtn = document.getElementById('floatingConsoleBtn'); 
     domElements.mainMenuScreenEl = document.getElementById('mainMenuScreen');
     domElements.setupScreen = document.getElementById('setupScreen');
     domElements.worldMapScreenEl = document.getElementById('worldMapScreen');
-    domElements.gameContainer = document.querySelector('.game-container'); // Query by class
+    domElements.gameContainer = document.querySelector('.game-container');
     domElements.startCampaignBtnEl = document.getElementById('startCampaignBtn');
     domElements.startSkirmishBtnEl = document.getElementById('startSkirmishBtn'); 
     domElements.startTutorialBtn = document.getElementById('startTutorialBtn'); 
-    domElements.barracksBtn = document.getElementById('barracksBtn'); // <<== Botón del Cuartel    
+    domElements.barracksBtn = document.getElementById('barracksBtn');    
     domElements.expandPanelBtn = document.getElementById('expandPanelBtn');
-
-    domElements.startGameBtn = document.getElementById('startGameBtn'); // Original preservado
-    domElements.startLocalGameBtn = document.getElementById('startLocalGameBtn'); // Nuevo para el botón Local
-    domElements.createNetworkGameBtn = document.getElementById('createNetworkGameBtn'); // Nuevo para el botón de Red
-    domElements.joinNetworkGameBtn = document.getElementById('joinNetworkGameBtn'); // Nuevo en el menú principal
+    domElements.startGameBtn = document.getElementById('startGameBtn');
+    domElements.startLocalGameBtn = document.getElementById('startLocalGameBtn');
+    domElements.createNetworkGameBtn = document.getElementById('createNetworkGameBtn');
+    domElements.joinNetworkGameBtn = document.getElementById('joinNetworkGameBtn');
     domElements.hostLobbyScreen = document.getElementById('hostLobbyScreen');
-    domElements.barracksModal = document.getElementById('barracksModal'); // Referencia al cuartel
+    domElements.barracksModal = document.getElementById('barracksModal');
     domElements.shortGameCodeEl = document.getElementById('short-game-code');
     domElements.hostStatusEl = document.getElementById('host-status');
     domElements.hostPlayerListEl = document.getElementById('host-player-list');
     domElements.backToMainMenuBtn_fromHostLobby = document.getElementById('backToMainMenuBtn_fromHostLobby');
-
     domElements.player1TypeSelect = document.getElementById('player1Type');
-    
     domElements.player1Civ = document.getElementById('player1Civ');
     domElements.player2Civ = document.getElementById('player2Civ');
-    domElements.player1TypeSelect = document.getElementById('player1Type');
     domElements.player1AiLevelDiv = document.getElementById('player1AiLevelDiv');
     domElements.player1AiLevelSelect = document.getElementById('player1AiLevel');
     domElements.player2TypeSelect = document.getElementById('player2Type');
@@ -279,7 +256,6 @@ function initializeDomElements() {
     domElements.initialUnitsCountSelect = document.getElementById('initialUnitsCount');
     domElements.boardSizeSelect = document.getElementById('boardSizeSelect');
     domElements.backToMainMenuBtn_fromSetup = document.getElementById('backToMainMenuBtn_fromSetup');
-
     domElements.worldMapImageEl = document.getElementById('worldMapImage');
     domElements.territoryMarkerContainerEl = document.getElementById('territoryMarkerContainer');
     domElements.campaignMessagesEl = document.getElementById('campaignMessages');
@@ -294,7 +270,6 @@ function initializeDomElements() {
     domElements.floatingMenuBtn = document.getElementById('floatingMenuBtn');
     domElements.floatingEndTurnBtn = document.getElementById('floatingEndTurnBtn');
     domElements.floatingPillageBtn = document.getElementById('floatingPillageBtn');
-
     domElements.unitManagementModal = document.getElementById('unitManagementModal');
     domElements.closeUnitManagementModalBtn = document.getElementById('closeUnitManagementModalBtn');
     domElements.unitManagementTitle = document.getElementById('unitManagementTitle');
@@ -306,15 +281,11 @@ function initializeDomElements() {
     domElements.divisionRegimentCount = document.getElementById('divisionRegimentCount');
     domElements.cancelUnitManagementBtn = document.getElementById('cancelUnitManagementBtn');
     domElements.finalizeUnitManagementBtn = document.getElementById('finalizeUnitManagementBtn');
-
     console.log("--- LOG INIT --- domElements.js: floatingEndTurnBtn inicializado:", domElements.floatingEndTurnBtn);
-
     domElements.floatingMenuPanel = document.getElementById('floatingMenuPanel');
     domElements.contextualInfoPanel = document.getElementById('contextualInfoPanel');
     domElements.closeContextualPanelBtn = document.getElementById('closeContextualPanelBtn');
     domElements.gameMessagesMobile = document.getElementById('gameMessagesMobile');
-    domElements.turnNumberDisplay_float = document.getElementById('turnNumberDisplay_float');
-    domElements.currentPlayerDisplay_float = document.getElementById('currentPlayerDisplay_float');
     domElements.floatingMenuTitle = document.getElementById('floatingMenuTitle');
     domElements.floatingCreateDivisionBtn = document.getElementById('floatingCreateDivisionBtn');
     domElements.concedeBattleBtn_float = document.getElementById('concedeBattleBtn_float');
@@ -393,15 +364,16 @@ function initializeDomElements() {
     domElements.saveGameBtn = domElements.saveGameBtn_float;
     domElements.loadGameInput = domElements.loadGameInput_float;
     domElements.messagesDisplay = domElements.gameMessagesMobile ? domElements.gameMessagesMobile.querySelector('p') : null;
-    domElements.createDivisionBtn = domElements.floatingCreateDivisionBtn; // Asignar el nuevo botón flotante al nombre antiguo
-    
+    domElements.createDivisionBtn = domElements.floatingCreateDivisionBtn;
     domElements.floatingWikiBtn = document.getElementById('floatingWikiBtn');
     domElements.wikiModal = document.getElementById('wikiModal');
     domElements.closeWikiModalBtn = document.getElementById('closeWikiModalBtn');
+    domElements.floatingInboxBtn = document.getElementById('floatingInboxBtn');
+    domElements.inboxModal = document.getElementById('inboxModal');
     
-    // Verificaciones y logs de inicialización CRÍTICOS
-    if (!domElements.divisionNameInput) {domElements.divisionNameInput = document.getElementById('divisionNameInput');
-}
+    if (!domElements.divisionNameInput) { domElements.divisionNameInput = document.getElementById('divisionNameInput'); } // <<< CORRECCIÓN APLICADA AQUÍ
+    
+    domElements.techTreeScreen = document.getElementById('techTreeScreen');
     if (!domElements.welcomeHelpModalEl) console.error("DOM CRIT: welcomeHelpModalEl NO ENCONTRADO");
     if (!domElements.closeTechTreeBtn) console.error("DOM CRIT: closeTechTreeBtn NO ENCONTRADO. Verifica index.html.");
     else console.log("DOM OK: closeTechTreeBtn encontrado.");
@@ -423,12 +395,10 @@ function initializeDomElements() {
     else console.log("DOM OK: startSkirmishBtnEl encontrado.");
 
     if (!domElements.startTutorialBtn) console.error("DOM CRIT: startTutorialBtn NO ENCONTRADO"); 
-    //if (!domElements.startGameBtn) console.warn("DOM WARN: El antiguo startGameBtn ya no se usa, pero se busca por compatibilidad. Usar startLocalGameBtn.");
     
     domElements.domElementsInitialized = true;
     console.log("domElements.js: Referencias a elementos DOM completamente inicializadas.");
-     console.log("domElements object:", domElements); // Loguear el objeto completo para depuración
+     console.log("domElements object:", domElements);
 }
 
-// --- ENVOLVER LA LLAMADA A initializeDomElements EN DOMContentLoaded ---
 document.addEventListener('DOMContentLoaded', initializeDomElements);

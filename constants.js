@@ -720,3 +720,36 @@ const TUTORIAL_MESSAGES = {
     ],
     footer: "¡Mucha suerte, General! La historia espera tu legado."
 };
+
+const GACHA_CONFIG = {
+    COST_PER_WISH: 1, // ¿Cuántos Sellos de Guerra cuesta 1 Deseo?
+    COST_PER_TEN_WISHES: 10, // Coste para 10 deseos
+    
+    // Probabilidades para el Banner Común (en porcentaje)
+    COMMON_BANNER_ODDS: {
+        COMUN: 60.0,
+        RARO: 35.0,
+        EPICO: 4.5,
+        LEGENDARIO: 0.5
+    },
+
+   HERO_POOLS_BY_RARITY: {},
+
+    // (ACTUALIZADO) Tus nuevos valores para fragmentos
+    FRAGMENTS_PER_PULL: {
+        COMUN: [8, 10, 12],
+        RARO: [5, 6, 8],
+        EPICO: [3, 4, 5],
+        LEGENDARIO: [1, 2, 3]
+    },
+    
+    // Contadores del sistema de Pity (Misericordia)
+    PITY_EPIC: 10,          // Un épico garantizado cada 10 deseos en un multi-pull
+    PITY_LEGENDARY: 50      // Un legendario garantizado cada 50 deseos
+
+    /**
+ * Inicializa los pools de héroes del Gacha. 
+ * Debe ser llamada al inicio de la aplicación, después de que todos los scripts se hayan cargado.
+ */
+
+};

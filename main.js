@@ -2,6 +2,19 @@
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
+    //tutorial
+    if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
+        const currentStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
+        // Comprobamos si el paso actual espera la selección de un hexágono.
+        if (currentStep && currentStep.actionCondition.toString().includes('hex_selected')) {
+            // Comprobamos si las coordenadas del clic coinciden con las del objetivo.
+            const targetCoords = currentStep.highlightHexCoords;
+            if (targetCoords && targetCoords[0].r === r && targetCoords[0].c === c) {
+                TutorialManager.notifyActionCompleted('hex_selected');
+            }
+        }
+    }
+
     // --- GUARDIÁN DE TURNO LÓGICO ---
     // Este bloque es el primero que se ejecuta. Si es una partida en red
     // y no es tu turno, muestra un mensaje y detiene toda la función.
@@ -88,13 +101,21 @@ function initApp() {
     // ======================================================================
     // 1. VERIFICACIONES DE CARGA
     // ======================================================================
+    
     if (typeof domElements === 'undefined' || !domElements.domElementsInitialized) {
          console.error("main.js: CRÍTICO: domElements no está definido."); return;
     }
+
+    if (typeof GachaManager !== 'undefined' && GachaManager.init) GachaManager.init();
+    
+    if (typeof MailboxManager !== 'undefined' && MailboxManager.init) MailboxManager.init();
+
     if (typeof addModalEventListeners === "function") { addModalEventListeners(); } 
     else { console.error("main.js: CRÍTICO: addModalEventListeners no está definida."); }
+    
     if (typeof UIManager !== 'undefined' && UIManager.setDomElements) { UIManager.setDomElements(domElements); } 
     else { console.error("main.js: CRÍTICO: UIManager no definido."); }
+    
     if (typeof setupMainMenuListeners === "function") { setupMainMenuListeners(); } 
     else { console.error("main.js: CRÍTICO: setupMainMenuListeners no está definida."); }
 
@@ -150,6 +171,25 @@ function initApp() {
     // 3. RESTO DE TUS LISTENERS
     // ======================================================================
 
+    
+    // Listener del Buzón
+    if (domElements.floatingInboxBtn) {
+        domElements.floatingInboxBtn.addEventListener('click', (event) => {
+            console.log("hice click"); // <--- AÑADE ESTA LÍNEA AQUÍ
+            
+            event.stopPropagation();
+
+            const modal = document.getElementById('inboxModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                
+                if (MailboxManager && MailboxManager.renderList) {
+                    MailboxManager.renderList();
+                }
+            }
+        });
+    }
+    
     // <<== "Cuartel" ==>>
     if (domElements.barracksBtn && !domElements.barracksBtn.hasListener) {
         domElements.barracksBtn.addEventListener('click', () => {
@@ -576,6 +616,16 @@ if (domElements.createNetworkGameBtn) {
         domElements.floatingMenuBtn.addEventListener('click', () => { 
             const isVisible = domElements.floatingMenuPanel.style.display === 'block' || domElements.floatingMenuPanel.style.display === 'flex'; 
             domElements.floatingMenuPanel.style.display = isVisible ? 'none' : 'block'; 
+
+            // Notifica al tutorial de forma limpia
+            if (gameState.isTutorialActive) {
+                if (!isVisible) {
+                    TutorialManager.notifyActionCompleted('menu_opened');
+                } else {
+                    TutorialManager.notifyActionCompleted('menu_closed');
+                }
+            }
+            
             if (!isVisible && typeof UIManager !== 'undefined' && typeof UIManager.updatePlayerAndPhaseInfo === "function") { 
                  UIManager.updatePlayerAndPhaseInfo(); 
             }

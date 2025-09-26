@@ -1,4 +1,4 @@
-// uiUpdates.js (ESTA ES TU VERSIÓN ORIGINAL Y COMPLETA, RESTAURADA)
+// uiUpdates.js
 
 /**
  * Comprueba si una unidad enemiga está dentro del rango de visión de un explorador del jugador actual.
@@ -45,6 +45,46 @@ const UIManager = {
         this._combatPredictionPanel = document.getElementById('combatPredictionPanel');
         if (!this._combatPredictionPanel) console.error("UIManager Error: No se encontró el #combatPredictionPanel en el DOM.");
         this.hideAllActionButtons();
+    },
+    
+    setEndTurnButtonToFinalizeTutorial: function(callback) {
+        const btn = this._domElements.floatingEndTurnBtn;
+        if (!btn) return;
+        
+        btn.innerHTML = "🏁"; // Cambia el icono a una bandera de meta
+        btn.title = "Finalizar Tutorial";
+        btn.disabled = false;
+        
+        // Clonar y reemplazar el botón para eliminar todos los listeners antiguos de forma segura
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        // Volvemos a obtener la referencia al nuevo botón
+        this._domElements.floatingEndTurnBtn = document.getElementById(newBtn.id);
+        
+        // La acción final será volver al menú y detener el tutorial.
+        const finalizeAction = () => {
+            showScreen(domElements.mainMenuScreenEl);
+            TutorialManager.stopTutorial();
+        };
+        
+        this._domElements.floatingEndTurnBtn.addEventListener('click', finalizeAction);
+    },
+
+    restoreEndTurnButton: function() {
+        const btn = this._domElements.floatingEndTurnBtn;
+        if (!btn) return;
+        
+        btn.innerHTML = "►";
+        btn.title = "Finalizar Turno";
+
+        // Clonamos de nuevo para eliminar el listener del tutorial
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        this._domElements.floatingEndTurnBtn = document.getElementById(newBtn.id);
+
+        // Y le volvemos a poner el listener original del juego.
+        this._domElements.floatingEndTurnBtn.addEventListener('click', () => handleEndTurn());
     },
     
     showCombatPrediction: function(outcome, targetUnit, event) {
@@ -119,11 +159,6 @@ const UIManager = {
     },
 
     clearHighlights: function() {
-        if (board && board.length > 0) {
-             document.querySelectorAll('.hex.highlight-move, .hex.highlight-attack, .hex.highlight-build, .hex.highlight-place, .hex.tutorial-highlight-hex').forEach(h => {
-                 h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place', 'tutorial-highlight-hex');
-             });
-        }
         if (this._lastTutorialHighlightElementId) {
              const el = document.getElementById(this._lastTutorialHighlightElementId);
              if (el) el.classList.remove('tutorial-highlight');
@@ -136,6 +171,17 @@ const UIManager = {
              });
              this._lastTutorialHighlightHexes = [];
          }
+        
+        // --- CÓDIGO DE REFUERZO: Limpia cualquier resaltado persistente por si acaso ---
+        document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
+        document.querySelectorAll('.hex.tutorial-highlight-hex').forEach(el => el.classList.remove('tutorial-highlight-hex'));
+        
+        // --- Mantenemos la lógica original de limpieza para el juego normal ---
+        if (board && board.length > 0) {
+             document.querySelectorAll('.hex.highlight-move, .hex.highlight-attack, .hex.highlight-build, .hex.highlight-place').forEach(h => {
+                 h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place');
+             });
+        }
     },
     
     highlightPossibleActions: function(unit) {
@@ -466,13 +512,24 @@ const UIManager = {
             }
         }
 
-        // Movimiento
-        const moveStr = `Mov: ${unit.currentMovement || unit.movement}`;
+    // Movimiento
+    const moveStr = `Mov: ${unit.currentMovement || unit.movement}`;
+    
+    // Consumo de Comida
+    const foodConsumption = (unit.regiments || []).reduce((sum, reg) => {
+        return sum + (REGIMENT_TYPES[reg.type]?.foodConsumption || 0);
+    }, 0);
+    const upkeep = (unit.regiments || []).reduce((sum, reg) => {
+        return sum + (REGIMENT_TYPES[reg.type]?.cost.upkeep || 0);
+    }, 0);
+    const upkeepStr = `Mant: ${upkeep} Oro, ${foodConsumption} Comida`;
 
-        // Construir la primera línea del HTML. Usamos separadores para claridad.
-        html += `<p>${healthStr} &nbsp;|&nbsp; ${moraleStr} &nbsp;|&nbsp; ${xpStr} &nbsp;|&nbsp; ${moveStr}</p>`;
 
-        // --- Líneas 2 y 3: Información de la Casilla ---
+    // Construir la primera línea del HTML. Usamos separadores para claridad.
+    // <<== MODIFICA ESTA LÍNEA para añadir upkeepStr ==>>
+    html += `<p>${healthStr} &nbsp;|&nbsp; ${moraleStr} &nbsp;|&nbsp; ${xpStr} &nbsp;|&nbsp; ${moveStr} &nbsp;|&nbsp; ${upkeepStr}</p>`;
+
+    // --- Líneas 2 y 3: Información de la Casilla ---
         const hexData = board[unit.r]?.[unit.c];
         if (hexData) {
             // Terreno y Coordenadas
@@ -489,9 +546,7 @@ const UIManager = {
         
         return html;
     },
-    
-    
-    
+       
     _buildHexDetailsHTML: function(hexData) {
         let contentParts = [];
         
@@ -702,7 +757,6 @@ const UIManager = {
         console.log("[RENDER ALL] Re-dibujado completo finalizado.");
     },
 
-
     showRewardToast: function(message, icon = '🏆') {
         if (!this._domElements.gameBoard) return;
         
@@ -722,6 +776,49 @@ const UIManager = {
             toast.remove();
         }, 2500); // La duración de la animación
     },
+
+    showTutorialMessage: function(message) {
+        if (!this._tutorialMessagePanel) {
+            this._tutorialMessagePanel = document.getElementById('tutorialMessagePanel');
+        }
+        if (this._tutorialMessagePanel) {
+            this._tutorialMessagePanel.innerHTML = message;
+            this._tutorialMessagePanel.style.display = 'block';
+        }
+    },
+
+    hideTutorialMessage: function() {
+        if (this._tutorialMessagePanel) {
+            this._tutorialMessagePanel.style.display = 'none';
+        }
+    },
+
+    highlightTutorialElement: function(elementId = null, hexCoords = null) {
+        this.clearHighlights(); // Limpia cualquier resaltado previo
+
+        if (elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.add('tutorial-highlight');
+                this._lastTutorialHighlightElementId = elementId; // Guardamos para poder limpiarlo
+            }
+        }
+        
+        if (hexCoords && Array.isArray(hexCoords)) {
+             // Si `hexCoords` es una función, la ejecutamos para obtener las coordenadas dinámicas
+            const coords = (typeof hexCoords === 'function') ? hexCoords() : hexCoords;
+            coords.forEach(coord => {
+                const hexData = board[coord.r]?.[coord.c];
+                if (hexData?.element) {
+                    hexData.element.classList.add('tutorial-highlight-hex');
+                }
+            });
+            this._lastTutorialHighlightHexes = coords;
+        }
+    }
+
+
+    
 
     
 };

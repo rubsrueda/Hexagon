@@ -50,6 +50,8 @@ function initializeNewGameBoardDOMAndData(selectedResourceLevel = 'min', selecte
         }
     }
 
+    
+
     if (gameState) { 
         gameState.isCampaignBattle = false;
         gameState.currentScenarioData = null;

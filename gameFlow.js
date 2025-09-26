@@ -427,7 +427,7 @@ function collectPlayerResources(playerNum) {
 
 function updateFogOfWar() {
         if (!board || board.length === 0) return;
-
+        if (gameState.isTutorialActive) return;
         // Usar las dimensiones del tablero actual
         const currentRows = board.length;
         const currentCol = board[0] ? board[0].length : 0;
@@ -531,6 +531,11 @@ function updateFogOfWar() {
 }
 
 function checkVictory() {
+   if (gameState.isTutorialActive) {
+        // Durante el tutorial, la victoria solo la dicta el propio tutorial.
+        // No se debe declarar una victoria normal.
+        return false;
+    }
     if (gameState.currentPhase !== 'play') return false;
 
     let winner = null; // 1 para jugador humano, 2 para IA u oponente
@@ -774,16 +779,85 @@ function simpleAiTurn() {
     AiGameplayManager.executeTurn(aiActualPlayerNumber, aiLevel);
 }
 
-function startTutorial(scenarioData) {
+function initializeTutorialState() {
     gameState.isTutorialActive = true;
-    tutorialScenarioData = scenarioData;
-    currentTutorialStepIndex = -1; // Empezamos antes del primer paso
-    // Inicializar propiedades del tutorial en gameState
+    window.TUTORIAL_MODE_ACTIVE = true;
     gameState.tutorial = {
-        lastMovedUnitId: null, // Para la validación del paso de movimiento
-        // Añadir otras propiedades de tutorial si se necesitan (ej. unidad atacada, estructura construida)
+        attack_completed: false,
+        flank_attack_completed: false,
+        unitHasSplit: false,
+        unitHasMerge: false,
+        consolidation_completed: false,
+        pillage_completed: false,
+        unitReinforced: false,
+        hero_assigned: false,
+        techResearched: false,
+        lastMovedUnitId: null,
+        unit_in_ambush_position: false,
+        unit_in_reinforce_position: false,
+        turnEnded: false,
+        enemyDefeated: false,
+        unitHasMoved: false,
+        menu_opened: false,
+        menu_closed: false,
+        force_attack_allowed: false,
+        unit_selected_by_objective: false,
+        hex_selected: false
     };
-    moveToNextTutorialStep(); // Para ir al paso 0
+}
+
+function startTutorial(steps) {
+    if (!steps) {
+        console.error("Error: startTutorial fue llamado sin pasos de tutorial.");
+        return;
+    }
+    gameState.isTutorialActive = true;
+    tutorialScenarioData = { tutorialSteps: steps }; // La clave es anidar los pasos aquí
+    currentTutorialStepIndex = -1;
+    
+    // Lista completa y final de flags
+    gameState.tutorial = {
+        menu_opened: false, 
+        menu_closed: false,
+        lastMovedUnitId: null, 
+        turnEnded: false,
+        enemyDefeated: false,
+        unit_in_ambush_position: false,
+        unit_in_reinforce_position: false,
+        
+        // -- Capítulo 1 --
+        // Paso 3-6: Gestionados por `domElements`, `placementMode` y `units.length`. No necesitan flag.
+        
+        // -- Capítulo 2 --
+        attack_completed: false,         // Para el Paso 8: Se activa al iniciar un combate.
+        flank_attack_completed: false,   // Para el Paso 11: Se activa al realizar un ataque de flanqueo.
+        // Paso 12 (fin de turno): Gestionado por `gameState.turnNumber`. No necesita flag.
+
+        // -- Capítulo 3 --
+        unit_split: false,             // Para el Paso 14: Se activa al confirmar una división.
+        unitHasMerge: false,            // Para el Paso 15: Se activa al confirmar una fusión.
+        consolidation_completed: false,  // Para el Paso 16: Se activa al usar la acción de consolidar.
+        
+        // -- Capítulo 4 --
+        pillage_completed: false,        // Para el Paso 23 (Saqueo).
+        unitReinforced: false,           // Para el reforzamiento, aunque el guion actual lo quita, es bueno tenerlo.
+                                        // Sí, en el 4.5. se necesita este flag!
+
+        // -- Capítulo 5 --
+        techResearched: false,           // Para el Paso 24 y 26 (Ingeniería y Fortificaciones).
+        // Construcción se valida mirando el estado del `board`. No necesita flag.
+
+        // -- Capítulo 6 --
+        // La progresión de héroes se valida directamente mirando el `PlayerDataManager.currentPlayer`. No necesita flags aquí.
+        hero_assigned: false,            // Para el Paso 36 (confirmar asignación).
+        
+        // --- Flags Auxiliares que ya usamos ---
+        unitHasMoved: false              // Mecanismo genérico para validar el movimiento en varios pasos.
+    };
+
+
+
+    moveToNextTutorialStep();
 }
 
 function moveToNextTutorialStep() {
@@ -1228,7 +1302,7 @@ if (setCapitalBtn) {
 
 function handleEndTurn() {
     console.log(`[handleEndTurn] INICIO. Fase: ${gameState.currentPhase}, Jugador Actual: ${gameState.currentPlayer}`);
-
+ 
     // --- LÓGICA DE RED (SIN CAMBIOS) ---
     const isNetworkGame = typeof NetworkManager !== 'undefined' && NetworkManager.conn && NetworkManager.conn.open;
     if (isNetworkGame) {
@@ -1249,57 +1323,93 @@ function handleEndTurn() {
         return;
     }
 
-    // --- LÓGICA LOCAL (COMPLETA Y REESTRUCTURADA) ---
-    console.log("[Juego Local] Procesando fin de turno...");
+    // --- LÓGICA DE VALIDACIÓN DEL TUTORIAL ---
+    if (window.TUTORIAL_MODE_ACTIVE === true) {
+        console.log("[TUTORIAL] Clic en 'Finalizar Turno' interceptado. Notificando al manager.");
+        TutorialManager.notifyActionCompleted('turnEnded');
+    }
+
+    // --- LÓGICA DE EJECUCIÓN DEL CAMBIO DE TURNO ---
     if (typeof deselectUnit === "function") deselectUnit();
     if (gameState.currentPhase === "gameOver") {
         logMessage("La partida ya ha terminado.");
         return;
     }
-     if (gameState.isTutorialActive) {
-        const currentStep = tutorialScenarioData.tutorialSteps[currentTutorialStepIndex];
-        if (currentStep && currentStep.validate && !currentStep.validate(gameState, units.find(u => u.lastMove))) {
-            logMessage(`¡Tutorial! Debes completar el paso actual antes de terminar el turno: ${currentStep.message}`);
-            return;
-        }
-        moveToNextTutorialStep();
-        if (gameState.currentPhase === "gameOver") { return; }
-    }
 
     const playerEndingTurn = gameState.currentPlayer;
 
-    // --- SECCIÓN 1: LÓGICA DE FASE DE DESPLIEGUE (MODIFICADA PARA N JUGADORES) ---
-    if (gameState.currentPhase === "deployment") {
-        // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
-        if (playerEndingTurn < gameState.numPlayers) {
-            gameState.currentPlayer++;
-            logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
-        } else {
-            // Si es el último jugador, termina la fase de despliegue y empieza el juego
-            gameState.currentPhase = "play";
-            gameState.currentPlayer = 1; // El juego siempre empieza con el jugador 1
-            gameState.turnNumber = 1;
-            resetUnitsForNewTurn(1); // Prepara las unidades del J1 para el primer turno
-            logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
-        }
-    }
-    // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
-    else if (gameState.currentPhase === "play") {
-        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno (igual que antes)
+    // <<== INICIO DE LA LÓGICA SEGURA PARA EL TUTORIAL ==>>
+    if (gameState.isTutorialActive) {
+        console.log("[handleEndTurn] MODO TUTORIAL DETECTADO. Flujo de turno especial activado.");
+
+        // 1. Ejecutar las tareas de mantenimiento del jugador
         updateTerritoryMetrics(playerEndingTurn);
         collectPlayerResources(playerEndingTurn);
         handleUnitUpkeep(playerEndingTurn);
         handleHealingPhase(playerEndingTurn);
         const tradeGold = calculateTradeIncome(playerEndingTurn);
         if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
+        
+        // 2. SALTAR EL TURNO DE LA IA COMPLETAMENTE
+        // Directamente volvemos al jugador 1 y aumentamos el número de turno del juego.
+        gameState.currentPlayer = 1; 
+        gameState.turnNumber++; 
 
+        logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer} (Turno ${gameState.turnNumber}).`);
+        
+        // 3. Preparar al jugador para su nuevo turno
+        resetUnitsForNewTurn(gameState.currentPlayer);
+        
+        // El resto de la lógica de preparación (moral, experiencia, comida)
+        if (gameState.currentPlayer === 1) {
+             units.forEach(unit => { if (unit.player === 1) unit.experience++; });
+             gameState.playerResources[1].researchPoints += BASE_INCOME.RESEARCH_POINTS_PER_TURN;
+             // ...lógica de comida...
+        }
+
+        if (UIManager) UIManager.updateAllUIDisplays();
+        
+        // Llamada a la IA si es su turno
+        if (gameState.currentPlayer === 2) {
+            setTimeout(simpleAiTurn, 500); // Damos un respiro para que se vea el cambio
+        }
+        return; // Detenemos la ejecución aquí para no usar la lógica N-jugadores
+        }
+    // <<== FIN DE LA LÓGICA SEGURA PARA EL TUTORIAL ==>>
+
+
+        // --- LÓGICA NORMAL PARA N JUGADORES (se mantiene sin cambios) ---
+        if (gameState.currentPhase === "deployment") {
+        // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
+            if (playerEndingTurn < gameState.numPlayers) {
+                gameState.currentPlayer++;
+            logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
+            } else {
+            // Si es el último jugador, termina la fase de despliegue y empieza el juego
+                gameState.currentPhase = "play";
+            gameState.currentPlayer = 1; // El juego siempre empieza con el jugador 1
+                gameState.turnNumber = 1;
+            resetUnitsForNewTurn(1); // Prepara las unidades del J1 para el primer turno
+            logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
+        }
+    }
+    // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
+        else if (gameState.currentPhase === "play") {
+        // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno (igual que antes)
+            updateTerritoryMetrics(playerEndingTurn);
+            collectPlayerResources(playerEndingTurn);
+            handleUnitUpkeep(playerEndingTurn);
+            handleHealingPhase(playerEndingTurn);
+            const tradeGold = calculateTradeIncome(playerEndingTurn);
+            if (tradeGold > 0) gameState.playerResources[playerEndingTurn].oro += tradeGold;
+            
         // B. LÓGICA DE CAMBIO DE JUGADOR PARA N JUGADORES
-        let nextPlayer = gameState.currentPlayer;
+            let nextPlayer = gameState.currentPlayer;
         let attempts = 0; // Para evitar un bucle infinito si todos son eliminados
 
-        do {
+            do {
             // Avanza al siguiente número de jugador en la secuencia
-            nextPlayer = (nextPlayer % gameState.numPlayers) + 1;
+                nextPlayer = (nextPlayer % gameState.numPlayers) + 1;
             
             // Si el siguiente jugador es el 1, significa que hemos completado una ronda completa.
             if (nextPlayer === 1) {
@@ -1309,27 +1419,28 @@ function handleEndTurn() {
                 }
             }
             
-            attempts++;
+                attempts++;
             // Repite si el 'siguiente jugador' está en la lista de eliminados
-        } while (gameState.eliminatedPlayers.includes(nextPlayer) && attempts < gameState.numPlayers);
+            } while (gameState.eliminatedPlayers.includes(nextPlayer) && attempts < gameState.numPlayers);
 
         // Asigna el nuevo jugador actual
-        gameState.currentPlayer = nextPlayer;
+            gameState.currentPlayer = nextPlayer;
+
         logMessage(`Comienza el turno del Jugador ${gameState.currentPlayer}.`);
 
         // C. Tareas de PREPARACIÓN para el jugador que EMPIEZA el turno.
         resetUnitsForNewTurn(gameState.currentPlayer);
-        handleBrokenUnits(gameState.currentPlayer);
+    handleBrokenUnits(gameState.currentPlayer);
         
         // D. Lógica de ingresos pasivos (XP, investigación, comida) para el jugador que EMPIEZA.
-        units.forEach(unit => {
+    units.forEach(unit => {
             if (unit.player === gameState.currentPlayer && unit.currentHealth > 0) {
                 unit.experience = Math.min(unit.maxExperience || 500, (unit.experience || 0) + 1);
                 if (typeof checkAndApplyLevelUp === "function") checkAndApplyLevelUp(unit);
             }
-        });
+    });
 
-        if (gameState.playerResources[gameState.currentPlayer]) {
+    if (gameState.playerResources[gameState.currentPlayer]) {
             const baseResearchIncome = BASE_INCOME.RESEARCH_POINTS_PER_TURN || 5;
             gameState.playerResources[gameState.currentPlayer].researchPoints = (gameState.playerResources[gameState.currentPlayer].researchPoints || 0) + baseResearchIncome;
             logMessage(`Jugador ${gameState.currentPlayer} obtiene ${baseResearchIncome} Puntos de Investigación.`);

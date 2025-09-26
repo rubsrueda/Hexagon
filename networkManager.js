@@ -184,4 +184,37 @@ NetworkManager.broadcastFullState = function() {
     };
     
     this.enviarDatos(fullStatePacket);
+}; 
+
+// EN networkManager.js -> AÑADE ESTA NUEVA FUNCIÓN COMPLETA
+
+/**
+ * [SOLO ANFITRIÓN] Empaqueta el estado COMPLETO del juego (gameState, board, units)
+ * y lo retransmite a todos los clientes conectados.
+ * Esta es la "fuente de la verdad".
+ */
+NetworkManager.broadcastFullState = function() {
+    if (!this.esAnfitrion || !this.conn || !this.conn.open) return;
+
+    console.log("%c[Anfitrión Broadcast] Empaquetando y enviando estado completo del juego...", "background: #FFD700; color: black;");
+
+    // Preparamos un objeto de estado limpio para no enviar elementos del DOM
+    const replacer = (key, value) => (key === 'element' ? undefined : value);
+    
+    // El gameState se envía tal cual, el cliente lo fusionará
+    const gameStateForBroadcast = JSON.parse(JSON.stringify(gameState, replacer));
+    // Limpiamos la identidad del jugador para que el cliente use la suya propia
+    delete gameStateForBroadcast.myPlayerNumber;
+
+    const fullStatePacket = {
+        type: 'fullStateUpdate', // Un nuevo tipo de mensaje claro y único
+        payload: {
+            gameState: gameStateForBroadcast,
+            board: JSON.parse(JSON.stringify(board, replacer)),
+            units: JSON.parse(JSON.stringify(units, replacer)),
+            unitIdCounter: unitIdCounter
+        }
+    };
+    
+    this.enviarDatos(fullStatePacket);
 }

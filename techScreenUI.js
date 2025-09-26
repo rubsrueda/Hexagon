@@ -263,6 +263,7 @@ function attemptToResearch(techId) {
     }
 
     playerTechs.push(techId);
+    if (gameState.isTutorialActive) gameState.tutorial.techResearched = true;
     logMessage(`¡Has investigado ${techToResearch.name}!`);
     const successMessage = `¡Has investigado ${techToResearch.name}!`;
 
