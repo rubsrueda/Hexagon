@@ -9,7 +9,6 @@ const PEER_SERVER_CONFIG = {
     secure: true,
 };
 
-
 const NetworkManager = {
     peer: null,             // Nuestro objeto Peer principal.
     conn: null,             // La conexión de datos con el otro jugador.
@@ -185,8 +184,6 @@ NetworkManager.broadcastFullState = function() {
     
     this.enviarDatos(fullStatePacket);
 }; 
-
-// EN networkManager.js -> AÑADE ESTA NUEVA FUNCIÓN COMPLETA
 
 /**
  * [SOLO ANFITRIÓN] Empaqueta el estado COMPLETO del juego (gameState, board, units)
