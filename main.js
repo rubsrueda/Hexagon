@@ -1203,10 +1203,18 @@ function processActionRequest(action) {
         case 'endTurn':
             if (payload.playerId !== gameState.currentPlayer) {
                 console.warn(`[Red - Anfitrión] RECHAZADO: Fin de turno de J${payload.playerId} pero el turno era de J${gameState.currentPlayer}.`);
-                return;
+                // Ya no retornamos de la función `processActionRequest`, solo salimos del switch.
+                break;
             }
 
             console.log(`[Red - Anfitrión] Procesando fin de turno para J${payload.playerId}...`);
+            
+            // ¡Llamamos a la función centralizada de gameFlow.js pasándole el flag!
+            handleEndTurn(true); 
+            
+            actionExecuted = true;
+            break;    
+
             // Se ejecuta toda tu lógica de fin de turno que cambia el estado del juego.
             const playerEndingTurn = gameState.currentPlayer;
             

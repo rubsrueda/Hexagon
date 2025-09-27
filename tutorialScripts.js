@@ -355,7 +355,7 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 30,
-            message: "Para asignarlo, tu división necesita un 'Cuartel General' y estar en una ciudad. crea una división en la ciudad. Selecciónala y pulsa <strong>'Asignar General' (👤)</strong>.",
+            message: "Para asignarlo,necesita Investigar Liderezgo, división tener un 'Cuartel General' y estar en una ciudad... Investiga, Seleccióna y pulsa <strong>'Asignar General' (👤)</strong>.",
             onStepStart: () => {
 
                 const isolatedUnit = AiGameplayManager.createUnitObject({ name: "Aliado", regiments: [{...REGIMENT_TYPES["Cuartel General"], type: 'Cuartel General'}]}, 1, {r: 1, c: 1});

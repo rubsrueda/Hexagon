@@ -27,10 +27,9 @@ const REGIMENT_TYPES = {
     "Caballería Ligera": { category: "light_cavalry", cost: { oro: 400, upkeep: 40 }, attack: 80, defense: 40, health: 200, movement: 4, sprite: 'images/sprites/cab_ligera_128x128.png', visionRange: 3, attackRange: 0, initiative: 15, goldValueOnDestroy: 280, foodConsumption: 2, puntosReclutamiento: 200, abilities: ["Jump"] },
     "Caballería Pesada": { category: "heavy_cavalry", cost: { oro: 600, upkeep: 60 }, attack: 100, defense: 100, health: 200, movement: 3, sprite: 'images/sprites/cab_pesada128.png', visionRange: 2, attackRange: 0, initiative: 12, goldValueOnDestroy: 400, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] }, 
     "Arqueros a Caballo": { category: "light_cavalry", cost: { oro: 720, upkeep: 60 }, attack: 60, defense: 60, health: 200, movement: 4, sprite: 'images/sprites/arquero_caballo128.png', visionRange: 3, attackRange: 2, initiative: 16, goldValueOnDestroy: 480, foodConsumption: 1, puntosReclutamiento: 200, abilities: ["Jump"] },
-    "Arqueros": { category: "light_infantry", cost: { oro: 360, upkeep: 20 }, attack: 70, defense: 20, health: 200, movement: 2, sprite: 'images/sprites/archer_128.png', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 240, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
-    
-    "Arcabuceros": { category: "light_infantry", cost: { oro: 480, upkeep: 40 }, attack: 100, defense: 40, health: 200, movement: 1, sprite: '💂', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 360, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
-    "Artillería": { category: "artillery", cost: { oro: 1000, upkeep: 80 }, attack: 200, defense: 20, health: 200, movement: 1, sprite: '💣', visionRange: 1, attackRange: 3, initiative: 20, goldValueOnDestroy: 800, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] },
+    "Arqueros": { category: "light_infantry", cost: { oro: 360, upkeep: 20 }, attack: 70, defense: 20, health: 200, movement: 2, sprite: 'images/sprites/archer_128.png', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 240, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },    
+    "Arcabuceros": { category: "light_infantry", cost: { oro: 480, upkeep: 40 }, attack: 100, defense: 40, health: 200, movement: 1, sprite: 'images/sprites/arcabucero128.png', visionRange: 2, attackRange: 2, initiative: 11, goldValueOnDestroy: 360, foodConsumption: 1, puntosReclutamiento: 200, abilities: [] },
+    "Artillería": { category: "artillery", cost: { oro: 1000, upkeep: 80 }, attack: 200, defense: 20, health: 200, movement: 1, sprite: 'images/sprites/cannon128.png', visionRange: 1, attackRange: 3, initiative: 20, goldValueOnDestroy: 800, foodConsumption: 2, puntosReclutamiento: 200, abilities: [] },
 
     // Unidades de Apoyo - Stats ajustados para equilibrio. Ataques bajos se escalan menos.
     "Cuartel General": {
@@ -67,7 +66,7 @@ const REGIMENT_TYPES = {
         category: "naval", is_naval: true,
         cost: { oro: 2000, upkeep: 100, madera: 25 },
         attack: 200, defense: 100, health: 200, movement: 5,
-        sprite: '⛵', visionRange: 4, attackRange: 3, initiative: 10,
+        sprite: 'images/sprites/barco256.png', visionRange: 4, attackRange: 3, initiative: 10,
         goldValueOnDestroy: 1600, foodConsumption: 1, puntosReclutamiento: 50,
         abilities: ["transport", "coastal_bombardment"],
         canOnlyBeAttackedByRanged: true, transportCapacity: 2
@@ -75,7 +74,7 @@ const REGIMENT_TYPES = {
     "Colono": {
         category: "support",
         cost: { oro: 4000, comida: 50, puntosReclutamiento: 200 },
-        attack: 0, defense: 20, health: 200, movement: 2, sprite: '🧑‍🌾',
+        attack: 0, defense: 20, health: 200, movement: 2, sprite: 'images/sprites/colono128.png',
         visionRange: 1, attackRange: 0, initiative: 5, foodConsumption: 1,
         isSettler: true
     },

@@ -1792,7 +1792,11 @@ function openHeroDetailModal(heroInstance) {
 function assignHeroToUnit(unit, commanderId) {
     if (!unit || !commanderId) return;
 
-    // <<== NUEVA LÓGICA DE REGISTRO ==>>
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('hero_assigned'); 
+    }
+    
+
     const playerActiveCommanders = gameState.activeCommanders[unit.player];
     
     // Comprobar que el héroe no esté ya en uso
@@ -1803,15 +1807,9 @@ function assignHeroToUnit(unit, commanderId) {
     
     // Añadir al héroe a la lista de activos
     playerActiveCommanders.push(commanderId);
-    
     unit.commander = commanderId;
-
-    if (gameState.isTutorialActive) {
-        // Usamos la bandera que el guion está esperando
-        TutorialManager.notifyActionCompleted('hero_assigned'); 
-    }
     
-    Chronicle.logEvent('commander_assigned', { unit, commander: COMMANDERS[commanderId] }); // (Opcional, para la crónica)
+    Chronicle.logEvent('commander_assigned', { unit, commander: COMMANDERS[commanderId] });
     logMessage(`¡El general ${COMMANDERS[commanderId].name} ha tomado el mando de la división "${unit.name}"!`);
     
     recalculateUnitStats(unit);

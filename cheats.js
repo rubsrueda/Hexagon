@@ -565,3 +565,20 @@ dar_sellos: (amountStr, username = null) => {
     }
 };
 
+    /**
+     * ¡Amnistía de Generales! Limpia la lista de generales activos para un jugador.
+     * Útil si el estado se corrompe y no te deja asignar un general.
+     * Uso: amnistia_real [jugador]
+     * Ejemplo: amnistia_real 1
+     */
+    amnistia_real: (playerNumStr = '1') => {
+        const playerNum = parseInt(playerNumStr);
+        if (isNaN(playerNum) || !gameState.activeCommanders[playerNum]) {
+            return logToConsole(`Error en 'amnistia_real': El jugador ${playerNumStr} no es válido.`, 'error');
+        }
+        
+        gameState.activeCommanders[playerNum] = [];
+        
+        logToConsole(`¡Amnistía concedida! La lista de generales activos del jugador ${playerNum} ha sido limpiada.`, 'success');
+    };
+
