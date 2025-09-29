@@ -481,26 +481,38 @@ const UIManager = {
     _buildUnitDetailsHTML: function(unit) {
         let html = '';
 
-        // <<== SECCIÓN PARA EL GENERAL ==>>
+        // <<== INICIO DE LA CORRECCIÓN: Sección del General con Imagen ==>>
         if (unit.commander && COMMANDERS[unit.commander]) {
             const cmdr = COMMANDERS[unit.commander];
-            html += `<p style="text-align: center; font-weight: bold; color: gold; margin-bottom: 5px;">
-                Liderada por: ${cmdr.sprite} ${cmdr.name}, ${cmdr.title}
+            const cmdrSpriteValue = cmdr.sprite;
+            let commanderSpriteHTML = '';
+
+            // Si el sprite es una ruta de imagen...
+            if (cmdrSpriteValue.includes('.png') || cmdrSpriteValue.includes('.jpg')) {
+                // ...creamos una etiqueta <img>
+                commanderSpriteHTML = `<img src="${cmdrSpriteValue}" alt="${cmdr.name}" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 5px;">`;
+            } else {
+                // ...si no, lo tratamos como un emoji (fallback).
+                commanderSpriteHTML = `<span style="font-size: 20px; vertical-align: middle; margin-right: 5px;">${cmdrSpriteValue}</span>`;
+            }
+
+            html += `<p style="text-align: center; font-weight: bold; color: gold; margin-bottom: 5px; display: flex; align-items: center; justify-content: center;">
+                Liderada por: ${commanderSpriteHTML} ${cmdr.name}, ${cmdr.title}
             </p>`;
         }
 
-        // --- Línea 1: Stats Consolidados de la Unidad ---
-        // Salud
+            // --- Línea 1: Stats Consolidados de la Unidad ---
+            // Salud
         const healthStr = `Salud: ${unit.currentHealth}/${unit.maxHealth}`;
-
-        // Moral (con colores)
+        
+            // Moral (con colores)
         let moralStatus = "Normal", moralColor = "#f0f0f0";
         if (unit.morale > 100) { moralStatus = "Exaltada"; moralColor = "#2ecc71"; }
         else if (unit.morale <= 24) { moralStatus = "Vacilante"; moralColor = "#e74c3c"; }
         else if (unit.morale < 50) { moralStatus = "Baja"; moralColor = "#f39c12"; }
         const moraleStr = `Moral: <strong style="color:${moralColor};">${unit.morale || 50}/${unit.maxMorale || 125} (${moralStatus})</strong>`;
 
-        // Experiencia (con valores numéricos)
+            // Experiencia (con valores numéricos)
         const levelData = XP_LEVELS[unit.level || 0];
         let xpStr = "Experiencia: ";
         if (levelData) {
@@ -512,31 +524,27 @@ const UIManager = {
             }
         }
 
-    // Movimiento
-    const moveStr = `Mov: ${unit.currentMovement || unit.movement}`;
-    
-    // Consumo de Comida
-    const foodConsumption = (unit.regiments || []).reduce((sum, reg) => {
-        return sum + (REGIMENT_TYPES[reg.type]?.foodConsumption || 0);
-    }, 0);
-    const upkeep = (unit.regiments || []).reduce((sum, reg) => {
-        return sum + (REGIMENT_TYPES[reg.type]?.cost.upkeep || 0);
-    }, 0);
-    const upkeepStr = `Mant: ${upkeep} Oro, ${foodConsumption} Comida`;
+        // Movimiento
+        const moveStr = `Mov: ${unit.currentMovement || unit.movement}`;
+        
+        // Consumo de Comida
+        const foodConsumption = (unit.regiments || []).reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.foodConsumption || 0), 0);
+        const upkeep = (unit.regiments || []).reduce((sum, reg) => sum + (REGIMENT_TYPES[reg.type]?.cost.upkeep || 0), 0);
+        const upkeepStr = `Mant: ${upkeep} Oro, ${foodConsumption} Comida`;
 
 
-    // Construir la primera línea del HTML. Usamos separadores para claridad.
-    // <<== MODIFICA ESTA LÍNEA para añadir upkeepStr ==>>
-    html += `<p>${healthStr} &nbsp;|&nbsp; ${moraleStr} &nbsp;|&nbsp; ${xpStr} &nbsp;|&nbsp; ${moveStr} &nbsp;|&nbsp; ${upkeepStr}</p>`;
+        // Construir la primera línea del HTML. Usamos separadores para claridad.
+        // <<== MODIFICA ESTA LÍNEA para añadir upkeepStr ==>>
+        html += `<p>${healthStr} &nbsp;|&nbsp; ${moraleStr} &nbsp;|&nbsp; ${xpStr} &nbsp;|&nbsp; ${moveStr} &nbsp;|&nbsp; ${upkeepStr}</p>`;
 
-    // --- Líneas 2 y 3: Información de la Casilla ---
+        // --- Líneas 2 y 3: Información de la Casilla ---
         const hexData = board[unit.r]?.[unit.c];
         if (hexData) {
-            // Terreno y Coordenadas
+                // Terreno y Coordenadas
             const terrainName = TERRAIN_TYPES[hexData.terrain]?.name || 'Desconocido';
             html += `<p>En Terreno: ${terrainName} (${unit.r},${unit.c})</p>`;
             
-            // Dueño, Estabilidad y Nacionalidad
+                // Dueño, Estabilidad y Nacionalidad
             if (hexData.owner !== null) {
                 html += `<p>Dueño: J${hexData.owner} &nbsp;|&nbsp; Est: ${hexData.estabilidad}/${MAX_STABILITY} &nbsp;|&nbsp; Nac: ${hexData.nacionalidad[hexData.owner] || 0}/${MAX_NACIONALIDAD}</p>`;
             } else {
@@ -691,23 +699,22 @@ const UIManager = {
      * (NUEVA FUNCIÓN) Borra todas las unidades visuales del tablero y las vuelve a crear
      * desde el array de datos `units`. Es la solución definitiva para problemas de desincronización del DOM.
      */
-    // Reemplaza la función renderAllUnitsFromData entera en uiUpdates.js con esto:
     renderAllUnitsFromData: function() {
         if (!this._domElements.gameBoard) return;
 
         console.log(`[RENDER ALL] Iniciando re-dibujado completo de ${units.length} unidades.`);
 
-                // Paso 1: Eliminar todos los divs de unidades existentes.
+        // Paso 1: Eliminar todos los divs de unidades existentes.
         this._domElements.gameBoard.querySelectorAll('.unit').forEach(el => el.remove());
 
-                // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
+        // Paso 2: Volver a crear cada unidad desde la fuente de datos `units`.
         for (const unit of units) {
-                    // Se recrea el elemento DOM para cada unidad en la lista de datos.
+            // Se recrea el elemento DOM para cada unidad en la lista de datos.
             const unitElement = document.createElement('div');
             unitElement.className = `unit player${unit.player}`;
-
-                // <<== LÓGICA DE VISUALIZACIÓN DEL GENERAL ==>>
-                // Contenedor para el contenido principal (sprite y estandarte)
+            unitElement.dataset.id = unit.id;
+            
+            // Contenedor principal para alinear el contenido dentro del círculo
             const mainContent = document.createElement('div');
             mainContent.style.position = 'relative';
             mainContent.style.display = 'flex';
@@ -716,40 +723,58 @@ const UIManager = {
             mainContent.style.width = '100%';
             mainContent.style.height = '100%';
 
-            // --- LÓGICA HÍBRIDA ---
-            const spriteValue = unit.sprite || '?';
-            const isImageSprite = spriteValue.includes('.') || spriteValue.includes('/');
-
-            if (isImageSprite) {
-                unitElement.style.backgroundImage = `url('${spriteValue}')`;
+            // Lógica HÍBRIDA para el sprite de la unidad (emoji o imagen)
+            const unitSpriteValue = unit.sprite || '?';
+            if (unitSpriteValue.includes('.') || unitSpriteValue.includes('/')) {
+                unitElement.style.backgroundImage = `url('${unitSpriteValue}')`;
             } else {
                 unitElement.style.backgroundImage = 'none';
-                mainContent.textContent = spriteValue; // El emoji va dentro
+                mainContent.textContent = unitSpriteValue; // El emoji va dentro del contenedor
             }
 
             unitElement.appendChild(mainContent);
 
+            // <<== INICIO DE LA CORRECCIÓN: Lógica para el estandarte del Comandante ==>>
             if (unit.commander && COMMANDERS[unit.commander]) {
-                const commanderSprite = COMMANDERS[unit.commander].sprite;
+                const commanderData = COMMANDERS[unit.commander];
+                const commanderSpriteValue = commanderData.sprite;
+
                 const commanderBanner = document.createElement('span');
-                commanderBanner.textContent = commanderSprite;
                 commanderBanner.className = 'commander-banner';
+                commanderBanner.innerHTML = ''; // Limpiar cualquier contenido previo
+
+                // Si el sprite del comandante es una ruta de imagen...
+                if (commanderSpriteValue.includes('.png') || commanderSpriteValue.includes('.jpg')) {
+                    // ...creamos una etiqueta <img>
+                    const img = document.createElement('img');
+                    img.src = commanderSpriteValue;
+                    img.alt = commanderData.name.substring(0, 1);
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.borderRadius = '50%'; // Para que la imagen sea redonda dentro del estandarte
+                    commanderBanner.appendChild(img);
+                } else {
+                    // ...si no, lo tratamos como un emoji (fallback).
+                    commanderBanner.textContent = commanderSpriteValue;
+                }
+                
                 mainContent.appendChild(commanderBanner);
             }
-            
-            unitElement.dataset.id = unit.id;
+            // <<== FIN DE LA CORRECCIÓN ==>>
+
+            // Añadir el indicador de salud
             const strengthDisplay = document.createElement('div');
             strengthDisplay.className = 'unit-strength';
             strengthDisplay.textContent = unit.currentHealth;
             unitElement.appendChild(strengthDisplay);
             
-                    // Re-asignamos la nueva referencia del elemento al objeto de datos.
+            // Re-asignamos la nueva referencia y lo añadimos al tablero.
             unit.element = unitElement;
 
-                    // Lo añadimos al tablero.
+                        // Lo añadimos al tablero.
             this._domElements.gameBoard.appendChild(unitElement);
 
-                    // Y lo posicionamos.
+                        // Y lo posicionamos.
             if (typeof positionUnitElement === 'function') {
                 positionUnitElement(unit);
             }
@@ -816,9 +841,5 @@ const UIManager = {
             this._lastTutorialHighlightHexes = coords;
         }
     }
-
-
-    
-
     
 };

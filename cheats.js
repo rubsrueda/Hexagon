@@ -26,7 +26,6 @@ const Cheats = { // ¡Reemplaza el objeto Cheats completo con esto!
     win_game: () => { /* ... la lógica original se mantiene abajo... */ },
     lose_game: () => { /* ... la lógica original se mantiene abajo... */ },
 
-
     /**
      * ¡Amnesia total! Borra todos los datos guardados del juego en el navegador (perfiles, etc.).
      * Uso: nuevo_comienzo
@@ -413,6 +412,170 @@ const Cheats = { // ¡Reemplaza el objeto Cheats completo con esto!
         if (typeof UIManager !== 'undefined') UIManager.updateAllUIDisplays();
     },
 
+    /**
+ * ¡El Fénix renace! Borra por completo el perfil del jugador especificado y crea uno nuevo.
+ * Uso: ave_fenix <nombre_usuario_exacto>
+ * Ejemplo: ave_fenix MiGeneral
+ */
+ave_fenix: (username) => {
+    if (!username) {
+        return logToConsole("Uso: ave_fenix <nombre_usuario_exacto>", 'error');
+    }
+    const playerDataKey = `player_${username.trim().toLowerCase()}`;
+    if (localStorage.getItem(playerDataKey)) {
+        if (confirm(`¿Estás SEGURO de que quieres borrar permanentemente el perfil de "${username}"?`)) {
+            localStorage.removeItem(playerDataKey);
+            logToConsole(`El perfil de "${username}" ha sido eliminado. Puedes crear uno nuevo.`, 'success');
+            // Si el usuario borrado es el actual, se desloguea.
+            if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.username.toLowerCase() === username.trim().toLowerCase()) {
+                PlayerDataManager.logout();
+                // Forzamos la recarga para volver a la pantalla de login.
+                setTimeout(() => window.location.reload(), 1000);
+            }
+        } else {
+            logToConsole("Borrado de perfil cancelado.", 'info');
+        }
+    } else {
+        logToConsole(`No se encontró un perfil llamado "${username}".`, 'warning');
+    }
+},
+
+/**
+ * El Heraldo Real te trae un mensaje... Añade un Héroe directamente a tu cuartel.
+ * Uso: heraldo_real <id_heroe> [nombre_usuario]
+ * Ejemplo: heraldo_real g_el_cid MiGeneral
+ */
+heraldo_real: (heroId, username = null) => {
+    if (!heroId) {
+        return logToConsole("Uso: desbloquear_heroe <id_heroe> [nombre_usuario_opcional]", 'error');
+    }
+
+    // Si no se especifica usuario, se usa el actual.
+    const targetPlayer = username ? `player_${username.toLowerCase()}` : `player_${PlayerDataManager.currentPlayer.username.toLowerCase()}`;
+    const playerDataString = localStorage.getItem(targetPlayer);
+
+    if (!playerDataString) {
+        return logToConsole(`No se encontró el perfil de jugador: ${username || PlayerDataManager.currentPlayer.username}`, 'error');
+    }
+
+    try {
+        const playerData = JSON.parse(playerDataString);
+        let heroInstance = playerData.heroes.find(h => h.id === heroId);
+
+        if (heroInstance && heroInstance.stars > 0) {
+            return logToConsole(`El jugador ya posee a ${COMMANDERS[heroId].name}.`, 'warning');
+        }
+
+        if (heroInstance) {
+            // Si ya existe pero está bloqueado (stars: 0), lo desbloquea.
+            heroInstance.stars = 1;
+        } else {
+            // Si no existe en absoluto, lo crea y añade a la lista.
+            playerData.heroes.push({ 
+                id: heroId, 
+                level: 1, 
+                xp: 0, 
+                stars: 1, 
+                fragments: 0, 
+                skill_levels: [1, 0, 0, 0],
+                skill_points_unspent: 0 
+            });
+        }
+        
+        // Guardar los cambios en localStorage
+        localStorage.setItem(targetPlayer, JSON.stringify(playerData));
+        logToConsole(`¡${COMMANDERS[heroId].name} se ha unido a los ejércitos de ${username || PlayerDataManager.currentPlayer.username}!`, 'success');
+
+        // Si el cambio es para el jugador actual, refresca su estado en el juego.
+        if (!username || username.toLowerCase() === PlayerDataManager.currentPlayer.username.toLowerCase()) {
+            PlayerDataManager.currentPlayer = playerData;
+        }
+
+    } catch (e) {
+        logToConsole("Error al procesar el perfil del jugador: " + e.message, 'error');
+    }
+},
+
+/**
+ * La Corona te concede un estipendio. Añade Sellos de Guerra a tu tesoro.
+ * Uso: estipendio_real <cantidad> [nombre_usuario]
+ * Ejemplo: estipendio_real 100 MiGeneral
+ */
+dar_sellos: (amountStr, username = null) => {
+    const amount = parseInt(amountStr);
+    if (isNaN(amount)) {
+        return logToConsole("Uso: dar_sellos <cantidad> [nombre_usuario_opcional]", 'error');
+    }
+
+    // No necesitamos cargar/guardar manualmente, usamos las funciones del PlayerDataManager que son más seguras.
+    if (!username || (PlayerDataManager.currentPlayer && username.toLowerCase() === PlayerDataManager.currentPlayer.username.toLowerCase())) {
+        // Si es el jugador actual, usamos la función directa.
+        PlayerDataManager.addWarSeals(amount);
+    } else {
+        logToConsole("Error: El comando 'dar_sellos' con nombre de usuario solo se puede usar de forma manual por ahora. Usa 'diezmo_favorable sellos_guerra ...' o modifica el perfil manualmente.", 'warning');
+    }
+},
+
+    /**
+     * ¡Amnistía de Generales! Limpia la lista de generales activos para un jugador.
+     * Útil si el estado se corrompe y no te deja asignar un general.
+     * Uso: amnistia_real [jugador]
+     * Ejemplo: amnistia_real 1
+     */
+    amnistia_real: (playerNumStr = '1') => {
+        const playerNum = parseInt(playerNumStr);
+        if (isNaN(playerNum) || !gameState.activeCommanders[playerNum]) {
+            return logToConsole(`Error en 'amnistia_real': El jugador ${playerNumStr} no es válido.`, 'error');
+        }
+        
+        gameState.activeCommanders[playerNum] = [];
+        
+        logToConsole(`¡Amnistía concedida! La lista de generales activos del jugador ${playerNum} ha sido limpiada.`, 'success');
+    },
+
+    /**
+     * ¡Visita a la biblioteca! Añade Libros de Experiencia al inventario del jugador actual.
+     * Uso: biblioteca <cantidad>
+     * Ejemplo: biblioteca 50
+     */
+    biblioteca: (amountStr) => {
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            return logToConsole("Uso: biblioteca <cantidad_positiva>", 'error');
+        }
+
+        if (!PlayerDataManager.currentPlayer) {
+            return logToConsole("Error: No hay un jugador activo para darle libros.", 'error');
+        }
+
+        // Asegurarse de que el inventario y la propiedad xp_books existen
+        if (!PlayerDataManager.currentPlayer.inventory) {
+            PlayerDataManager.currentPlayer.inventory = {};
+        }
+        if (!PlayerDataManager.currentPlayer.inventory.xp_books) {
+            PlayerDataManager.currentPlayer.inventory.xp_books = 0;
+        }
+
+        PlayerDataManager.currentPlayer.inventory.xp_books += amount;
+        PlayerDataManager.saveCurrentPlayer(); // Guardar el cambio
+
+        logToConsole(`¡+${amount} Libros de Experiencia añadidos! Total ahora: ${PlayerDataManager.currentPlayer.inventory.xp_books}`, 'success');
+        
+        // Si el modal de detalles del héroe está abierto, lo refrescamos para actualizar el botón
+        const heroDetailModal = document.getElementById('heroDetailModal');
+        if (heroDetailModal && heroDetailModal.style.display === 'flex') {
+            // Esta es una forma un poco "tramposa" de obtener el ID del héroe que se está viendo
+            // pero funciona para nuestro propósito de depuración.
+            const heroName = document.getElementById('heroDetailName').textContent;
+            const heroData = Object.values(COMMANDERS).find(h => h.name === heroName);
+            const heroInstance = PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroData.id);
+            if (heroInstance) {
+                openHeroDetailModal(heroInstance);
+            }
+        }
+    },
+
+
     teleport_unit: (unitId, rStr, cStr) => { /* ...Lógica original sin cambios... */ },
     next_turn: () => { /* ...Lógica original sin cambios... */ },
     win_game: () => { /* ...Lógica original sin cambios... */ },
@@ -461,124 +624,4 @@ Cheats.lose_game = () => {
     } else throw new Error("endTacticalBattle no está definida.");
 };
 
-/**
- * ¡El Fénix renace! Borra por completo el perfil del jugador especificado y crea uno nuevo.
- * Uso: ave_fenix <nombre_usuario_exacto>
- * Ejemplo: ave_fenix MiGeneral
- */
-ave_fenix: (username) => {
-    if (!username) {
-        return logToConsole("Uso: ave_fenix <nombre_usuario_exacto>", 'error');
-    }
-    const playerDataKey = `player_${username.trim().toLowerCase()}`;
-    if (localStorage.getItem(playerDataKey)) {
-        if (confirm(`¿Estás SEGURO de que quieres borrar permanentemente el perfil de "${username}"?`)) {
-            localStorage.removeItem(playerDataKey);
-            logToConsole(`El perfil de "${username}" ha sido eliminado. Puedes crear uno nuevo.`, 'success');
-            // Si el usuario borrado es el actual, se desloguea.
-            if (PlayerDataManager.currentPlayer && PlayerDataManager.currentPlayer.username.toLowerCase() === username.trim().toLowerCase()) {
-                PlayerDataManager.logout();
-                // Forzamos la recarga para volver a la pantalla de login.
-                setTimeout(() => window.location.reload(), 1000);
-            }
-        } else {
-            logToConsole("Borrado de perfil cancelado.", 'info');
-        }
-    } else {
-        logToConsole(`No se encontró un perfil llamado "${username}".`, 'warning');
-    }
-};
-
-/**
- * El Heraldo Real te trae un mensaje... Añade un Héroe directamente a tu cuartel.
- * Uso: heraldo_real <id_heroe> [nombre_usuario]
- * Ejemplo: heraldo_real g_el_cid MiGeneral
- */
-desbloquear_heroe: (heroId, username = null) => {
-    if (!heroId) {
-        return logToConsole("Uso: desbloquear_heroe <id_heroe> [nombre_usuario_opcional]", 'error');
-    }
-
-    // Si no se especifica usuario, se usa el actual.
-    const targetPlayer = username ? `player_${username.toLowerCase()}` : `player_${PlayerDataManager.currentPlayer.username.toLowerCase()}`;
-    const playerDataString = localStorage.getItem(targetPlayer);
-
-    if (!playerDataString) {
-        return logToConsole(`No se encontró el perfil de jugador: ${username || PlayerDataManager.currentPlayer.username}`, 'error');
-    }
-
-    try {
-        const playerData = JSON.parse(playerDataString);
-        let heroInstance = playerData.heroes.find(h => h.id === heroId);
-
-        if (heroInstance && heroInstance.stars > 0) {
-            return logToConsole(`El jugador ya posee a ${COMMANDERS[heroId].name}.`, 'warning');
-        }
-
-        if (heroInstance) {
-            // Si ya existe pero está bloqueado (stars: 0), lo desbloquea.
-            heroInstance.stars = 1;
-        } else {
-            // Si no existe en absoluto, lo crea y añade a la lista.
-            playerData.heroes.push({ 
-                id: heroId, 
-                level: 1, 
-                xp: 0, 
-                stars: 1, 
-                fragments: 0, 
-                skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 }, 
-                skill_points_unspent: 0 
-            });
-        }
-        
-        // Guardar los cambios en localStorage
-        localStorage.setItem(targetPlayer, JSON.stringify(playerData));
-        logToConsole(`¡${COMMANDERS[heroId].name} se ha unido a los ejércitos de ${username || PlayerDataManager.currentPlayer.username}!`, 'success');
-
-        // Si el cambio es para el jugador actual, refresca su estado en el juego.
-        if (!username || username.toLowerCase() === PlayerDataManager.currentPlayer.username.toLowerCase()) {
-            PlayerDataManager.currentPlayer = playerData;
-        }
-
-    } catch (e) {
-        logToConsole("Error al procesar el perfil del jugador: " + e.message, 'error');
-    }
-};
-
-/**
- * La Corona te concede un estipendio. Añade Sellos de Guerra a tu tesoro.
- * Uso: estipendio_real <cantidad> [nombre_usuario]
- * Ejemplo: estipendio_real 100 MiGeneral
- */
-dar_sellos: (amountStr, username = null) => {
-    const amount = parseInt(amountStr);
-    if (isNaN(amount)) {
-        return logToConsole("Uso: dar_sellos <cantidad> [nombre_usuario_opcional]", 'error');
-    }
-
-    // No necesitamos cargar/guardar manualmente, usamos las funciones del PlayerDataManager que son más seguras.
-    if (!username || (PlayerDataManager.currentPlayer && username.toLowerCase() === PlayerDataManager.currentPlayer.username.toLowerCase())) {
-        // Si es el jugador actual, usamos la función directa.
-        PlayerDataManager.addWarSeals(amount);
-    } else {
-        logToConsole("Error: El comando 'dar_sellos' con nombre de usuario solo se puede usar de forma manual por ahora. Usa 'diezmo_favorable sellos_guerra ...' o modifica el perfil manualmente.", 'warning');
-    }
-};
-
-    /**
-     * ¡Amnistía de Generales! Limpia la lista de generales activos para un jugador.
-     * Útil si el estado se corrompe y no te deja asignar un general.
-     * Uso: amnistia_real [jugador]
-     * Ejemplo: amnistia_real 1
-     */
-    amnistia_real: (playerNumStr = '1') => {
-        const playerNum = parseInt(playerNumStr);
-        if (isNaN(playerNum) || !gameState.activeCommanders[playerNum]) {
-            return logToConsole(`Error en 'amnistia_real': El jugador ${playerNumStr} no es válido.`, 'error');
-        }
-        
-        gameState.activeCommanders[playerNum] = [];
-        
-        logToConsole(`¡Amnistía concedida! La lista de generales activos del jugador ${playerNum} ha sido limpiada.`, 'success');
-    };
 

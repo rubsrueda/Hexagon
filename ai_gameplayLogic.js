@@ -650,16 +650,15 @@ const AiGameplayManager = {
             maxMorale: 125,
         };
         
-        // PASO 2: (CORREGIDO) Se llama a la función de stats pasándole el objeto completo.
-        // Esta lo modificará, añadiendo .attack, .maxHealth, etc.
+        // PASO 2: Se calculan los stats MÁXIMOS (attack, defense, maxHealth...)
         calculateRegimentStats(unit);
         
         // PASO 3: Se usa la información recién añadida para establecer los valores iniciales.
-        unit.currentHealth = unit.maxHealth;
+        unit.currentHealth = unit.regiments.reduce((sum, reg) => sum + (reg.health || 0), 0);
         unit.currentMovement = unit.movement;
-
-        // Log de diagnóstico para confirmar
-        console.log(`[IA createUnitObject] Unidad ${unit.name} creada con hasMoved: ${unit.hasMoved}`);
+        
+        // Log de diagnóstico para confirma 
+        console.log(`[IA createUnitObject] Unidad ${unit.name} creada. Salud Máxima: ${unit.maxHealth}, Salud Actual: ${unit.currentHealth}`);
         
         return unit;
     },

@@ -153,7 +153,47 @@ function resetUnitsForNewTurn(playerNumber) {
         if (unit.player === playerNumber) {
             // Se resetean sus acciones y su movimiento
             calculateRegimentStats(unit); // Le pasamos la unidad completa. La función actualiza sus stats directamente.
-            unit.currentMovement = unit.movement; // Simplemente restauramos el movimiento actual al máximo recién calculado.
+            unit.currentMovement = unit.movement;
+            // <<== INICIO: LÓGICA DE HABILIDADES DE MOVIMIENTO ==>>
+                if (unit.commander) {
+                    const commanderData = COMMANDERS[unit.commander];
+                    const playerProfile = PlayerDataManager.getCurrentPlayer();
+                    const heroInstance = playerProfile.heroes.find(h => h.id === unit.commander);
+
+                    if (commanderData && heroInstance) {
+                        commanderData.skills.forEach((skill, index) => {
+                            const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                            const starsRequired = index + 1;
+
+                            // Comprobar si la habilidad está desbloqueada y si es de movimiento
+                            if (heroInstance.stars >= starsRequired && skillDef?.scope === 'movimiento') {
+                                const regimientoPrincipal = REGIMENT_TYPES[unit.regiments[0].type];
+                                
+                                // Comprobar filtro de categoría
+                                const categoryFilter = skillDef.filters?.category;
+                                let filterMatch = false;
+                                if (categoryFilter) {
+                                    if (categoryFilter.includes('all') || categoryFilter.includes(regimientoPrincipal.category)) {
+                                        filterMatch = true;
+                                    }
+                                } else {
+                                    filterMatch = true; // Si no hay filtro, se aplica
+                                }
+
+                                if (filterMatch) {
+                                    const skillLevel = heroInstance.skill_levels[index] || 1;
+                                    const bonusValue = skill.scaling_override[skillLevel - 1];
+                                    
+                                    // Las habilidades de movimiento siempre son planas, no porcentuales
+                                    unit.currentMovement += bonusValue;
+                                    
+                                    // Log para depuración
+                                    console.log(`[Habilidad Movimiento] ${unit.name} gana +${bonusValue} de movimiento por la habilidad "${skillDef.name}". Mov. Total: ${unit.currentMovement}`);
+                                }
+                            }
+                        });
+                    }
+                }
             unit.hasMoved = false;
             unit.hasAttacked = false;
             unit.isFlanked = false; // Se resetea el estado de flanqueo al inicio de su turno
@@ -172,50 +212,102 @@ function handleUnitUpkeep(playerNum) {
     const playerUnits = units.filter(u => u.player === playerNum && u.currentHealth > 0);
     if (playerUnits.length === 0) return;
 
+    console.group(`%c[Upkeep] INICIO Fase de Mantenimiento para Jugador ${playerNum}`, "background: #444; color: #fff;");
+
     const playerRes = gameState.playerResources[playerNum];
     let totalGoldUpkeep = 0;
     
     playerUnits.forEach(unit => {
-        // --- LÓGICA DE MORAL REGENERATIVA ---
-        // 1. Asegurarse de que la moral existe
-        if (typeof unit.morale === 'undefined') unit.morale = 50;
-        if (typeof unit.maxMorale === 'undefined') unit.maxMorale = 100;
+        console.groupCollapsed(`-> Procesando unidad: ${unit.name}`);
+        let maxMoraleBonus = 0;
+        let upkeepReductionPercent = 0;
 
-        // 2. Comprobar si está suministrada
-        const isSupplied = isHexSupplied(unit.r, unit.c, unit.player);
+        // --- 1. CÁLCULO DE BONUS DE HABILIDADES ---
+        if (unit.commander) {
+            const commanderData = COMMANDERS[unit.commander];
+            const playerProfile = PlayerDataManager.getCurrentPlayer();
+            const heroInstance = playerProfile?.heroes.find(h => h.id === unit.commander);
 
-        if (isSupplied) {
-            // Si está suministrada, regenera moral pasivamente
-            const moraleGain = 5; // Tu valor de regeneración
-            unit.morale = Math.min(unit.maxMorale, unit.morale + moraleGain);
+            if (commanderData && heroInstance) {
+                commanderData.skills.forEach((skill, index) => {
+                    const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                    const starsRequired = index + 1;
+
+                    if (heroInstance.stars >= starsRequired && skillDef?.scope === 'turno') {
+                        const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
+                        if (skillLevel > 0 && skill.scaling_override) {
+                            const bonusValue = skill.scaling_override[skillLevel - 1];
+                            
+                            if (skillDef.effect.stat === 'morale') {
+                                maxMoraleBonus += bonusValue;
+                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue} a Moral Máxima por "${skillDef.name}".`);
+                            } else if (skillDef.effect.stat === 'upkeep') {
+                                upkeepReductionPercent += bonusValue;
+                                console.log(`   [HABILIDAD] Comandante ${heroInstance.id} da +${bonusValue}% de Reducción de Consumo por "${skillDef.name}".`);
+                            }
+                        }
+                    }
+                });
+            }
         } else {
-            // Si no está suministrada, pierde moral
-            const moraleLoss = 10; // Penalización por falta de suministro
-            unit.morale = Math.max(0, unit.morale - moraleLoss);
-            logMessage(`¡${unit.name} está sin suministros y pierde ${moraleLoss} de moral!`, 'warning');
+            console.log("   [INFO] Sin comandante.");
         }
 
-        // --- LÓGICA DE MANTENIMIENTO (ORO) ---
-        (unit.regiments || []).forEach(regiment => {
-            totalGoldUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0;
-        });
+        // --- 2. LÓGICA DE MORAL CORREGIDA ---
+        const baseMaxMorale = unit.maxMorale || 125;
+        const finalMaxMorale = baseMaxMorale + maxMoraleBonus;
+        unit.morale = Math.max(0, unit.morale + maxMoraleBonus);
+        
+        console.log(`   [MORAL] Moral al inicio del upkeep: ${unit.morale || 50}/${finalMaxMorale}.`);
+
+        const isSupplied = isHexSupplied(unit.r, unit.c, unit.player);
+        if (isSupplied) {
+            const moraleGain = 5;
+            unit.morale = Math.min(finalMaxMorale, (unit.morale || 50) + moraleGain);
+            console.log(`   [MORAL] Con suministro. Gana ${moraleGain}. Moral Final: ${unit.morale}/${finalMaxMorale}.`);
+        } else {
+            const moraleLoss = 10;
+            
+            unit.morale = Math.max(0, (unit.morale || 50) - moraleLoss);
+            logMessage(`¡${unit.name} está sin suministros y pierde ${moraleLoss} de moral!`, 'warning');
+            console.log(`   [MORAL] Sin suministro. Pierde ${moraleLoss}. Moral Final: ${unit.morale}/${finalMaxMorale}.`);
+        }
+        
+        // --- 3. LÓGICA DE MANTENIMIENTO---
+        let unitUpkeep = 0;
+        (unit.regiments || []).forEach(regiment => { unitUpkeep += REGIMENT_TYPES[regiment.type]?.cost?.upkeep || 0; });
+         // Aplicar la reducción de consumo
+        console.log(`   [CONSUMO] Coste base de la división: ${unitUpkeep} oro.`);
+        if (upkeepReductionPercent >= 100) {
+            unitUpkeep = 0;
+            console.log(`   [CONSUMO] Reducción >= 100%. Coste final: 0 oro.`);
+        } else if (upkeepReductionPercent > 0) {
+            const reductionAmount = unitUpkeep * (upkeepReductionPercent / 100);
+            unitUpkeep -= reductionAmount;
+            console.log(`   [CONSUMO] Reducción de ${upkeepReductionPercent}% (${reductionAmount.toFixed(2)} oro). Coste final: ${Math.max(0, unitUpkeep).toFixed(2)} oro.`);
+        }
+        const finalUnitUpkeep = Math.round(Math.max(0, unitUpkeep));
+        totalGoldUpkeep += finalUnitUpkeep;
+        console.log(`   [CONSUMO] Coste final redondeado de esta división a sumar al total: ${finalUnitUpkeep} oro.`);
+        console.groupEnd();
     });
 
-    // Pagar el mantenimiento de oro (afecta a la desmoralización)
+    // --- 4. LÓGICA DE PAGO ---
+    console.log(`[Upkeep] Coste TOTAL de mantenimiento para Jugador ${playerNum}: ${totalGoldUpkeep} oro.`);
     if (playerRes.oro < totalGoldUpkeep) {
-        logMessage(`¡Jugador ${playerNum} no puede pagar el mantenimiento! ¡Las tropas se desmoralizan!`, "error");
+        logMessage(`¡Jugador ${playerNum} no puede pagar el mantenimiento (${totalGoldUpkeep})! ¡Las tropas se desmoralizan!`, "error");
         playerUnits.forEach(unit => {
-            // <<== NUEVO: La penalización ahora depende del número de regimientos ==>>
+            // <<== La penalización ahora depende del número de regimientos ==>>
             // Se calcula la pérdida de moral como -1 por cada regimiento en la división.
             const moralePenalty = (unit.regiments || []).length;
             unit.morale = Math.max(0, unit.morale - moralePenalty);
             logMessage(`  -> ${unit.name} pierde ${moralePenalty} de moral por el impago.`);
-            // <<== FIN DE LA MODIFICACIÓN ==>>
             unit.isDemoralized = true;
         });
     } else {
         playerRes.oro -= totalGoldUpkeep;
         // Si pagan, se quita el estado desmoralizado
+        logMessage(`Jugador ${playerNum} paga ${totalGoldUpkeep} de oro en mantenimiento.`);
         playerUnits.forEach(unit => {
             if (unit.isDemoralized) {
                 logMessage(`¡Las tropas de ${unit.name} reciben su paga y recuperan el ánimo!`);
@@ -223,6 +315,7 @@ function handleUnitUpkeep(playerNum) {
             }
         });
     }
+    console.groupEnd();
 }
 
 function handleHealingPhase(playerNum) {

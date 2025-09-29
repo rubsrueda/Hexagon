@@ -1184,22 +1184,20 @@ function iniciarPartidaLAN(settings) {
     }
 }
 
-function processActionRequest(action) {
-    // Tus logs iniciales se mantienen
+async function processActionRequest(action) { // <<== async
     console.log(`%c[Anfitrión] Procesando petición de acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     
     // Si la acción no es del anfitrión, la ignora para evitar que procese sus propias retransmisiones
     if (action.payload.playerId !== NetworkManager.miId && NetworkManager.esAnfitrion && action.payload.playerId !== gameState.currentPlayer) {
         // Excepción: permitimos que las acciones se procesen si son del jugador actual, independientemente de quién sea.
     }
-
+    
     let payload = action.payload;
     let actionExecuted = false;
 
     // Tu switch completo con toda su lógica se mantiene intacto.
     // Solo hemos modificado ligeramente el final del case 'endTurn'.
     switch (action.type) {
-        // --- LÓGICA DE FIN DE TURNO COMPLETA Y CENTRALIZADA ---
         case 'endTurn':
             if (payload.playerId !== gameState.currentPlayer) {
                 console.warn(`[Red - Anfitrión] RECHAZADO: Fin de turno de J${payload.playerId} pero el turno era de J${gameState.currentPlayer}.`);
@@ -1210,7 +1208,7 @@ function processActionRequest(action) {
             console.log(`[Red - Anfitrión] Procesando fin de turno para J${payload.playerId}...`);
             
             // ¡Llamamos a la función centralizada de gameFlow.js pasándole el flag!
-            handleEndTurn(true); 
+            handleEndTurn(true);
             
             actionExecuted = true;
             break;    
@@ -1268,9 +1266,17 @@ function processActionRequest(action) {
             });
             
             actionExecuted = true;
-            // IMPORTANTE: Ya no se envía un mensaje especial aquí. Dejamos que el broadcast final se encargue.
             break;
             
+        case 'attackUnit': // <<== MODIFICACIÓN IMPORTANTE AQUÍ
+            const attacker = units.find(u => u.id === payload.attackerId);
+            const defender = units.find(u => u.id === payload.defenderId);
+            if (attacker && defender && isValidAttack(attacker, defender)) {
+                await attackUnit(attacker, defender); // <<== AWAIT
+                actionExecuted = true;
+            }
+            break;
+
         case 'researchTech':
             const tech = TECHNOLOGY_TREE_DATA[payload.techId];
             const playerRes = gameState.playerResources[payload.playerId];
@@ -1279,42 +1285,33 @@ function processActionRequest(action) {
                 actionExecuted = true;
             }
             break;
-
         case 'moveUnit':
             const unitToMove = units.find(u => u.id === payload.unitId);
             if (unitToMove && isValidMove(unitToMove, payload.toR, payload.toC)) {
-                _executeMoveUnit(unitToMove, payload.toR, payload.toC);
+                await _executeMoveUnit(unitToMove, payload.toR, payload.toC); // await aquí también es una buena práctica
                 actionExecuted = true;
             }
             break;
 
-        case 'attackUnit':
-            const attacker = units.find(u => u.id === payload.attackerId);
-            const defender = units.find(u => u.id === payload.defenderId);
-            if (attacker && defender && isValidAttack(attacker, defender)) {
-                attackUnit(attacker, defender);
-                actionExecuted = true;
-            }
-            break;
-        case 'mergeUnits':
-            const mergingUnit = units.find(u => u.id === payload.mergingUnitId);
-            const targetUnitMerge = units.find(u => u.id === payload.targetUnitId);
+        case 'mergeUnits': 
+            const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
+            const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
             if(mergingUnit && targetUnitMerge) {
                 mergeUnits(mergingUnit, targetUnitMerge);
                 actionExecuted = true;
             }
             break;
-        case 'splitUnit':
-            const originalUnit = units.find(u => u.id === payload.originalUnitId);
-            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments };
+        case 'splitUnit': 
+            const originalUnit = units.find(u => u.id === payload.originalUnitId); 
+            gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; 
             if (originalUnit) {
                  splitUnit(originalUnit, payload.targetR, payload.targetC);
                  actionExecuted = true;
             }
-            gameState.preparingAction = null;
+            gameState.preparingAction = null; 
             break;
-        case 'pillageHex':
-            const pillager = units.find(u => u.id === payload.unitId);
+        case 'pillageHex': 
+            const pillager = units.find(u => u.id === payload.unitId); 
             if(pillager) {
                 selectedUnit = pillager; 
                 handlePillageAction();
@@ -1322,14 +1319,14 @@ function processActionRequest(action) {
                 actionExecuted = true;
             }
             break;
-        case 'disbandUnit':
-             const unitToDisband = units.find(u => u.id === payload.unitId);
-             if(unitToDisband){
+        case 'disbandUnit': 
+            const unitToDisband = units.find(u => u.id === payload.unitId); 
+            if(unitToDisband){
                 handleDisbandUnit(unitToDisband);
                 actionExecuted = true;
              }
              break;
-        
+
         case 'placeUnit':
             const hexToPlace = board[payload.r]?.[payload.c];
             if (hexToPlace && !hexToPlace.unit) {
@@ -1341,8 +1338,8 @@ function processActionRequest(action) {
                 actionExecuted = true;
             }
             break;
-            
-        case 'buildStructure':
+
+        case 'buildStructure': 
             const builderPlayerRes = gameState.playerResources[payload.playerId];
             const structureCost = STRUCTURE_TYPES[payload.structureType].cost;
             let canAfford = true;
@@ -1353,13 +1350,14 @@ function processActionRequest(action) {
                 }
             }
             if(canAfford){
-                handleConfirmBuildStructure(payload);
-                actionExecuted = true;
+            handleConfirmBuildStructure(payload); 
+            actionExecuted = true; 
             }
             break;
-        case 'reinforceRegiment':
-            const divisionToReinforce = units.find(u => u.id === payload.divisionId);
-            const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId);
+
+        case 'reinforceRegiment': 
+            const divisionToReinforce = units.find(u => u.id === payload.divisionId); 
+            const regimentToReinforce = divisionToReinforce?.regiments.find(r => r.id === payload.regimentId); 
             if(divisionToReinforce && regimentToReinforce) {
                  handleReinforceRegiment(divisionToReinforce, regimentToReinforce);
                  actionExecuted = true;
@@ -1368,7 +1366,7 @@ function processActionRequest(action) {
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
             break;
-    }
+        }
 
     // Si CUALQUIER acción (incluida endTurn) se ejecutó y cambió el estado...
     if (actionExecuted) {

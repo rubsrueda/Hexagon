@@ -238,60 +238,97 @@
             </div>
         </div>
     </div>
-
     <!-- ====================================================================== -->
-    <!-- ================ MODAL DE DETALLES Y PROGRESIÓN DE HÉROE =============== -->
+    <!-- ================ MODAL DE DETALLES DE HÉROE (ESTILO ROK) =============== -->
     <!-- ====================================================================== -->
     <div id="heroDetailModal" class="modal" style="display: none;">
-        <div class="modal-content hero-detail-content">
+        <div class="modal-content hero-detail-content-rok">
             <span class="close-button" id="closeHeroDetailBtn">×</span>
-            <div class="hero-detail-header">
-                <div id="heroDetailSprite" class="hero-sprite"></div>
-                <div class="hero-header-info">
-                    <h2 id="heroDetailName">Nombre del Héroe</h2>
-                    <p id="heroDetailTitle">Título del Héroe</p>
-                    <div id="heroDetailRarity" class="hero-rarity">Rareza</div>
-                </div>
-            </div>
-            <div class="hero-detail-body">
-                <div class="hero-progression-section">
-                    <h4>Progresión</h4>
-                    <div class="progress-item">
-                        <span>Nivel: <span id="heroDetailLevel">1 (0 Ptos.)</span></span>
-                        <div class="xp-bar-container">
-                            <div id="heroDetailXpBar" class="xp-bar"></div>
-                        </div>
-                        <span id="heroDetailXpText">0 / 1000</span>
-                    </div>
-                    <div class="progress-item">
-                        <span>Evolución: <span id="heroDetailStars">⭐</span></span>
-                        <div class="xp-bar-container">
-                            <div id="heroDetailFragmentBar" class="xp-bar fragments"></div>
-                        </div>
-                        <span id="heroDetailFragmentText">0 / 20</span>
-                    </div>
-                    <div class="progress-item">
-                        <span>Evolución: <span id="heroDetailStars">⭐</span></span>
-                        <div class="xp-bar-container">
-                            <div id="heroDetailFragmentBar" class="xp-bar fragments"></div>
-                        </div>
-                        <span id="heroDetailFragmentText">0 / 20</span>
+            
+            <!-- CUERPO PRINCIPAL (Layout de 3 columnas) -->
+            <div class="hero-main-layout">
+
+                <!-- COLUMNA IZQUIERDA: HABILIDADES -->
+                <div class="hero-column hero-skills-column">
+                    <h3 class="column-title">Habilidades</h3>
+                    <div id="heroDetailSkillsContainer" class="skills-list">
+                        <!-- Las 4 habilidades se insertarán aquí con JS -->
                     </div>
                 </div>
-                <div class="hero-skills-section">
-                    <h4>Habilidades</h4>
-                    <div id="heroDetailSkills">
-                        <!-- Las habilidades se insertarán aquí -->
+
+                <!-- COLUMNA CENTRAL: RETRATO, STATS Y PROGRESIÓN -->
+                <div class="hero-column hero-center-column">
+                    <div id="hero-portrait-container">
+                        <!-- El retrato grande irá aquí -->
+                    </div>
+                    <div id="hero-name-title" class="hero-name-title">
+                        <h2 id="heroDetailName">Nombre Héroe</h2>
+                        <p id="heroDetailTitle">Título del Héroe</p>
+                    </div>
+                    <div id="hero-progression-bars">
+                        <div class="progress-item">
+                            <span>Nivel: <strong id="heroDetailLevel">1</strong></span>
+                            <div class="xp-bar-container"><div id="heroDetailXpBar" class="xp-bar"></div></div>
+                            <span id="heroDetailXpText">0/1000</span>
+                        </div>
+                        <div class="progress-item">
+                            <span>Evolución: <strong id="heroDetailStars">⭐</strong></span>
+                            <div class="xp-bar-container"><div id="heroDetailFragmentBar" class="xp-bar fragments"></div></div>
+                            <span id="heroDetailFragmentText">0/20</span>
+                        </div>
+                    </div>
+                    <div class="hero-action-buttons">
+                        <button id="heroLevelUpBtn">Usar Libros XP</button>
+                        <button id="heroEvolveBtn">Evolucionar</button>
                     </div>
                 </div>
-            </div>
-            <div id="heroDetailFooter" class="hero-detail-footer">
-                <button id="heroLevelUpBtn">Usar Libros de XP</button>
-                <button id="heroEvolveBtn">Evolucionar</button>
+
+                <!-- COLUMNA DERECHA: TALENTOS Y EQUIPAMIENTO (PREPARADO PARA EL FUTURO) -->
+                <div class="hero-column hero-talents-column">
+                    <div class="tabs">
+                        <button class="tab-button active" data-tab="talents">Talentos</button>
+                        <button class="tab-button" data-tab="equipment">Equipo</button>
+                    </div>
+                    <div id="talents" class="tab-content active">
+                        <p><i>El árbol de talentos se implementará aquí.</i></p>
+                    </div>
+                    <div id="equipment" class="tab-content">
+                        <p><i>Las 6 ranuras de equipamiento (Casco, Arma, etc.) irán aquí.</i></p>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 
+    <!-- ====================================================================== -->
+    <!-- ============= POP-UP DE DETALLES DE HABILIDAD (MODAL) ================ -->
+    <!-- ====================================================================== -->
+    <div id="skillDetailModal" class="modal" style="display: none; background-color: rgba(0,0,0,0.7);">
+        <div class="modal-content skill-detail-content">
+            <span class="close-button" id="closeSkillDetailBtn">×</span>
+            <div class="skill-detail-header">
+                <div id="skillDetailIcon" class="skill-icon"></div>
+                <div class="skill-header-info">
+                    <h3 id="skillDetailName">Nombre de la Habilidad</h3>
+                    <p id="skillDetailCurrentLevel">Nivel Actual: 1/5</p>
+                </div>
+            </div>
+            <div class="skill-detail-body">
+                <p id="skillDetailDescription">Descripción general de lo que hace la habilidad.</p>
+                <hr>
+                <h4>Vista Previa de Niveles</h4>
+                <div id="skillLevelPreview">
+                    <!-- Los niveles se insertarán aquí con JS -->
+                </div>
+            </div>
+            <div class="skill-detail-footer">
+                <span id="skillUpgradeCost">Coste: 1 Punto de Habilidad</span>
+                <button id="upgradeSkillBtn">MEJORAR</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- ====================================================================== -->
     <!-- =================== PANTALLA DEL ARBOL DE TECNOLOGÍA ================== -->
     <!-- ====================================================================== -->

@@ -1578,43 +1578,55 @@ function RequestReinforceRegiment(division, regiment) {
         // <<== LÓGICA MODIFICADA PARA MOSTRAR HÉROES DESBLOQUEADOS Y BLOQUEADOS ==>>
         
         // Primero, ordena la lista para mostrar siempre los desbloqueados (stars > 0) primero.
-        playerData.heroes.sort((a, b) => b.stars - a.stars);
+    playerData.heroes.sort((a, b) => b.stars - a.stars);
+    
+    playerData.heroes.forEach(heroInstance => {
+        const heroData = COMMANDERS[heroInstance.id];
+        // 1. Primero nos aseguramos de que heroData exista
+        if (!heroData) return;
         
-        playerData.heroes.forEach(heroInstance => {
-            const heroData = COMMANDERS[heroInstance.id];
-            if (!heroData) return;
-            
-            const isLocked = heroInstance.stars === 0;
-            const card = document.createElement('div');
-            // Añadimos la clase 'is-locked' si el héroe no está desbloqueado
-            card.className = `hero-card ${heroData.rarity} ${isLocked ? 'is-locked' : ''}`;
-            
-            // Si está bloqueado, mostramos la tarjeta "fantasma" con el progreso de fragmentos
-            if (isLocked) {
-                // Asumimos un coste de 20 fragmentos para desbloquear (a 1 estrella)
-                const fragmentsNeededToUnlock = HERO_FRAGMENTS_PER_STAR[1] || 20; 
-                card.innerHTML = `
-                    <div class="hero-sprite">${heroData.sprite}</div>
-                    <div class="hero-name">${heroData.name}</div>
-                    <div class="hero-fragments-progress">Fragmentos: ${heroInstance.fragments}/${fragmentsNeededToUnlock}</div>
-                    <div class="hero-stars">BLOQUEADO</div>
-                `;
-            } else {
-                // Si está desbloqueado, mostramos la tarjeta normal
-                card.innerHTML = `
-                    <div class="hero-sprite">${heroData.sprite}</div>
-                    <div class="hero-name">${heroData.name}</div>
-                    <div class="hero-level">Nivel ${heroInstance.level}</div>
-                    <div class="hero-stars">${'⭐'.repeat(heroInstance.stars)}</div>
-                `;
-            }
+        // 2. <<== CORRECCIÓN: Ahora que heroData existe, creamos el spriteHTML ==>>
+        let spriteHTML = '';
+        if (heroData.sprite.includes('.png') || heroData.sprite.includes('.jpg')) {
+            // Usamos una clase para que el CSS la controle
+            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image">`;
+        } else {
+            // Mantenemos la lógica para los emojis como fallback
+            spriteHTML = `<div class="hero-sprite">${heroData.sprite}</div>`;
+        }
+        // <<== FIN DE LA CORRECCIÓN ==>>
 
-            // El clic siempre lleva a la pantalla de detalles, para ver el progreso o mejorar
-            card.onclick = () => {
-                openHeroDetailModal(heroInstance);
-            };
-            container.appendChild(card);
-        });
+        const isLocked = heroInstance.stars === 0;
+        const card = document.createElement('div');
+            // Añadimos la clase 'is-locked' si el héroe no está desbloqueado
+        card.className = `hero-card ${heroData.rarity} ${isLocked ? 'is-locked' : ''}`;
+        
+            // Si está bloqueado, mostramos la tarjeta "fantasma" con el progreso de fragmentos
+        if (isLocked) {
+                // Asumimos un coste de 20 fragmentos para desbloquear (a 1 estrella)
+            const fragmentsNeededToUnlock = HERO_FRAGMENTS_PER_STAR[1] || 20;
+            // Usamos la variable spriteHTML que acabamos de crear
+            card.innerHTML = `
+                ${spriteHTML} 
+                <div class="hero-name">${heroData.name}</div>
+                <div class="hero-fragments-progress">Fragmentos: ${heroInstance.fragments}/${fragmentsNeededToUnlock}</div>
+                <div class="hero-stars">BLOQUEADO</div>
+            `;
+        } else {
+                // Si está desbloqueado, mostramos la tarjeta normal
+            card.innerHTML = `
+                ${spriteHTML}
+                <div class="hero-name">${heroData.name}</div>
+                <div class="hero-level">Nivel ${heroInstance.level}</div>
+                <div class="hero-stars">${'⭐'.repeat(heroInstance.stars)}</div>
+            `;
+        }
+
+        card.onclick = () => {
+            openHeroDetailModal(heroInstance);
+        };
+        container.appendChild(card);
+    });
     }
     
     modal.style.display = 'flex';
@@ -1625,145 +1637,111 @@ function RequestReinforceRegiment(division, regiment) {
  * Muestra un botón de "Asignar" solo si se viene desde el flujo de asignación.
  * @param {object} heroInstance - La instancia del héroe del jugador (con su nivel, xp, etc.).
  */
+// En modalLogic.js
+
 function openHeroDetailModal(heroInstance) {
     const modal = document.getElementById('heroDetailModal');
+    if (!modal) return;
+
     const heroData = COMMANDERS[heroInstance.id];
     const playerData = PlayerDataManager.getCurrentPlayer();
-    const footer = document.getElementById('heroDetailFooter');
-    if (!modal || !heroData || !playerData) return;
+    if (!heroData || !playerData) {
+        console.error("No se pueden mostrar los detalles del héroe: Faltan datos del héroe o del jugador.");
+        return;
+    }
 
-    // Rellenar info básica
-    document.getElementById('heroDetailSprite').textContent = heroData.sprite;
+    // --- COLUMNA CENTRAL: Retrato, Stats y Progresión ---
+    // Retrato grande
+    const portraitContainer = document.getElementById('hero-portrait-container');
+    if(portraitContainer) portraitContainer.innerHTML = `<img src="${heroData.sprite}" alt="${heroData.name}">`;
+    // Nombre y Título
     document.getElementById('heroDetailName').textContent = heroData.name;
     document.getElementById('heroDetailTitle').textContent = heroData.title;
-    const rarityEl = document.getElementById('heroDetailRarity');
-    rarityEl.textContent = heroData.rarity;
-    rarityEl.className = `hero-rarity ${heroData.rarity}`;
-
-    // <<== MODIFICADO: Rellenar progresión y Puntos de Habilidad sin gastar ==>>
+    // Nivel y XP
     const currentLevel = heroInstance.level;
     const xpForNextLevel = getXpForNextLevel(currentLevel);
-    // Mostrar los puntos de habilidad junto al nivel
     document.getElementById('heroDetailLevel').textContent = `${currentLevel} (${heroInstance.skill_points_unspent || 0} Ptos.)`;
     document.getElementById('heroDetailXpBar').style.width = `${xpForNextLevel === 'Max' ? 100 : Math.min(100, (heroInstance.xp / xpForNextLevel) * 100)}%`;
     document.getElementById('heroDetailXpText').textContent = `${heroInstance.xp} / ${xpForNextLevel}`;
+    // Evolución y Fragmentos
     const nextStar = heroInstance.stars + 1;
     const fragmentsNeeded = HERO_FRAGMENTS_PER_STAR[nextStar] || 'Max';
     document.getElementById('heroDetailStars').textContent = '⭐'.repeat(heroInstance.stars);
     document.getElementById('heroDetailFragmentBar').style.width = `${fragmentsNeeded === 'Max' ? 100 : Math.min(100, (heroInstance.fragments / fragmentsNeeded) * 100)}%`;
     document.getElementById('heroDetailFragmentText').textContent = `${heroInstance.fragments} / ${fragmentsNeeded}`;
-
-    // Rellenar Habilidades Dinámicamente
-    const skillsContainer = document.getElementById('heroDetailSkills');
-    skillsContainer.innerHTML = '';
     
-    const canUpgradeSkills = (heroInstance.skill_points_unspent || 0) > 0;
+    // Botones de acción
+    document.getElementById('heroLevelUpBtn').disabled = (playerData.inventory.xp_books || 0) <= 0 || xpForNextLevel === 'Max';
+    document.getElementById('heroEvolveBtn').disabled = heroInstance.fragments < fragmentsNeeded || fragmentsNeeded === 'Max';
 
-    // Función auxiliar interna para renderizar una habilidad de forma consistente
-    const renderSkill = (skillData, skillInstanceLevel, skillKey, isUnlocked, unlockRequirement) => {
-        let name, description;
-        const isLvl5 = skillInstanceLevel >= 5;
+    // --- COLUMNA IZQUIERDA: Habilidades ---
+    const skillsContainer = document.getElementById('heroDetailSkillsContainer');
+    if(skillsContainer) {
+        skillsContainer.innerHTML = ''; // Limpiar
+        
+        // La "traducción" de índice a clave del perfil del jugador
+        const skillLevelKeys = ['active', 'passive1', 'passive2', 'passive3'];
 
-        // Comprobación si la habilidad es del registro o personalizada
-        if (skillData.skill_id && SKILL_DEFINITIONS[skillData.skill_id]) {
-            const definition = SKILL_DEFINITIONS[skillData.skill_id];
-            name = definition.name;
-            const scalingValues = skillData.scaling_override || definition.default_scaling;
-            let tempDesc = definition.description_template;
+        heroData.skills.forEach((skillData, index) => {
+            if (!skillData) return;
             
-            // Comprobamos SI EXISTEN valores de escalado antes de intentar usarlos
-            if (scalingValues) { 
-                const levelIndex = Math.max(0, skillInstanceLevel - 1);
-                const currentValue = scalingValues[levelIndex];
-                
-                // Aplicar el valor o valores al template
-                if (currentValue !== undefined) {
-                    tempDesc = tempDesc.replace('{X}', Array.isArray(currentValue) ? (currentValue.dmg || currentValue.atk || currentValue.def || currentValue[0]) : currentValue);
-                    if (Array.isArray(currentValue) && (currentValue.slow || currentValue.spd || currentValue.length > 1)) {
-                        tempDesc = tempDesc.replace('{Y}', currentValue.slow || currentValue.spd || currentValue[1]);
-                    }
-                }
+            const skillDef = SKILL_DEFINITIONS[skillData.skill_id];
+            if (!skillDef) return;
+            
+            const skillKey = skillLevelKeys[index];
+            const skillLevel = heroInstance.skill_levels[skillKey] || 0;
+            const starsRequired = index + 1;
+            const isUnlocked = heroInstance.stars >= starsRequired;
+
+            const skillDiv = document.createElement('div');
+            skillDiv.className = 'skill-item-rok';
+            skillDiv.style.opacity = isUnlocked ? '1' : '0.6';
+
+            if (isUnlocked) {
+                skillDiv.style.cursor = 'pointer';
+                skillDiv.onclick = () => openSkillDetailModal(heroInstance, index);
             }
 
-            description = tempDesc;
-
-        } else { // Fallback para habilidades 100% personalizadas (sin skill_id)
-            name = skillData.name;
-            description = skillData.description; // Usar descripción directa
-            
-            // <<== CORRECCIÓN TAMBIÉN PARA HABILIDADES PERSONALIZADAS ==>>
-            if (skillData.scaling) { // Comprobar si tiene escalado
-                const levelIndex = Math.max(0, skillInstanceLevel - 1);
-                const currentValue = skillData.scaling[levelIndex];
-                if (currentValue !== undefined) {
-                    description = description.replace('X', Array.isArray(currentValue) ? currentValue[0] : currentValue);
-                    if (Array.isArray(currentValue) && currentValue.length > 1) {
-                         description = description.replace('Y', currentValue[1]);
-                    }
-                }
-            }
-        }
-        
-        let upgradeButtonHTML = (isUnlocked && canUpgradeSkills && !isLvl5) ? `<button class="skill-upgrade-btn" data-skill-key="${skillKey}" title="Mejorar Habilidad">+</button>` : '';
-        
-        return `
-            <div class="skill-item ${skillKey === 'active' ? 'active-skill' : ''}">
-                <h5>${name} (Nivel ${isUnlocked ? skillInstanceLevel : 0}) ${upgradeButtonHTML}</h5>
-                <p>${description}</p>
-                ${!isUnlocked ? `<p class="skill-unlock-req"><em>Se desbloquea con ${unlockRequirement} estrellas.</em></p>` : ''}
-            </div>
-        `;
-    };
-    
-    // Renderizar habilidad activa
-    skillsContainer.innerHTML += renderSkill(heroData.activeSkill, heroInstance.skill_levels.active, 'active', true, 1);
-
-    // Renderizar habilidades pasivas
-    heroData.passiveSkills.forEach((skill, index) => {
-        const skillKey = `passive${index + 1}`;
-        const skillInstanceLevel = heroInstance.skill_levels[skillKey] || 0;
-        const isUnlocked = heroInstance.stars >= index + 2;
-        skillsContainer.innerHTML += renderSkill(skill, skillInstanceLevel, skillKey, isUnlocked, index + 2);
-    });
-
-    // Añadir listeners a los nuevos botones [+]
-    modal.querySelectorAll('.skill-upgrade-btn').forEach(btn => {
-        btn.onclick = () => {
-            PlayerDataManager.upgradeHeroSkill(heroInstance.id, btn.dataset.skillKey);
-            const updatedHero = PlayerDataManager.getCurrentPlayer().heroes.find(h => h.id === heroInstance.id);
-            openHeroDetailModal(updatedHero); // Refrescar modal
-        };
-    });
-
-    // <<== NUEVO: Conectar botones principales y refrescar modal tras la acción ==>>
-    const levelUpBtn = document.getElementById('heroLevelUpBtn');
-    levelUpBtn.textContent = `Usar Libro XP (${playerData.inventory.xp_books || 0})`;
-    levelUpBtn.disabled = (playerData.inventory.xp_books || 0) <= 0 || xpForNextLevel === 'Max';
-    levelUpBtn.onclick = () => {
-        PlayerDataManager.useXpBook(heroInstance.id);
-        const updatedHero = PlayerDataManager.getCurrentPlayer().heroes.find(h => h.id === heroInstance.id);
-        openHeroDetailModal(updatedHero);
-    };
-
-    const evolveBtn = document.getElementById('heroEvolveBtn');
-    evolveBtn.disabled = heroInstance.fragments < fragmentsNeeded || fragmentsNeeded === 'Max';
-    evolveBtn.onclick = () => {
-        PlayerDataManager.evolveHero(heroInstance.id);
-        const updatedHero = PlayerDataManager.getCurrentPlayer().heroes.find(h => h.id === heroInstance.id);
-        openHeroDetailModal(updatedHero);
-    };
-    
-   // --- Lógica de Botones: Mostrar "Asignar" si aplica ---
-    const barracksModal = document.getElementById('barracksModal');
-    const assignmentMode = barracksModal.dataset.assignmentMode === 'true';
-
-    // Limpiar cualquier botón de asignación anterior para evitar duplicados
-    const oldAssignBtn = document.getElementById('heroAssignBtn');
-    if (oldAssignBtn) {
-        oldAssignBtn.remove();
+            let skillHTML = `
+                <div class="skill-icon ${index === 0 ? 'active' : ''}">
+                    ${skillDef.sprite || 'H'}
+                    <div class="skill-level">${isUnlocked ? skillLevel : 0}/5</div>
+                </div>
+                <div class="skill-info">
+                    <h5>${skillDef.name}</h5>
+                    <p>${isUnlocked ? skillDef.description_template.substring(0, 50)+'...' : `Se desbloquea con ${starsRequired} ⭐`}</p>
+                </div>
+            `;
+            skillDiv.innerHTML = skillHTML;
+            skillsContainer.appendChild(skillDiv);
+        });
     }
 
-    if (assignmentMode) {
+    // --- COLUMNA DERECHA: Pestañas de Talentos y Equipo ---
+    const tabs = modal.querySelectorAll('.tab-button');
+    const contents = modal.querySelectorAll('.tab-content');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            const contentToShow = document.getElementById(tab.dataset.tab);
+            if (contentToShow) contentToShow.classList.add('active');
+        });
+    });
+    // Forzar la primera pestaña como activa por defecto
+    document.querySelector('.tab-button[data-tab="talents"]').click();
+
+    // --- LÓGICA FINAL: ASIGNACIÓN Y VISUALIZACIÓN ---
+    const barracksModal = document.getElementById('barracksModal');
+    const assignmentMode = barracksModal.dataset.assignmentMode === 'true';
+    const footer = document.querySelector('.hero-main-layout'); // Añadiremos el botón aquí
+    
+    // Limpiar botón de asignación previo
+    const oldAssignBtn = document.getElementById('heroAssignBtn');
+    if (oldAssignBtn) oldAssignBtn.remove();
+    
+    if (assignmentMode && footer) {
         const targetUnitId = barracksModal.dataset.targetUnitId;
         const targetUnit = units.find(u => u.id === targetUnitId);
         
@@ -1771,16 +1749,71 @@ function openHeroDetailModal(heroInstance) {
             const assignBtn = document.createElement('button');
             assignBtn.id = 'heroAssignBtn';
             assignBtn.textContent = 'Asignar a esta División';
+            assignBtn.style.cssText = 'grid-column: 2; margin-top: 15px; padding: 12px; font-size: 1.1em; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;';
+            
             assignBtn.onclick = () => {
-                // LLAMAMOS A LA FUNCIÓN DE ASIGNACIÓN QUE YA FUNCIONABA
                 assignHeroToUnit(targetUnit, heroInstance.id);
                 modal.style.display = 'none';
                 barracksModal.style.display = 'none';
             };
-            footer.prepend(assignBtn); // Añadimos el botón al footer del modal
+            footer.appendChild(assignBtn);
         }
     }
     
+    modal.style.display = 'flex';
+}
+
+function openSkillDetailModal(heroInstance, skillIndex) {
+    const modal = document.getElementById('skillDetailModal');
+    if (!modal) return;
+
+    const heroData = COMMANDERS[heroInstance.id];
+    const skillData = heroData.skills[skillIndex];
+    const skillDef = SKILL_DEFINITIONS[skillData.skill_id];
+    
+    // Rellenar cabecera
+    document.getElementById('skillDetailIcon').textContent = skillDef.sprite || 'H';
+    document.getElementById('skillDetailName').textContent = skillDef.name;
+    let currentLevel = heroInstance.skill_levels[skillIndex] || 0;
+    if (skillIndex === 0 && currentLevel === 0) {
+        currentLevel = 1;
+    }
+    document.getElementById('skillDetailCurrentLevel').textContent = `Nivel Actual: ${currentLevel}/5`;
+    
+    // Rellenar cuerpo
+    document.getElementById('skillDetailDescription').textContent = skillDef.description_template.replace('{filter_desc}', 'las tropas aplicables');
+    
+    // Rellenar vista previa de niveles
+    const levelPreviewContainer = document.getElementById('skillLevelPreview');
+    levelPreviewContainer.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+        const level = i + 1;
+        const bonusValue = skillData.scaling_override[i];
+        let description = skillDef.description_template.replace('{X}', bonusValue);
+        
+        const row = document.createElement('div');
+        row.className = 'level-row';
+        if (level === currentLevel) {
+            row.classList.add('current');
+        }
+        row.textContent = `Nivel ${level}: ${description}`;
+        levelPreviewContainer.appendChild(row);
+    }
+    
+    // Rellenar pie y configurar botón
+    const upgradeBtn = document.getElementById('upgradeSkillBtn');
+    const canUpgrade = (heroInstance.skill_points_unspent || 0) > 0 && currentLevel < 5 && currentLevel > 0;
+    upgradeBtn.disabled = !canUpgrade;
+    
+    upgradeBtn.onclick = () => {
+        // Lógica de mejora (la implementaremos después, ahora solo cierra)
+        modal.style.display = 'none';
+    };
+
+    document.getElementById('closeSkillDetailBtn').onclick = () => {
+        modal.style.display = 'none';
+    };
+
     modal.style.display = 'flex';
 }
 

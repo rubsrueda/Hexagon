@@ -100,7 +100,7 @@ const PlayerDataManager = {
                 xp: 0, 
                 stars: 1, 
                 fragments: 0, 
-                skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 }, 
+                skill_levels: [1, 0, 0, 0], // Habilidad 1 (nivel 1), Habilidades 2, 3, 4 (nivel 0)
                 skill_points_unspent: 0 
             }],
             inventory: { xp_books: 10, ascension_materials: {} },

@@ -272,10 +272,15 @@ function placeFinalizedDivision(unitData, r, c) {
     
     calculateRegimentStats(unitData);
     
-    if (!unitData.isSplit) { unitData.currentHealth = unitData.maxHealth; }
+    // <<== LÍNEA PROBLEMÁTICA ELIMINADA ==>>
+    // Se eliminó la línea: if (!unitData.isSplit) { unitData.currentHealth = unitData.maxHealth; }
+    // Ahora se respetará la vida actual que ya trae el objeto `unitData`.
     
-    if (UIManager && typeof UIManager.renderAllUnitsFromData === 'function') UIManager.renderAllUnitsFromData();
-    else console.error("CRÍTICO: UIManager.renderAllUnitsFromData no está disponible.");
+    if (UIManager && typeof UIManager.renderAllUnitsFromData === 'function') {
+        UIManager.renderAllUnitsFromData();
+    } else {
+        console.error("CRÍTICO: UIManager.renderAllUnitsFromData no está disponible.");
+    }
     
     renderSingleHexVisuals(r, c);
     
@@ -919,53 +924,73 @@ function positionUnitElement(unit) {
 }
 
 function isValidAttack(attacker, defender) {
-    // --- Guardias de seguridad iniciales ---
+    // --- 1. VALIDACIONES BÁSICAS ---
     if (!attacker || !defender) {
         console.error("[isValidAttack] Error: Atacante o defensor no definidos.");
         return false;
     }
     if (attacker.player === defender.player) {
-        // Esta es la comprobación que puede estar fallando.
-        // logMessage(`${attacker.name} no puede atacar a una unidad aliada.`);
         return false;
     }
-
     if (gameState.isTutorialActive && gameState.tutorial.force_attack_allowed) {
-        console.log("[TUTORIAL] 'force_attack_allowed' está activo. Saltando validación de 'hasAttacked'.");
+        // Salta la comprobación en el tutorial si es necesario
     } else {
-        // Esta es la comprobación normal para el resto del juego.
         if (gameState.currentPhase === 'play' && attacker.player === gameState.currentPlayer && attacker.hasAttacked) {
             return false;
         }
     }
 
-    // --- Depuración de Datos ---
+    // --- 2. CÁLCULO DEL RANGO FINAL CON HABILIDADES ---
+    let finalRange = attacker.attackRange || 1;
+
+    if (attacker.commander) {
+        const commanderData = COMMANDERS[attacker.commander];
+        const playerProfile = PlayerDataManager.getCurrentPlayer();
+        const heroInstance = playerProfile?.heroes.find(h => h.id === attacker.commander);
+
+        if (commanderData && heroInstance) {
+            commanderData.skills.forEach((skill, index) => {
+                const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                const starsRequired = index + 1;
+                
+                if (heroInstance.stars >= starsRequired && skillDef?.scope === 'ataque' && skillDef.effect?.stat === 'attackRange') {
+                    const typeFilter = skillDef.filters?.type;
+                    if (typeFilter) {
+                        const canBenefit = attacker.regiments.some(reg => typeFilter.includes(reg.type));
+                        if (canBenefit) {
+                            const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
+                            if (skillLevel > 0 && skill.scaling_override) {
+                                const bonusValue = skill.scaling_override[skillLevel - 1];
+                                finalRange += bonusValue;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // --- 3. TUS LOGS DE DEPURACIÓN (INTACTOS) ---
     const attackerName = attacker.name || 'Sin Nombre';
     const defenderName = defender.name || 'Sin Nombre';
     const attackerPosition = `(${attacker.r},${attacker.c})`;
     const defenderPosition = `(${defender.r},${defender.c})`;
-    const range = attacker.attackRange || 1;
     const distance = hexDistance(attacker.r, attacker.c, defender.r, defender.c);
 
-    // --- Lógica de Restricción Naval ---
+    // --- 4. LÓGICA NAVAL ---
     const attackerRegimentData = REGIMENT_TYPES[attacker.regiments[0]?.type];
     const defenderRegimentData = REGIMENT_TYPES[defender.regiments[0]?.type];
-    if (!attackerRegimentData?.is_naval && defenderRegimentData?.is_naval) {
-        if (defenderRegimentData?.canOnlyBeAttackedByRanged && range <= 1) {
-            console.log(`[isValidAttack] FALLO: ${attackerName} (cuerpo a cuerpo) no puede atacar a la unidad naval ${defenderName}.`);
+    if (attackerRegimentData && !attackerRegimentData.is_naval && defenderRegimentData?.is_naval) {
+        if (defenderRegimentData?.canOnlyBeAttackedByRanged && finalRange <= 1) { // Usa finalRange aquí
             return false; 
         }
     }
     
-    // --- Comprobación Final de Rango ---
-    const canAttack = distance <= range;
-    
-    // Log detallado que nos dirá la verdad
-    //console.log(`[Chequeo de Ataque]: ${attackerName} ${attackerPosition} vs ${defenderName} ${defenderPosition}. Distancia: ${distance}, Rango de Ataque: ${range}. ¿Válido?: ${canAttack}`);
-    
-    if (!canAttack) {
-        // logMessage(`${attackerName} está fuera de rango para atacar a ${defenderName}.`);
-    }
+    // --- 5. COMPROBACIÓN FINAL DE RANGO ---
+    const canAttack = distance <= finalRange;
+
+    // Log final con el rango calculado
+    console.log(`[Chequeo de Ataque]: ${attackerName} ${attackerPosition} vs ${defenderName} ${defenderPosition}. Distancia: ${distance}, Rango de Ataque Final: ${finalRange}. ¿Válido?: ${canAttack}`);
     
     return canAttack;
 }
@@ -980,7 +1005,7 @@ function isValidAttack(attacker, defender) {
 async function attackUnit(attackerDivision, defenderDivision) {
     console.log(`%c[VIAJE-DESTINO FINAL] La función de combate 'attackUnit' ha sido ejecutada. Atacante: ${attackerDivision.name}, Defensor: ${defenderDivision.name}`, 'background: #222; color: #bada55; font-size: 1.2em; font-weight: bold;');
     // <<== NUEVA LLAMADA AL CRONISTA ==>>
-     if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
+    if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
         
         // Primero, notificamos siempre que se ha completado un ataque (útil para el paso 8).
         TutorialManager.notifyActionCompleted('attack_completed');
@@ -1013,20 +1038,88 @@ async function attackUnit(attackerDivision, defenderDivision) {
 
         console.log("Regimientos Atacantes:", attackerDivision.regiments.map(r => `${r.type}[${r.logId}](${r.health} HP)`));
         console.log("Regimientos Defensores:", defenderDivision.regiments.map(r => `${r.type}[${r.logId}](${r.health} HP)`));
-        
+
         const actionQueue = [];
+
+        // Función auxiliar mejorada para calcular bonus y añadir acciones
         const addActions = (division, isAttacker) => {
             if (!division.regiments) return;
+
+            let commanderSkills = [];
+            let heroInstance = null;
+            if (division.commander) {
+                const commanderData = COMMANDERS[division.commander];
+                const playerProfile = PlayerDataManager.getCurrentPlayer();
+                heroInstance = playerProfile.heroes.find(h => h.id === division.commander);
+                if (commanderData && heroInstance) {
+                    commanderSkills = commanderData.skills;
+                }
+            }
+
             division.regiments.forEach(reg => {
                 const regData = REGIMENT_TYPES[reg.type];
-                if (reg.health > 0 && regData && (distance === 1 || (regData.attackRange || 0) >= distance)) {
-                    const numAttacks = (regData.attackRange || 0) + 1;
+                if (!regData || reg.health <= 0) return;
+
+                let finalInitiative = regData.initiative || 0;
+                let finalRange = regData.attackRange || 1;
+
+                //revisión de habilidad 
+
+                commanderSkills.forEach((skill, index) => {
+                    const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                    // Asegurarse de que el héroe y la habilidad existen
+                    if (!heroInstance || !skillDef) return;
+
+                    const starsRequired = index + 1;
+                    if (heroInstance.stars < starsRequired || skillDef?.scope !== 'ataque') return;
+                    
+                    const categoryFilter = skillDef.filters?.category;
+                    const typeFilter = skillDef.filters?.type;
+                    let filterMatch = false;
+
+                    if (categoryFilter) {
+                        if (categoryFilter.includes('all') || categoryFilter.includes(regData.category)) {
+                            filterMatch = true;
+                        }
+                    } else if (typeFilter) {
+                        // <<== USA "reg.type" EN LUGAR DE "attackerRegiment.type" ==>>
+                        if (typeFilter.includes(reg.type)) {
+                            filterMatch = true;
+                        }
+                    } else {
+                        filterMatch = true;
+                    }
+
+                    if (filterMatch) {
+                        const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
+                        // Asegurarse de que el nivel es válido para el array de escalado
+                        if (skillLevel > 0 && skill.scaling_override && skillLevel <= skill.scaling_override.length) {
+                             const bonusValue = skill.scaling_override[skillLevel - 1];
+                            if (skillDef.effect.stat === 'initiative') {
+                                finalInitiative += bonusValue;
+                            } else if (skillDef.effect.stat === 'attackRange') {
+                                finalRange += bonusValue;
+                            }
+                        }
+                    }
+                });
+                
+                // fin revisión de habilidad
+
+                if (distance <= finalRange) {
+                    const numAttacks = 1;
                     for (let i = 0; i < numAttacks; i++) {
-                        actionQueue.push({ regiment: reg, division: division, initiative: regData.initiative || 0, isAttackerTurn: isAttacker });
+                        actionQueue.push({ 
+                            regiment: reg, 
+                            division: division, 
+                            initiative: finalInitiative, 
+                            isAttackerTurn: isAttacker 
+                        });
                     }
                 }
             });
         };
+
         addActions(attackerDivision, true);
         addActions(defenderDivision, false);
 
@@ -1064,7 +1157,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
             if (regiment.health <= 0 || opposingDivision.currentHealth <= 0) continue;
 
             // Obtener el objetivo FIJO que se le asignó a este regimiento
-            const targetRegiment = targetAssignments.get(regiment.logId);
+            let targetRegiment = targetAssignments.get(regiment.logId);
 
             // Si el objetivo fijo ya ha sido destruido, el regimiento ataca al primer objetivo vivo disponible
             if (!targetRegiment || targetRegiment.health <= 0) {
@@ -1077,17 +1170,17 @@ async function attackUnit(attackerDivision, defenderDivision) {
             } else {
                 // Si el objetivo fijo sigue vivo, lo ataca
                 await new Promise(resolve => setTimeout(resolve, 100));
-                applyDamage(regiment, targetRegiment, division, opposingDivision);
-                recalculateUnitHealth(opposingDivision);
-                if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
-            }
+            applyDamage(regiment, targetRegiment, division, opposingDivision);
+            recalculateUnitHealth(opposingDivision);
+            if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
+        }
         }
         console.groupEnd();
 
         // === FASE DE RESOLUCIÓN FINAL (RESTAURADA Y MEJORADA) =====
         
         console.group("--- RESULTADOS DEL COMBATE ---");
-        
+
         recalculateUnitHealth(attackerDivision);
         recalculateUnitHealth(defenderDivision);
 
@@ -1112,13 +1205,13 @@ async function attackUnit(attackerDivision, defenderDivision) {
         if (defenderDestroyed) {
             if (gameState.isTutorialActive && defenderDivision.player === 2) {
                     gameState.tutorial.enemyDefeated = true; // Flag para el tutorial
-                }
+            }
             // Se pasa el atacante original como vencedor
-            handleUnitDestroyed(defenderDivision, attackerDivision);
+            await handleUnitDestroyed(defenderDivision, attackerDivision); // <<== AWAIT
         }
         if (attackerDestroyed) {
             // Se pasa el defensor original como vencedor
-            handleUnitDestroyed(attackerDivision, defenderDivision);
+            await handleUnitDestroyed(attackerDivision, defenderDivision); // <<== AWAIT
         }
 
         // 5. Asignar experiencia de combate a los SUPERVIVIENTES (TU LÓGICA RESTAURADA)
@@ -1132,7 +1225,7 @@ async function attackUnit(attackerDivision, defenderDivision) {
             if(defenderDestroyed){
                 const moraleGain = 15;
                 attackerDivision.morale = Math.min(attackerDivision.maxMorale, (attackerDivision.morale || 50) + moraleGain);
-            }
+        }
         }
         
         if (!defenderDestroyed) {
@@ -1291,61 +1384,58 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     console.log(`Ataque Base ("en papel"): ${baseAttack.toFixed(1)}`);
 
     // Paso 2: Bonus de Civilización
-    let civAttackBonus = 0; // Inicia en 0
-    const attackerCivId = gameState.playerCivilizations[attackerDivision.player];const attackerUnitType = attackerRegiment.type; // Obtenemos el tipo de unidad
-    // Usamos la ruta correcta para buscar el bono específico de la unidad
-    civAttackBonus = CIVILIZATIONS[attackerCivId]?.bonuses?.unitTypeBonus?.[attackerUnitType]?.attackBonus || 0;
-    console.log(`+ Bono Civilización (Ataque): ${civAttackBonus.toFixed(1)}`); // Log del bono de civilización
+    let civAttackBonus = CIVILIZATIONS[gameState.playerCivilizations[attackerDivision.player]]?.bonuses?.unitTypeBonus?.[attackerRegiment.type]?.attackBonus || 0;
+    console.log(`+ Bono Civilización (Ataque): ${civAttackBonus.toFixed(1)}`);
 
-    // Paso 3: Bonus de Héroe
-    let heroAttackBonus = 0; // Inicia en 0
+    let totalAttack = baseAttack + civAttackBonus;
 
+    // <<== INICIO: LÓGICA DE HABILIDADES DE ATAQUE ==>>
     if (attackerDivision.commander) {
-        const heroInstance = PlayerDataManager.currentPlayer?.heroes.find(h => h.id === attackerDivision.commander);
-    if (heroInstance) {
-        COMMANDERS[attackerDivision.commander].passiveSkills.forEach(skillData => {
-            const definition = SKILL_DEFINITIONS[skillData.skill_id];
-                            // Solo procesamos habilidades de combate que afectan al ataque
-                if (definition?.scope === 'combat' && definition.effect?.stat === 'attack') {
-                    let conditionMet = !definition.trigger; // Si no hay trigger, la condición se cumple
-                    
-                    // Evaluar trigger, si existe
-                    if (definition.trigger) {
-                        const { event, condition } = definition.trigger;
-                        if (event === 'on_health_threshold') {
-                            const healthPerc = (attackerDivision.currentHealth / attackerDivision.maxHealth) * 100;
-                            if (condition.comparison === 'greater_than' && healthPerc > condition.threshold) {
-                                conditionMet = true;
-                            }
-                        }
-                        if (event === 'on_terrain') {
-                            const currentTerrain = board[attackerDivision.r][attackerDivision.c].terrain;
-                            if (condition.includes(currentTerrain)) {
-                                conditionMet = true;
-                            }
-                        }
-                    }
-                if (conditionMet) {
-                    const bonusValue = skillData.scaling_override[0];
-                    if (definition.effect.is_percentage) { // Si es porcentaje
-                        const bonusAmount = effectiveAttack * (bonusValue / 100);
-                        effectiveAttack += bonusAmount;
-                        console.log(`+ Héroe (${attackerDivision.commander}): +${bonusValue}% -> ${effectiveAttack.toFixed(1)}`);
-                    } else { // Si es un valor plano (CORRECCIÓN AÑADIDA)
-                        effectiveAttack += bonusValue;
-                        console.log(`+ Héroe (${attackerDivision.commander}): +${bonusValue} -> ${effectiveAttack.toFixed(1)}`);
+        const commanderData = COMMANDERS[attackerDivision.commander];
+        const playerProfile = PlayerDataManager.getCurrentPlayer();
+        const heroInstance = playerProfile.heroes.find(h => h.id === attackerDivision.commander);
+
+        if (commanderData && heroInstance) {
+            commanderData.skills.forEach((skill, index) => {
+                const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                const starsRequired = index + 1;
+
+                // Salir si la habilidad no está desbloqueada por estrellas
+                if (heroInstance.stars < starsRequired) return;
+
+                if (skillDef?.scope === 'combat' && skillDef.effect?.stat === 'attack') {
+                    // Filtro de ubicación
+                const locationFilter = skill.filters?.location;
+                if (locationFilter) {
+                    const hexOwner = board[attackerDivision.r][attackerDivision.c].owner;
+                    const isOwnTerritory = hexOwner === attackerDivision.player;
+                    if ((locationFilter === 'own_territory' && !isOwnTerritory) || (locationFilter === 'enemy_territory' && isOwnTerritory)) {
+                        return; // No se cumple la condición de ubicación
                     }
                 }
-            }
-        });
+                
+                // 3. Comprobar filtro de tipo de tropa
+                const categoryFilter = skillDef.filters?.category;
+                if (categoryFilter && !categoryFilter.includes('all') && !categoryFilter.includes(attackerData.category)) {
+                    return; // No se cumple la condición de categoría
+                }
+
+                // 4. Si todo pasa, aplicar el bonus
+                const skillLevel = heroInstance.skill_levels[index] || 1;
+                const bonusValue = skill.scaling_override[skillLevel - 1];
+
+                if (skillDef.effect.is_percentage) {
+                    totalAttack *= (1 + bonusValue / 100);
+                } else {
+                    totalAttack += bonusValue;
+                    }
+                }
+            });
+        }
     }
-}
-    console.log(`+ Bono Héroe (Ataque): ${heroAttackBonus.toFixed(1)}`); // Log del bono de héroe
-
-    // Paso 4: Suma Total de Ataque (antes de modificadores de combate)
-    let totalAttack = baseAttack + civAttackBonus + heroAttackBonus;
-    console.log(`%c   = Ataque Total (con Bonus): ${totalAttack.toFixed(1)}`, 'font-weight: bold;'); // Log de la suma total
-
+    console.log(`%c   = Ataque Total (con Habilidades): ${totalAttack.toFixed(1)}`, 'font-weight: bold;');
+    // <<== FIN: LÓGICA DE HABILIDADES DE ATAQUE ==>>
+  
     // ====================================================================
     // --- DEFENSOR ---
     // ====================================================================
@@ -1354,53 +1444,57 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     // Paso 1: Stats Base
     let baseDefense = targetDivision.base_regiment_stats[targetRegiment.logId]?.defense || targetData.defense;
     console.log(`Defensa Base ("en papel"): ${baseDefense.toFixed(1)}`);
-    
-    // Paso 2: Bonus de Civilización
-    let civDefenseBonus = 0;
-    const defenderCivId = gameState.playerCivilizations[targetDivision.player];
-    const defenderUnitType = targetRegiment.type;
-    civDefenseBonus = CIVILIZATIONS[defenderCivId]?.bonuses?.unitTypeBonus?.[defenderUnitType]?.defenseBonus || 0;
+    let civDefenseBonus = CIVILIZATIONS[gameState.playerCivilizations[targetDivision.player]]?.bonuses?.unitTypeBonus?.[targetRegiment.type]?.defenseBonus || 0;
     console.log(`+ Bono Civilización (Defensa): ${civDefenseBonus.toFixed(1)}`);
-    // Paso 3: Bonus de Héroe
-let heroDefenseBonus = 0;
+    
+    let totalDefense = baseDefense + civDefenseBonus;
+    
+    // <<== INICIO: LÓGICA DE HABILIDADES DE DEFENSA/SALUD ==>>
     if (targetDivision.commander) {
         const commanderData = COMMANDERS[targetDivision.commander];
+        const playerProfile = PlayerDataManager.getCurrentPlayer();
+        const heroInstance = playerProfile.heroes.find(h => h.id === targetDivision.commander);
         
-        // 1. Crear una lista unificada de todas las habilidades (activas y pasivas)
-        let allSkills = [];
-        if (commanderData.activeSkill) {
-            allSkills.push(commanderData.activeSkill);
-        }
-        if (commanderData.passiveSkills && commanderData.passiveSkills.length > 0) {
-            allSkills = allSkills.concat(commanderData.passiveSkills);
-        }
+        if (commanderData && heroInstance) {
+            commanderData.skills.forEach((skill, index) => {
+                const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                const starsRequired = index + 1;
+                if (heroInstance.stars < starsRequired) return;
 
-        // 2. Iterar sobre la lista unificada
-        allSkills.forEach(skillData => {
-            const definition = SKILL_DEFINITIONS[skillData.skill_id];
-            
-            // 3. Verificar que sea una habilidad que afecte a la defensa
-            if (definition && (definition.scope === 'combat' || definition.scope === 'unit_stats') && definition.effect?.stat === 'defense') {
-                
-                // (Aquí iría la lógica de triggers si la hubiera, por ahora asumimos que se aplica)
-                
-                const bonusValue = skillData.scaling_override[0]; // Nivel 1
-                
-                if (definition.effect.is_percentage) {
-                    // Si es un bono porcentual, se calcula sobre la defensa acumulada hasta ahora
-                    heroDefenseBonus += (baseDefense + civDefenseBonus) * (bonusValue / 100);
-                } else {
-                    // Si es un bono plano, se suma directamente
-                    heroDefenseBonus += bonusValue;
+                if (skillDef?.scope === 'combat' && (skillDef.effect?.stat === 'defense' || skillDef.effect?.stat === 'health')) {
+                    // (Lógica de filtros igual que la del atacante)
+                const locationFilter = skill.filters?.location;
+                if (locationFilter) {
+                    const hexOwner = board[targetDivision.r][targetDivision.c].owner;
+                    const isOwnTerritory = hexOwner === targetDivision.player;
+                    if ((locationFilter === 'own_territory' && !isOwnTerritory) || (locationFilter === 'enemy_territory' && isOwnTerritory)) {
+                        return;
+                    }
                 }
-            }
-        });
-    }
-    console.log(`+ Bono Héroe (Defensa): ${heroDefenseBonus.toFixed(1)}`);
 
-    let totalDefense = baseDefense + civDefenseBonus + heroDefenseBonus;
-    console.log(`%c   = Defensa Total (con Bonus): ${totalDefense.toFixed(1)}`, 'font-weight: bold;');
-    // ====================================================================
+                // 3. Filtro de tipo de tropa
+                const categoryFilter = skillDef.filters?.category;
+                if (categoryFilter && !categoryFilter.includes('all') && !categoryFilter.includes(targetData.category)) {
+                    return;
+                }
+
+                    const skillLevel = heroInstance.skill_levels[index] || 1;
+                const bonusValue = skill.scaling_override[skillLevel - 1];
+
+                // Los bonus de salud se tratan como bonus de defensa en el cálculo de daño
+                if (skillDef.effect.is_percentage) {
+                    totalDefense *= (1 + bonusValue / 100);
+                } else {
+                    totalDefense += bonusValue;
+                    }
+                }
+            });
+        }
+    }
+    console.log(`%c   = Defensa Total (con Habilidades): ${totalDefense.toFixed(1)}`, 'font-weight: bold;');
+    // <<== FIN: LÓGICA DE HABILIDADES DE DEFENSA/SALUD ==>>
+    
+// ====================================================================
     // --- MODIFICADORES SITUACIONALES DE COMBATE ---
     // ====================================================================
     console.log(`%c--- MODIFICADORES DE COMBATE ---`, 'color: gold;');
@@ -1414,8 +1508,8 @@ let heroDefenseBonus = 0;
 
      // Lógica de Flanqueo
     if (targetDivision.isFlanked) {
-        effectiveDefense *= 0.75;
-        console.log(`* Penalizador Flanqueo: *0.75 -> ${effectiveDefense.toFixed(1)}`);
+        totalDefense *= 0.75;
+        console.log(`* Penalizador Flanqueo: *0.75 -> ${totalDefense.toFixed(1)}`);
     }
     
     // === LÓGICA DE DESGASTE
@@ -1433,7 +1527,7 @@ let heroDefenseBonus = 0;
     console.log(`Defensa Final (mod. situacionales): ${finalDefense.toFixed(1)}`);
 
     // ====================================================================
-    // --- RESOLUCIÓN FINAL (LÓGICA DE DAÑO CORREGIDA) ---
+    // --- RESOLUCIÓN FINAL  ---
     // ====================================================================
     console.log(`%c--- RESOLUCIÓN FINAL ---`, 'color: lightgreen;');
     let rawDamage = totalAttack - finalDefense;
@@ -1449,7 +1543,7 @@ let heroDefenseBonus = 0;
     
     const actualDamage = Math.min(targetRegiment.health, damageDealt);
     targetRegiment.health -= actualDamage;
-    targetRegiment.hitsTakenThisRound++;
+    targetRegiment.hitsTakenThisRound = (targetRegiment.hitsTakenThisRound || 0) + 1;
 
     console.log(`%c>> DAÑO REAL: ${actualDamage}. Salud restante: ${targetRegiment.health}`, 'background: #333; color: #ff9999;');
     
@@ -1748,16 +1842,9 @@ function applyFlankingPenalty(targetUnit, mainAttacker) {
     }
 }
 
-function handleUnitDestroyed(destroyedUnit, victorUnit) {
+async function handleUnitDestroyed(destroyedUnit, victorUnit) {
     if (!destroyedUnit) {
         console.warn("[handleUnitDestroyed] Intento de destruir una unidad nula.");
-        return;
-    }
-
-    if (window.TUTORIAL_MODE_ACTIVE === true && destroyedUnit.player === 2) {
-        console.warn("[TUTORIAL] Bloqueada la destrucción de la unidad ENEMIGA de práctica.");
-        // Aunque no la destruyamos, notificamos que el ataque que LLEVARÍA a la destrucción, ocurrió.
-        TutorialManager.notifyActionCompleted('flank_attack_completed');
         return;
     }
 
@@ -1778,68 +1865,104 @@ function handleUnitDestroyed(destroyedUnit, victorUnit) {
             Chronicle.logEvent('unit_destroyed', { destroyedUnit, victorUnit });
         }
 
-        // --- INICIO DE LA LÓGICA DE RECOMPENSAS MEJORADA ---
+        // --- INICIO: LÓGICA DE HABILIDADES DE FIN DE BATALLA ---
+        let xpGainBonusPercent = 0;
+        let bookDropBonusChance = 0;
+        let fragmentDropBonusChance = 0;
 
-        // 1. Recompensa de Experiencia (XP) para el vencedor
-        // Bonus fijo por el golpe de gracia + bonus basado en la fuerza del enemigo derrotado.
-        const experienceGained = 10 + Math.floor((destroyedUnit.maxHealth || 0) / 10);
+        if (victorUnit.commander) {
+            const commanderData = COMMANDERS[victorUnit.commander];
+            const playerProfile = PlayerDataManager.getCurrentPlayer();
+            const heroInstance = playerProfile?.heroes.find(h => h.id === victorUnit.commander);
+
+            if (commanderData && heroInstance) {
+                commanderData.skills.forEach((skill, index) => {
+                    const skillDef = SKILL_DEFINITIONS[skill.skill_id];
+                    const starsRequired = index + 1;
+                    if (heroInstance.stars >= starsRequired && skillDef?.scope === 'fin') {
+                        const skillLevel = heroInstance.skill_levels[index] || (index === 0 ? 1 : 0);
+                        if (skillLevel > 0 && skill.scaling_override) {
+                            const bonusValue = skill.scaling_override[skillLevel - 1];
+                            if (skillDef.effect.stat === 'xp_gain') {
+                                xpGainBonusPercent += bonusValue;
+                            } else if (skillDef.effect.stat === 'book_drop') {
+                                bookDropBonusChance += bonusValue;
+                            } else if (skillDef.effect.stat === 'fragment_drop') {
+                                fragmentDropBonusChance += bonusValue;
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        // --- FIN: LÓGICA DE HABILIDADES ---
+
+        // 1. Recompensa de Experiencia (XP) para el vencedor (Ahora con Bonus)
+        let experienceGained = 10 + Math.floor((destroyedUnit.maxHealth || 0) / 10);
+        if (xpGainBonusPercent > 0) {
+            const xpBonus = experienceGained * (xpGainBonusPercent / 100);
+            experienceGained += xpBonus;
+            logMessage(`¡Bonus de ${victorUnit.commander}! (+${xpGainBonusPercent}% XP)`, "success");
+        }
+        experienceGained = Math.round(experienceGained);
         victorUnit.experience = (victorUnit.experience || 0) + experienceGained;
         logMessage(`${victorUnit.name} gana ${experienceGained} XP por la victoria.`);
         checkAndApplyLevelUp(victorUnit);
 
-        // 2. Recompensa de Oro por la victoria
+        // 2. Recompensa de Oro por la victoria (Intacto)
         const goldGained = REGIMENT_TYPES[destroyedUnit.regiments[0]?.type]?.goldValueOnDestroy || 10;
         if (goldGained > 0 && gameState.playerResources[victorUnit.player]) {
             gameState.playerResources[victorUnit.player].oro += goldGained;
             logMessage(`${victorUnit.name} obtiene ${goldGained} de oro por saquear los restos.`);
         }
         
-        if (PlayerDataManager.currentPlayer) { // Asegurarse de que hay un jugador logueado
-            const playerCurrencies = PlayerDataManager.currentPlayer.currencies;
+        // 3. Recompensas de Perfil (Libros y Fragmentos con Probabilidad Aumentada)
+        if (PlayerDataManager.currentPlayer) {
             const playerInventory = PlayerDataManager.currentPlayer.inventory;
 
-        // Recompensa garantizada de 1 Libro de XP por victoria
-            playerInventory.xp_books = (playerInventory.xp_books || 0) + 1;
-            console.log("Recompensa: +1 Libro de XP");
-            if(UIManager.showRewardToast) UIManager.showRewardToast("+1 Libro de XP", "📖");
-
-            // Probabilidad de obtener fragmentos de un Héroe (Común o Raro)
-            if (Math.random() < 0.20) { // 20% de probabilidad
-                const rewardPool = Object.keys(COMMANDERS).filter(id => 
-                    COMMANDERS[id].rarity === "Común" || COMMANDERS[id].rarity === "Raro"
-                );
+            // Recompensa de Libros de XP
+            const baseBookChance = 35; // 25% de probabilidad base de obtener un libro
+            const finalBookChance = baseBookChance + bookDropBonusChance;
+            if (Math.random() * 100 < finalBookChance) {
+                playerInventory.xp_books = (playerInventory.xp_books || 0) + Math.floor(Math.random() * 3) + 1;;
+                
+                logMessage(`¡Recompensa! Has obtenido 1 Libro de XP (Prob: ${finalBookChance.toFixed(0)}%).`, "success");
+                if(UIManager.showRewardToast) UIManager.showRewardToast("+1 Libro de XP", "📖");
+            }
+            
+            // Recompensa de Fragmentos (Ahora con Probabilidad Aumentada)
+            const baseFragmentChance = 20; // 20% de probabilidad base
+            const finalFragmentChance = baseFragmentChance + fragmentDropBonusChance;
+            if (Math.random() * 100 < finalFragmentChance) {
+                const rewardPool = Object.keys(COMMANDERS).filter(id => COMMANDERS[id].rarity === "Común" || COMMANDERS[id].rarity === "Raro");
                 if(rewardPool.length > 0) {
                     const randomHeroId = rewardPool[Math.floor(Math.random() * rewardPool.length)];
-                    const fragmentsToAdd = Math.floor(Math.random() * 3) + 1; // Entre 1 y 3 fragmentos
-                    
+                    const fragmentsToAdd = Math.floor(Math.random() * 3) + 1;
                     PlayerDataManager.addFragmentsToHero(randomHeroId, fragmentsToAdd);
-                    
                     const heroData = COMMANDERS[randomHeroId];
                     if(UIManager.showRewardToast) UIManager.showRewardToast(`+${fragmentsToAdd} Fragmentos de ${heroData.name}`, heroData.sprite);
                 }
             }
             
-            PlayerDataManager.saveCurrentPlayer(); // Guardar las nuevas recompensas
+            PlayerDataManager.saveCurrentPlayer();
         }
 
+        // Lógica de Moral y Objeto de bonificación
         const victoryMoraleBonus = 20;
         victorUnit.morale = Math.min((victorUnit.maxMorale || 100), (victorUnit.morale || 50) + victoryMoraleBonus);
         logMessage(`¡La moral de ${victorUnit.name} sube a ${victorUnit.morale} por la victoria decisiva!`);
 
         // === FASE B: Añadimos la lógica del objeto de bonificación ======
-        
+
         const hexOfUnit = board[destroyedUnit.r]?.[destroyedUnit.c];
         if (hexOfUnit) {
-            hexOfUnit.destroyedUnitBonus = {
-                experience: 10, // Cantidad de XP que dará
-                morale: 15,   // Cantidad de moral que dará
-                claimedBy: null // Para evitar que se reclame varias veces
-            };
-            console.log(`[Recompensa] Dejado un objeto de bonificación en (${destroyedUnit.r}, ${destroyedUnit.c})`);
-            
-            // Re-renderizamos el hex para que visualmente muestre la recompensa
+            hexOfUnit.destroyedUnitBonus = { experience: 10, morale: 15, claimedBy: null };
             renderSingleHexVisuals(destroyedUnit.r, destroyedUnit.c); 
         }
+    } // Fin de if (isCombatDestruction)
+    
+    // --- LÓGICA DE ANIMACIÓN Y ELIMINACIÓN (Intacta) ---
+    if (destroyedUnit.element) {
         const explosionEl = document.createElement('div');
         explosionEl.classList.add('explosion-animation');
         if (domElements?.gameBoard && destroyedUnit.element) {
@@ -1850,15 +1973,22 @@ function handleUnitDestroyed(destroyedUnit, victorUnit) {
             domElements.gameBoard.appendChild(explosionEl);
             setTimeout(() => explosionEl.remove(), 1200);
         }
+            // Bloqueo del tutorial (Movido arriba para mayor claridad)
+    if (window.TUTORIAL_MODE_ACTIVE === true && destroyedUnit.player === 2) {
+        console.warn("[TUTORIAL] Bloqueada la destrucción de la unidad ENEMIGA de práctica.");
+        TutorialManager.notifyActionCompleted('flank_attack_completed');
+        if (destroyedUnit.element) destroyedUnit.element.style.display = 'none'; 
+        return;
+    }
+        // Esto hace que la función espere 500ms antes de continuar, dando tiempo a que la animación empiece.
+        await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     // --- Proceso de eliminación de la unidad ---
-    if (destroyedUnit.element) {
-        destroyedUnit.element.remove();
-    }
-    const hexOfUnit = board[destroyedUnit.r]?.[destroyedUnit.c];
-    if (hexOfUnit && hexOfUnit.unit?.id === destroyedUnit.id) {
-        hexOfUnit.unit = null;
+    if (destroyedUnit.element) destroyedUnit.element.remove();
+    const hexOfUnitDestroyed = board[destroyedUnit.r]?.[destroyedUnit.c];
+    if (hexOfUnitDestroyed && hexOfUnitDestroyed.unit?.id === destroyedUnit.id) {
+        hexOfUnitDestroyed.unit = null;
     }
     const index = units.findIndex(u => u.id === destroyedUnit.id);
     if (index > -1) units.splice(index, 1);
@@ -1866,7 +1996,7 @@ function handleUnitDestroyed(destroyedUnit, victorUnit) {
         selectedUnit = null;
         if (UIManager) UIManager.hideContextualPanel();
     }
-    if (isCombatDestruction) {
+    if (isCombatDestruction && !gameState.isTutorialActive) { // <<== Añadida comprobación de tutorial aquí también
         if (typeof checkVictory === 'function') checkVictory();
     }
 }

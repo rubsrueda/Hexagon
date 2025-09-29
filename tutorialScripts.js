@@ -21,7 +21,7 @@ const TUTORIAL_SCRIPTS = {
             message: "Este es tu panel de recursos. El <strong>Oro</strong> es clave. Ahora, cierra el menú volviendo a pulsar el botón (☰) para continuar.",
             highlightElementId: 'floatingMenuBtn',
             onStepStart: () => { 
-                gameState.playerResources[1].oro = 1000; UIManager.updateAllUIDisplays();
+                gameState.playerResources[1].oro = 1500; UIManager.updateAllUIDisplays();
                 gameState.tutorial.menu_closed = false; // Preparamos el flag
             },
             actionCondition: () => gameState.tutorial.menu_closed === true
@@ -140,7 +140,7 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 12,
-            message: "Tu ejército consume oro y comida. Observa la pérdida de Moral de tu unidad y los recursos gastados En la parte inferior de la pantalla, en el panel de información de la unidad. ▲ Unidad: División 1 (J1).... Finaliza tu turno (►) y verás la perdida de moral!" ,
+            message: "Tu ejército consume oro y comida. Su Moral y Experiencia modifican sus resultados, En la parte inferior de la pantalla, Pulsa en el panel de información de la unidad... ▲ Unidad: División 1 (J1)... Finaliza tu turno (►)" ,
             highlightElementId: 'floatingEndTurnBtn',
             onStepStart: () => {
                 // Forzamos un escenario donde el mantenimiento no se puede pagar para la lección
@@ -181,10 +181,37 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 16,
-            message: "Tus tropas están heridas. La acción <strong>Consolidar (🔁)</strong> combina supervivientes del mismo tipo para mantener la eficacia. ¡Pruébalo!",
+            message: "Tus tropas están heridas. Revisa a la división 💪 Sal de la pantalla y pulsa sobre <strong>Consolidar (🔁)</strong> combina supervivientes del mismo tipo para reducir Regimientos. ¡Pruébalo!",
             onStepStart: () => {
-                const u = units.find(un => un.player===1 && un.name.startsWith("División"));
-                if(u){ u.regiments.forEach(r => r.health = r.health / 2); recalculateUnitHealth(u); }
+                console.log("[TUTORIAL] Configurando paso 16: Consolidación");
+
+                // 1. Limpiar el tablero de unidades del jugador para evitar confusiones
+                const playerUnits = units.filter(u => u.player === 1);
+                playerUnits.forEach(unit => handleUnitDestroyed(unit, null));
+                deselectUnit();
+
+                // 2. Crear los dos regimientos dañados
+                const regimientoTipo = REGIMENT_TYPES["Infantería Ligera"];
+                const regimientoDañado1 = { ...regimientoTipo, type: 'Infantería Ligera', health: regimientoTipo.health / 2 };
+                const regimientoDañado2 = { ...regimientoTipo, type: 'Infantería Ligera', health: regimientoTipo.health / 2 };
+                const regimientoDañado3 = { ...regimientoTipo, type: 'Infantería Ligera', health: regimientoTipo.health / 2 };
+                const regimientoDañado4 = { ...regimientoTipo, type: 'Infantería Ligera', health: regimientoTipo.health / 2 };
+                const regimientoDañado5 = { ...regimientoTipo, type: 'Infantería Ligera', health: regimientoTipo.health / 2 };
+
+                // 3. Crear el objeto de la nueva división con estos regimientos
+                const nuevaDivisionData = {
+                    name: "División 1",
+                    regiments: [regimientoDañado1, regimientoDañado2, regimientoDañado3, regimientoDañado4, regimientoDañado5]
+                };
+                const unidadConsolidar = AiGameplayManager.createUnitObject(nuevaDivisionData, 1, { r: 3, c: 3 });
+                
+                // 4. Colocar la nueva división en el tablero
+                placeFinalizedDivision(unidadConsolidar, 3, 3);
+
+                // 5. Seleccionarla para el jugador
+                selectUnit(unidadConsolidar);
+                
+                // 6. Preparar la bandera que el tutorial espera
                 gameState.tutorial.consolidation_completed = false;
             },
             highlightElementId: 'floatingConsolidateBtn',
@@ -212,31 +239,47 @@ const TUTORIAL_SCRIPTS = {
             id: 19,
             message: "¡A la práctica! Hemos detectado un puesto de avanzada enemigo. <strong>Mueve tu división principal para ocuparlo.</strong>",
             onStepStart: () => {
+                console.log("[TUTORIAL] Limpiando unidades enemigas residuales antes del paso 19.");
+                const enemyUnits = units.filter(u => u.player === 2);
+                enemyUnits.forEach(unit => handleUnitDestroyed(unit, null));
                 const enemyHexR = 4;
                 const enemyHexC = 4;
                 const hex = board[enemyHexR]?.[enemyHexC];
 
-                // Preparamos el hexágono enemigo
+                // Preparamos el hexágono enemigo (esto se mantiene igual)
                 if (hex) {
-                    hex.owner = 2; // Lo hacemos del enemigo
-                    hex.nacionalidad = { 1: 0, 2: 2 }; // Establecemos su Nacionalidad a 2
-                    hex.estabilidad = 3; // Estabilidad suficiente para permitir la conquista
-                    renderSingleHexVisuals(enemyHexR, enemyHexC); // Lo redibujamos
+                    hex.owner = 2;
+                    hex.nacionalidad = { 1: 0, 2: 2 };
+                    hex.estabilidad = 3;
+                    renderSingleHexVisuals(enemyHexR, enemyHexC);
                 }
                 
-                // Nos aseguramos de que la unidad del jugador pueda moverse
-                const playerUnit = units.find(u => u.player === 1 && !u.name.includes("Aliado"));
-                if(playerUnit) {
-                    playerUnit.hasMoved = false;
-                    playerUnit.hasAttacked = false;
-                    playerUnit.currentMovement = playerUnit.movement;
+                // <<== CORRECCIÓN: Identificar la unidad principal por su fuerza ==>>
+                // 1. Filtramos todas las unidades del jugador.
+                const allPlayerUnits = units.filter(u => u.player === 1);
+
+                if (allPlayerUnits.length > 0) {
+                    // 2. Las ordenamos de más fuerte (más regimientos) a más débil.
+                    allPlayerUnits.sort((a, b) => b.regiments.length - a.regiments.length);
+                    
+                    // 3. La unidad más fuerte es nuestra "unidad principal".
+                    const mainPlayerUnit = allPlayerUnits[0];
+                    console.log(`[TUTORIAL] Unidad principal identificada para el paso 19: ${mainPlayerUnit.name}`);
+
+                    // 4. Nos aseguramos de que esta unidad pueda moverse.
+                    mainPlayerUnit.hasMoved = false;
+                    mainPlayerUnit.hasAttacked = false;
+                    mainPlayerUnit.currentMovement = mainPlayerUnit.movement;
+                } else {
+                    console.error("[TUTORIAL] No se encontraron unidades del jugador para el paso 19.");
                 }
             },
             highlightHexCoords: [{r: 4, c: 4}],
-            // La condición es que el jugador mueva su unidad al hexágono objetivo
+            // <<== CORRECCIÓN: La condición ahora es mucho más simple y robusta ==>>
+            // Simplemente comprueba si CUALQUIER unidad del jugador está en la casilla objetivo.
             actionCondition: () => {
-                const playerUnit = units.find(u => u.player === 1 && !u.name.includes("Aliado"));
-                return playerUnit && playerUnit.r === 4 && playerUnit.c === 4;
+                const unitOnTargetHex = getUnitOnHex(4, 4);
+                return unitOnTargetHex && unitOnTargetHex.player === 1;
             }
         },
         {
@@ -265,9 +308,9 @@ const TUTORIAL_SCRIPTS = {
             id: 22,
             message: "Tus tropas están heridas. La acción <strong>Reforzar (💪)</strong> cura a tus regimientos a cambio de oro. Pulsa el botón y luego el <strong>'+'</strong> junto a un regimiento dañado.",
             onStepStart: () => {
-                const isolatedUnit = AiGameplayManager.createUnitObject({ name: "División", regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera'}]}, 1, {r: 1, c: 4});
-                placeFinalizedDivision(isolatedUnit, 1, 4); deselectUnit();
-                const playerUnit = units.find(u => u.player === 1 && u.name.startsWith("División"));
+                //const isolatedUnit = AiGameplayManager.createUnitObject({ name: "División 1", regiments: [{...REGIMENT_TYPES["Infantería Ligera"], type: 'Infantería Ligera'}]}, 1, {r: 1, c: 4});
+                //placeFinalizedDivision(isolatedUnit, 1, 4); deselectUnit();
+                const playerUnit = units.find(u => u.player === 1 && u.name.startsWith("División 1"));
                 if (playerUnit) {
                     // Dañamos la unidad para la lección
                     playerUnit.regiments.forEach(reg => reg.health = Math.floor(REGIMENT_TYPES[reg.type].health * 0.4));
@@ -291,6 +334,26 @@ const TUTORIAL_SCRIPTS = {
             },
             highlightElementId: 'floatingReinforceBtn',
             actionCondition: () => gameState.tutorial.unitReinforced === true
+        },
+
+        {
+            id: 22.1, // Nuevo paso para introducir la consola
+            message: "¡Bien hecho! Todas las acciones importantes se registran en la <strong>Crónica</strong>. Haz clic en el botón de <strong>Consola (C)</strong> para ver el historial.",
+            highlightElementId: 'floatingConsoleBtn',
+            actionCondition: () => {
+                const consolePanel = document.getElementById('debug-console');
+                // La condición se cumple si el panel de la consola existe y está visible
+                return consolePanel && consolePanel.style.display !== 'none';
+            },
+            onStepComplete: () => {
+                // Dejamos la consola abierta un momento para que el jugador la vea y luego continuamos.
+                setTimeout(() => {
+                    const consolePanel = document.getElementById('debug-console');
+                    if (consolePanel) {
+                        consolePanel.style.display = 'none'; // La cerramos automáticamente para no estorbar
+                    }
+                }, 4000); // 4 segundos
+            }
         },
 
         // === CAPÍTULO 5: Forjando un Imperio (6 Pasos) ===
@@ -355,7 +418,7 @@ const TUTORIAL_SCRIPTS = {
         },
         {
             id: 30,
-            message: "Para asignarlo,necesita Investigar Liderezgo, división tener un 'Cuartel General' y estar en una ciudad... Investiga, Seleccióna y pulsa <strong>'Asignar General' (👤)</strong>.",
+            message: "Para asignarlo,necesita Investigar Liderezgo, y la división tener un 'Cuartel General' y estar en una ciudad... Investiga, Seleccióna y pulsa <strong>'Asignar General' (👤)</strong>.",
             onStepStart: () => {
 
                 const isolatedUnit = AiGameplayManager.createUnitObject({ name: "Aliado", regiments: [{...REGIMENT_TYPES["Cuartel General"], type: 'Cuartel General'}]}, 1, {r: 1, c: 1});
@@ -414,7 +477,7 @@ const TUTORIAL_SCRIPTS = {
         // === CAPÍTULO 7: Hacia la Victoria (4 Pasos) ===
         {
             id: 37,
-            message: "Debilita al enemigo atacando su economía. Mueve tu división a este territorio y usa la acción <strong>Saquear (💰)</strong>.",
+            message: "Debilita al enemigo atacando su economía. Mueve tu división a este territorio y usa la acción <strong>Saquear (💰)</strong>. Necesitarás varios turnos",
              onStepStart: () => {
                 const enemyHexR = 5;
                 const enemyHexC = 5;
