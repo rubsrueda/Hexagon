@@ -1,1 +1,16 @@
-Escribir los 50 comandantes y el nombre de sus imágenes.
+Escribir los 50 comandantes y el nombre de sus imágenes: 
+
+g_almanzor.png
+g_asdrubal_bello.png
+g_ballista.png
+g_caius_admin.png
+g_celer.png
+g_don_pelayo.png
+g_fabius.png
+g_isidore.png
+g_lucius_velox.png
+g_marcus_austerus.png
+g_orosius.png
+g_sertorius.png
+g_tariq_ibn_ziyad.png
+g_viriato.png
