@@ -1394,22 +1394,28 @@ if (setCapitalBtn) {
 */
 
 async function handleEndTurn(isHostProcessing = false) {
-    console.log(`[handleEndTurn V3 - COMPLETA] INICIO. Fase: ${gameState.currentPhase}, Jugador: ${gameState.currentPlayer}, Host?: ${isHostProcessing}`);
+    console.log(`[handleEndTurn V4 - COMPLETA Y CORREGIDA] INICIO. Fase: ${gameState.currentPhase}, Jugador: ${gameState.currentPlayer}, Host?: ${isHostProcessing}`);
 
-    // --- CAPA DE RED ---
+    // --- CAPA DE RED (PUNTO DE ENTRADA) ---
+    // Este bloque se ejecuta cuando un jugador (anfitrión o cliente) hace clic en el botón de fin de turno.
     if (!isHostProcessing && isNetworkGame()) {
         if (gameState.currentPlayer !== gameState.myPlayerNumber) {
             logMessage("No es tu turno.");
             return;
         }
         const endTurnAction = { type: 'endTurn', payload: { playerId: gameState.myPlayerNumber } };
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(endTurnAction);
-        } else {
+        
+        // El cliente SIEMPRE envía una petición.
+        if (!NetworkManager.esAnfitrion) {
             NetworkManager.enviarDatos({ type: 'actionRequest', action: endTurnAction });
+        } else {
+            // El anfitrión se procesa a sí mismo. La llamada a processActionRequest
+            // desencadenará la ejecución de este MISMO handleEndTurn, pero con isHostProcessing = true.
+            await processActionRequest(endTurnAction);
         }
+        
         if (domElements.endTurnBtn) domElements.endTurnBtn.disabled = true;
-        return;
+        return; // La acción ya ha sido enviada o procesada, no continuar con la lógica local.
     }
     // --- FIN CAPA DE RED ---
 
@@ -1473,8 +1479,7 @@ async function handleEndTurn(isHostProcessing = false) {
             resetUnitsForNewTurn(1); // Prepara las unidades del J1 para el primer turno
             logMessage("¡Comienza la Batalla! Turno del Jugador 1.");
         }
-    }
-    // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
+    } // --- SECCIÓN 2: LÓGICA DE FASE DE JUEGO ---
         else if (gameState.currentPhase === "play") {
         // A. Tareas de MANTENIMIENTO del jugador que TERMINA el turno (igual que antes)
         updateTerritoryMetrics(playerEndingTurn);
@@ -1554,20 +1559,39 @@ async function handleEndTurn(isHostProcessing = false) {
         }
     }
     
-    // --- SECCIÓN 3: ACTUALIZACIÓN DE UI Y LLAMADA A IA ---
-    if (UIManager) UIManager.updateAllUIDisplays();
+    // --- SINCRONIZACIÓN FINAL (SOLO PARA ANFITRIÓN) ---
+    // Este es el bloque que te causaba confusión. Se ejecuta DESPUÉS de toda la lógica de cambio de turno.
+    if (isNetworkGame() && NetworkManager.esAnfitrion) {
+        console.log(`[Red - Anfitrión] Fin de turno procesado. Retransmitiendo estado y FORZANDO reconstrucción local.`);
+        NetworkManager.broadcastFullState();
+
+        const replacer = (key, value) => (key === 'element' ? undefined : value);
+        const selfData = {
+            gameState: JSON.parse(JSON.stringify(gameState, replacer)),
+            board: JSON.parse(JSON.stringify(board, replacer)),
+            units: JSON.parse(JSON.stringify(units, replacer)),
+            unitIdCounter: unitIdCounter
+        };
+        // El anfitrión se fuerza a reconstruir su propia vista para evitar desincronización visual.
+        reconstruirJuegoDesdeDatos(selfData);
+    }
+
+    // --- ACTUALIZACIÓN DE UI Y LLAMADA A IA (se ejecuta en todos los casos: local y red post-sincro) ---
+    if (!isNetworkGame() || NetworkManager.esAnfitrion) {
+        if (UIManager) UIManager.updateAllUIDisplays();
     
     // Llamar a la IA si AHORA es su turno, y solo si estamos en la fase de 'play'.
-    const isAiTurn = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
-    if (isAiTurn) {
-        if (gameState.currentPhase === 'play') {
-            if (checkVictory()) return;
-            setTimeout(simpleAiTurn, 700);
-        } else if (gameState.currentPhase === 'deployment') {
-            setTimeout(simpleAiDeploymentTurn, 700);
+        const isAiTurn = gameState.playerTypes[`player${gameState.currentPlayer}`]?.startsWith('ai_');
+        if (isAiTurn) {
+            if (gameState.currentPhase === 'play') {
+                if (checkVictory()) return;
+                setTimeout(simpleAiTurn, 700);
+            } else if (gameState.currentPhase === 'deployment') {
+                setTimeout(simpleAiDeploymentTurn, 700);
+            }
+        } else {
+            if (checkVictory) checkVictory();
         }
-    } else {
-        if (checkVictory) checkVictory();
     }
 }
 

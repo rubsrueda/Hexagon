@@ -238,19 +238,6 @@ function checkAndApplyLevelUp(unit) {
     return newLevelAssigned;
 }
 
-async function RequestMergeUnits(mergingUnit, targetUnit) {
-    if (isNetworkGame()) {
-        const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-        }
-        return;
-    }
-    mergeUnits(mergingUnit, targetUnit);
-}
-
 function placeFinalizedDivision(unitData, r, c) {
     if (!unitData) { console.error("[placeFinalizedDivision] Intento de colocar unidad con datos nulos."); return; }
     if (!unitData.id) unitData.id = `u${unitIdCounter++}`;
@@ -2286,26 +2273,7 @@ function handlePillageAction() {
     RequestPillageAction();
 }
 
-/**
- * [Punto de Entrada] Inicia la acción de Saqueo.
- * Decide si ejecutar localmente o enviar una petición a la red.
- */
-function RequestPillageAction() {
-    if (!selectedUnit) return; // No hay unidad seleccionada
 
-    if (isNetworkGame()) {
-        const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
-        if (NetworkManager.esAnfitrion) {
-            processActionRequest(action);
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-        }
-        return;
-    }
-    
-    // Para juegos locales, llama directamente a la función de ejecución.
-    _executePillageAction(selectedUnit);
-}
 
 /**
  * [Función de Ejecución] Contiene la lógica real del saqueo.
@@ -2506,15 +2474,15 @@ async function RequestMoveUnit(unit, toR, toC) {
         const action = { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: toR, toC: toC }};
         if (NetworkManager.esAnfitrion) {
             // El Anfitrión se procesa a sí mismo, sin enviar por la red
-            processActionRequest(action);
+            await processActionRequest(action);
+            NetworkManager.broadcastFullState();
         } else {
             // El Cliente envía la petición al Anfitrión
             NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
-    } else {
-        // En un juego local, la "petición" es simplemente ejecutar el movimiento directamente.
-        await moveUnit(unit, toR, toC);
-    }
+        return;
+    }// En un juego local, la "petición" es simplemente ejecutar el movimiento directamente.
+    await _executeMoveUnit(unit, toR, toC);
 }
 
 async function RequestAttackUnit(attacker, defender) {
@@ -2524,15 +2492,32 @@ async function RequestAttackUnit(attacker, defender) {
         const action = { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
         if (NetworkManager.esAnfitrion) {
             console.log('%c[VIAJE-2A] Soy Anfitrión. Procesando mi propio ataque directamente.', 'color: #FFA500; font-weight: bold;');
-            processActionRequest(action);
+            // El anfitrión procesa la acción Y LUEGO retransmite el estado.
+            await processActionRequest(action);
+            NetworkManager.broadcastFullState();
         } else {
             console.log('%c[VIAJE-2B] Soy Cliente. Enviando petición de ataque al anfitrión.', 'color: #FFA500; font-weight: bold;');
+            // El cliente SÓLO envía la petición. NO ejecuta nada localmente.
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+        return; // Detener la ejecución aquí para el juego en red
+    }
+    // Juego local
+    await attackUnit(attacker, defender);
+}
+
+async function RequestMergeUnits(mergingUnit, targetUnit) {
+    if (isNetworkGame()) {
+        const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
+        if (NetworkManager.esAnfitrion) {
+            await processActionRequest(action);
+            NetworkManager.broadcastFullState();
+        } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
         return;
     }
-    // Juego local
-    await attackUnit(attacker, defender);
+    mergeUnits(mergingUnit, targetUnit);
 }
 
 function RequestSplitUnit(originalUnit, targetR, targetC) {
@@ -2541,6 +2526,7 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
         const action = { type: 'splitUnit', payload: { playerId: originalUnit.player, originalUnitId: originalUnit.id, newUnitRegiments: actionData.newUnitRegiments, remainingOriginalRegiments: actionData.remainingOriginalRegiments, targetR: targetR, targetC: targetC }};
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
+            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
@@ -2549,21 +2535,35 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
     }
     splitUnit(originalUnit, targetR, targetC);
 }
+/**
+ * [Punto de Entrada] Inicia la acción de Saqueo.
+ * Decide si ejecutar localmente o enviar una petición a la red.
+ */
+function RequestPillageAction() {
+    if (!selectedUnit) return; // No hay unidad seleccionada
+
+    if (isNetworkGame()) {
+        const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+            NetworkManager.broadcastFullState();
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+        return;
+    }
+    
+    // Para juegos locales, llama directamente a la función de ejecución.
+    _executePillageAction(selectedUnit);
+}
 
 function RequestDisbandUnit(unitToDisband) {
     if (!unitToDisband) return;
-
     if (isNetworkGame()) {
-        const action = { 
-            type: 'disbandUnit', 
-            payload: { 
-                playerId: unitToDisband.player, 
-                unitId: unitToDisband.id 
-            }
-        };
-        
+        const action = { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
+            NetworkManager.broadcastFullState();
         } else {
             NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
         }
@@ -2571,25 +2571,25 @@ function RequestDisbandUnit(unitToDisband) {
         // Cierre de UI inmediato para el jugador que realiza la acción
         if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
         if (UIManager) UIManager.hideContextualPanel();
-
-    } else {
-        // Ejecución en modo LOCAL
-        const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
+        return;
+    }
+    // Lógica local...
+    const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
         
-        if (gameState.playerResources[unitToDisband.player]) {
-            gameState.playerResources[unitToDisband.player].oro += goldToRefund;
+    if (gameState.playerResources[unitToDisband.player]) {
+        gameState.playerResources[unitToDisband.player].oro += goldToRefund;
             logMessage(`Has recuperado ${goldToRefund} de oro al disolver a ${unitToDisband.name}.`);
-        }
+    }
 
-        handleUnitDestroyed(unitToDisband, null);
+    handleUnitDestroyed(unitToDisband, null);
 
-        if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
+    if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
         if (UIManager) {
             UIManager.hideContextualPanel();
             UIManager.updateAllUIDisplays();
         }
     }
-}
+
 
 /**
  * [Función Pura de Ejecución] Mueve la unidad en el estado del juego y la UI.

@@ -1,18 +1,64 @@
 // modalLogic.js
 
-// NUEVA FUNCIÓN "REQUEST" PARA CONSTRUIR
+// FUNCIÓN "REQUEST" PARA CONSTRUIR
 function RequestConfirmBuildStructure() {
     if (!selectedStructureToBuild || !hexToBuildOn) return;
-
-    const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
-    if (isNetworkGame) {
-         console.log(`[Red - Petición] Solicitando construir ${selectedStructureToBuild}.`);
-         NetworkManager.enviarDatos({ /* ... payload de red ... */ });
-         domElements.buildStructureModal.style.display = 'none';
-         UIManager.hideContextualPanel();
-         return;
+    if (isNetworkGame()) {
+        const { r, c } = hexToBuildOn;
+        const unitOnHex = getUnitOnHex(r,c);
+        const action = {
+            type: 'buildStructure',
+            payload: {
+                playerId: gameState.currentPlayer,
+                r: r, c: c,
+                structureType: selectedStructureToBuild,
+                builderUnitId: unitOnHex && STRUCTURE_TYPES[selectedStructureToBuild].cost.Colono ? unitOnHex.id : null
+            }
+        };
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+            NetworkManager.broadcastFullState();
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+        }
+        domElements.buildStructureModal.style.display = 'none';
+        UIManager.hideContextualPanel();
+        cancelPreparingAction();
+        return;
     }
     handleConfirmBuildStructure();
+}
+
+function RequestReinforceRegiment(division, regiment) {
+    const regData = REGIMENT_TYPES[regiment.type];
+    const healthToRestore = regData.health - regiment.health;
+    if (healthToRestore <= 0) return;
+    const reinforceCostMultiplier = 1.5;
+    const baseRegCost = regData.cost.oro || 0;
+    const costPerHp = baseRegCost / regData.health;
+    const totalCost = Math.ceil(costPerHp * healthToRestore * reinforceCostMultiplier);
+    
+    if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+        if (isNetworkGame()) {
+            const action = {
+                type: 'reinforceRegiment',
+                payload: {
+                    playerId: division.player,
+                    divisionId: division.id,
+                    regimentId: regiment.id
+                }
+            };
+            if (NetworkManager.esAnfitrion) {
+                processActionRequest(action);
+                NetworkManager.broadcastFullState();
+            } else {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            }
+            logMessage("Petición de refuerzo enviada...");
+            return;
+        }
+        handleReinforceRegiment(division, regiment);
+    }
 }
 
 function showCityContextualInfo(cityData) { // Modificar función existente o crear una nueva
