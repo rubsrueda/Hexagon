@@ -1178,7 +1178,420 @@ html, body {
 .tech-tree-content .tech-node.available { background-color: #2a9d8f; border-color: #264653; box-shadow: 0 0 10px 3px #aaf0d1; }
 .tech-tree-content .tech-node.locked { background-color: #6c757d; opacity: 0.7; cursor: not-allowed; }
 
+style_content = """
+/* ========================================================== */
+/* ==   NUEVOS ESTILOS COMPLETOS PARA TALENTOS (V2)        == */
+/* ========================================================== */
+
+/* --- Contenedor Principal del Modal Grande --- */
+#talentTreeModal .modal-content.talent-tree-modal-content {
+    width: 90vw;
+    max-width: 1400px;
+    height: 85vh;
+    background-color: #2c3e50; /* Un azul-gris oscuro */
+    color: #ecf0f1;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    border: 2px solid #95a5a6;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+}
+
+.talent-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #7f8c8d;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+.talent-points-counter {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #f1c40f; /* Dorado */
+}
+#resetTalentsBtn {
+    background-color: #c0392b; /* Rojo */
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+/* --- El Viewport Scrollable --- */
+#talentCanvasContainer {
+    position: relative;
+    flex-grow: 1; /* Ocupa todo el espacio disponible */
+    overflow: auto; /* ¡LA CLAVE! Permite el scroll */
+    background-color: #34495e;
+    border-radius: 8px;
+    border: 1px solid #7f8c8d;
+}
+
+/* --- El Lienzo Gigante donde se dibuja TODO --- */
+/* --- El Lienzo Gigante donde se dibuja TODO (TAMAÑO CORREGIDO) --- */
+.talent-tree-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1500px;  /* TU TAMAÑO */
+    height: 1500px; /* TU TAMAÑO */
+}
+
+/* --- El Nexo Central (POSICIÓN CORREGIDA) --- */
+#talentNexoContainer {
+    position: absolute;
+    top: 950px;    /* TU COORDENADA Y */
+    left: 750px;   /* TU COORDENADA X */
+    transform: translate(-50%, -50%);
+    width: 180px;
+    height: 180px;
+    z-index: 100;
+    border-radius: 50%;
+    background: #1f2b38;
+    box-shadow: 0 0 20px rgba(0,0,0,0.7);
+    border: 4px solid #7f8c8d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-weight: bold;
+    color: #ecf0f1;
+}
+
+/* --- Las Líneas de Conexión SVG --- */
+.talent-svg-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1; /* Por debajo de los nodos */
+}
+
+#talentNexoContainer .nexo-pie {
+    /* Los "pies" ahora son simples divs dentro del círculo, más fáciles de manejar */
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+    cursor: pointer;
+    border: none;
+}
+#talentNexoContainer .nexo-pie:hover {
+    transform: scale(1.1);
+}
+/* Posicionamiento simple usando translate */
+.nexo-pie:nth-child(1) { transform: translate(-60%, 45%); } /* Izquierda-Abajo, más centrado */
+.nexo-pie:nth-child(2) { transform: translateY(-65%); }    /* Arriba, más centrado */
+.nexo-pie:nth-child(3) { transform: translate(60%, 45%); }  /* Derecha-Abajo, más centrado */
+
+.nexo-icon { font-size: 2.2em; line-height: 1; }
+.nexo-name { font-size: 0.9em; margin-top: 5px; }
+
+
+/* --- Nodos de Talento Individuales --- */
+.talent-node {
+    position: absolute;
+    color: white;
+    background-color: #4a5568; /* Gris oscuro */
+    border: 3px solid #718096; /* Borde gris más claro */
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: not-allowed;
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-size: 1.2em; /* Icono más grande */
+    padding: 5px;
+    box-sizing: border-box;
+}
+/* Formas de los nodos */
+.talent-node.square { width: 50px; height: 50px; border-radius: 8px; }
+.talent-node.circle { width: 45px; height: 45px; border-radius: 50%; }
+
+/* Estados de los nodos */
+.talent-node.available {
+    background-color: #2980b9; /* Azul */
+    border-color: #3498db;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+}
+.talent-node.maxed {
+    background-color: #d69e2e; /* Dorado */
+    border-color: #f1c40f;
+    cursor: help;
+}
+.talent-node.available:hover {
+    transform: translate(-50%, -50%) scale(1.1); /* Importante para no perder el centrado */
+    box-shadow: 0 0 20px rgba(52, 152, 219, 0.9);
+}
+
+/* Nivel del talento */
+.talent-node-level {
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    font-weight: bold;
+    font-size: 0.7em;
+    background-color: rgba(0,0,0,0.8);
+    color: #f1c40f; /* Dorado */
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    border: 1px solid #f1c40f;
+}
+
+/*===============================================================*/
+/* --- Estilos para la Columna de Equipo (Diseño de Cuerpo) --- */
+/*=============================================================*/
+.equipment-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px; /* Espacio entre filas */
+    padding-top: 15px;
+}
+
+.equip-row-single {
+    display: flex;
+    justify-content: center;
+}
+
+.equipment-slot {
+    height: 75px;
+    background-color: #e9ecef;
+    border: 2px dashed #adb5bd;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    position: relative; /* Para futuros iconos de objetos */
+}
+
+.equipment-slot:hover {
+    background-color: #dde2e6;
+    border-color: #007bff;
+}
+
+.equipment-slot span {
+    color: #6c757d;
+    font-size: 0.8em;
+    font-weight: 500;
+}
+
+/* --- Posicionamiento específico dentro de la rejilla central 2x2 --- */
+/* --- Reemplaza esta sección en tu CSS --- */
+
+.equip-row-middle {
+    display: grid;
+    /* Creamos una rejilla imaginaria de 2 columnas y 3 filas */
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 10px;
+    width: 100%;
+    align-items: center; /* Centra los items verticalmente en sus filas */
+}
+
+/* --- Posicionamiento EXACTO para formar el rombo --- */
+
+/* La Coraza ocupa las 2 columnas de la primera fila */
+#equip-chest { 
+    grid-column: 1 / span 2; 
+    grid-row: 1;
+    justify-self: center; /* Se centra horizontalmente en su área */
+    width: 50%; /* Hacemos que sea más estrecho para formar el pico del rombo */
+}
+
+/* Los Guantes en la primera columna de la segunda fila */
+#equip-gloves {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+/* El Arma en la segunda columna de la segunda fila */
+#equip-weapon {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+/* El Pantalón ocupa las 2 columnas de la tercera fila */
+#equip-legs {
+    grid-column: 1 / span 2;
+    grid-row: 3;
+    justify-self: center; /* Se centra horizontalmente */
+    width: 50%; /* También más estrecho para la base del rombo */
+}
+
+/* --- Estilos para el Pie de Página del Modal de Héroe --- */
+.hero-detail-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #dee2e6;
+}
+
+.talent-button {
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+    font-size: 1.1em;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.talent-button:hover {
+    background-color: #0056b3;
+}
+.upgrade-buttons button {
+    margin-left: 10px;
+    padding: 10px 20px;
+}
+
+/* --- Estilos para el Modal de Árbol de Talentos (Pantalla Grande) --- */
+.talent-tree-modal-content {
+    width: 90vw;
+    max-width: 1200px;
+    height: 85vh;
+    background-color: #34495e;
+    color: #ecf0f1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+.talent-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #7f8c8d;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.talent-points-counter {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+#resetTalentsBtn {
+    background-color: #e74c3c;
+    color: white;
+}
+
+/* Reutilizamos los estilos de .tabs y .tab-button que ya tenías */
+#talentTreeTabs {
+    border-bottom: 2px solid #95a5a6;
+}
+#talentTreeTabs .tab-button.active {
+    color: #f1c40f;
+    border-bottom-color: #f1c40f;
+}
+
+/* Renombramos tu .talent-tree-container para ser más específico */
+#talentTreeContainer {
+    flex-grow: 1; /* Ocupa el espacio restante */
+    position: relative; /* Clave para el posicionamiento absoluto de los nodos */
+    overflow: auto;
+    background-color: #2c3e50;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+/* ========================================================== */
+/* ==   NUEVO: ESTILOS PARA SELECCIÓN DE EQUIPO             == */
+/* ========================================================== */
+
+/* Indicador visual en el slot del héroe si hay mejoras disponibles */
+.equipment-slot.available-upgrade {
+    border-style: solid;
+    border-color: #28a745; /* Verde brillante */
+    background-color: #e9f7ef;
+    animation: pulse-green 1.5s infinite;
+}
+
+@keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+/* Contenedor de la lista en el modal de selección */
+.equipment-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-top: 15px;
+    background-color: #f8f9fa;
+}
+
+/* Cada item en la lista de selección */
+.equipment-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+.equipment-item:last-child {
+    border-bottom: none;
+}
+
+.equipment-item:hover {
+    background-color: #e9ecef;
+}
+
+.equipment-item.selected {
+    background-color: #d4edda; /* Verde claro para el seleccionado */
+    border-left: 4px solid #28a745;
+}
+
+.equipment-item .item-icon {
+    font-size: 2.5em;
+    margin-right: 15px;
+    width: 40px;
+    text-align: center;
+}
+
+.equipment-item .item-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.equipment-item .item-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+}
+
+/* Colores para el nombre del item según su rareza */
+.rarity-Común { color: #6c757d; }
+.rarity-Raro { color: #007bff; }
+.rarity-Épico { color: #8a2be2; }
+.rarity-Legendario { color: #fd7e14; }
+
+.equipment-item .item-stats {
+    font-size: 0.9em;
+    color: #495057;
+}
+
+/* ========================================================== */
 /* --- Modales: Gestión de Unidades --- */
+/* ========================================================== */
 /* Listas genéricas en modales */
 #availableRegimentsList li, #currentDivisionRegimentsList li, #availableStructuresList li {
     cursor: pointer; padding: 8px; border-bottom: 1px solid #eee; transition: background-color 0.2s;
@@ -1291,8 +1704,111 @@ html, body {
 .reinforce-regiment-btn:hover { background-color: #d4edda; }
 .reinforce-placeholder { width: 24px; height: 24px; margin-left: 10px; }
 
+/* ========================================================== */
+/* ==   NUEVO: ESTILOS PARA LA FORJA                        == */
+/* ========================================================== */
 
+/* Contenedor principal del modal de forja (2 columnas) */
+.forge-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    height: 60vh;
+}
+
+/* Columna Izquierda: Lista de planos */
+.blueprint-list {
+    flex: 1;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+}
+
+.blueprint-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.blueprint-item:hover {
+    background-color: #e9ecef;
+}
+
+.blueprint-item.selected {
+    background-color: #e2e6ea;
+    border-left: 4px solid #fd7e14; /* Naranja para la selección */
+}
+
+.blueprint-item.can-forge .item-name {
+    color: #28a745; /* Verde si se puede forjar */
+}
+
+.blueprint-item .item-icon {
+    font-size: 2em;
+    margin-right: 15px;
+}
+
+.blueprint-item .item-info .item-name {
+    font-weight: bold;
+}
+
+.blueprint-item .item-info .item-progress {
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+/* Columna Derecha: Detalles del plano */
+.blueprint-detail {
+    flex: 1;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+}
+
+.item-icon-large {
+    font-size: 4em;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+#blueprintItemName {
+    text-align: center;
+    margin-top: 0;
+}
+
+#blueprintItemStats {
+    text-align: center;
+    font-style: italic;
+    color: #495057;
+    min-height: 40px;
+}
+
+.forge-progress-item {
+    font-size: 0.9em;
+}
+
+#forgeItemBtn {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#forgeItemBtn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+/* ========================================================== */
 /* --- Modal: Wiki y Ayuda --- */
+/* ========================================================== */
+
 .help-modal-content {
     max-width: 700px; max-height: 90vh; overflow-y: auto;
     background-color: #f0f2f5; border: 1px solid #ccc;

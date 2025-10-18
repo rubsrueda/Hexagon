@@ -237,4 +237,177 @@ function isNetworkGame() {
     return NetworkManager.conn && NetworkManager.conn.open;
 }
 
+/**
+ * (NUEVO v3.0 - Definitiva) Calcula TODAS las bonificaciones de talentos, incluyendo
+ * las condicionales y probabilísticas, basándose en el contexto del combate.
+ * @param {object} unit - La división para la que se calculan los bonos (el sujeto).
+ * @param {object} [opposingUnit=null] - La división enemiga (contexto opcional).
+ * @param {boolean} [isFirstHit=false] - Si es el primer golpe de la ronda (contexto opcional).
+ * @returns {object|null} Un objeto "hoja de órdenes" con todas las bonificaciones y efectos a aplicar.
+ */
+function calculateTalentBonuses(unit, opposingUnit = null, isFirstHit = false) {
+    if (!unit.commander || !PlayerDataManager.currentPlayer) {
+        return null;
+    }
+
+    const heroInstance = PlayerDataManager.currentPlayer.heroes.find(h => h.id === unit.commander);
+    if (!heroInstance) {
+        return null;
+    }
+
+    const bonuses = {
+        attack_percentage: 0, defense_percentage: 0, health_percentage: 0,
+        attack_flat: 0, defense_flat: 0, health_flat: 0,
+        damage_increase_percentage: 0, damage_reduction_percentage: 0,
+        movement_flat: 0, attackRange_flat: 0, initiative_flat: 0, xp_gain_percentage: 0
+    };
+
+    // =======================================================
+    // === PASO 1: PROCESAR TALENTOS ======
+    // =======================================================
+    if (heroInstance.talents && Object.keys(heroInstance.talents).length > 0) {
+        for (const talentId in heroInstance.talents) {
+            const currentLevel = heroInstance.talents[talentId];
+            if (currentLevel === 0) continue;
+
+            const talentDef = TALENT_DEFINITIONS[talentId];
+            if (!talentDef || !talentDef.effect || !talentDef.values) continue;
+
+            const bonusValue = talentDef.values[currentLevel - 1];
+            const effect = talentDef.effect;
+
+            let applyBonus = true; 
+
+        // Lógica de Filtros (si aplica)
+        if (effect.filters && effect.filters.category) {
+            if (!unit.regiments.some(reg => effect.filters.category.includes(REGIMENT_TYPES[reg.type]?.category))) {
+                applyBonus = false;
+            }
+        }
+        if (!applyBonus) continue;
+
+        // --- LÓGICA DE APLICACIÓN DE EFECTOS (TODA CENTRALIZADA AQUÍ) ---
+        switch (effect.stat) {
+            // Stats Pasivos
+            case 'attack':
+                if (effect.is_percentage) bonuses.attack_percentage += bonusValue;
+                else bonuses.attack_flat += bonusValue;
+                break;
+            case 'defense':
+                if (effect.is_percentage) bonuses.defense_percentage += bonusValue;
+                else bonuses.defense_flat += bonusValue;
+                break;
+            case 'health':
+                if (effect.is_percentage) bonuses.health_percentage += bonusValue;
+                else bonuses.health_flat += bonusValue;
+                break;
+            case 'movement':
+                 if (!effect.is_percentage) bonuses.movement_flat += bonusValue;
+                 break;
+            case 'attackRange':
+                 if (!effect.is_percentage) bonuses.attackRange_flat += bonusValue;
+                 break;
+            case 'initiative':
+                 if (!effect.is_percentage) bonuses.initiative_flat += bonusValue;
+                 break;
+            case 'xp_gain':
+                if (effect.is_percentage) bonuses.xp_gain_percentage += bonusValue;
+                break;
+
+            // Talentos Condicionales
+            case 'conditional_attack_percentage':
+                if (effect.condition === 'morale_high' && unit.morale > (unit.maxMorale || 125) * 0.8) {
+                    bonuses.attack_percentage += bonusValue;
+                }
+                break;
+            case 'conditional_defense_percentage':
+                if (effect.condition === 'health_low' && unit.currentHealth < unit.maxHealth * 0.3) {
+                    bonuses.defense_percentage += bonusValue;
+                }
+                break;
+            
+            // Modificadores de Daño Situacionales
+            case 'damage_vs_low_hp':
+                if (opposingUnit && opposingUnit.currentHealth < opposingUnit.maxHealth * 0.5) {
+                    bonuses.damage_increase_percentage += bonusValue;
+                }
+                break;
+            case 'first_hit_damage_increase':
+                if (isFirstHit) {
+                    bonuses.damage_increase_percentage += bonusValue;
+                }
+                break;
+
+            // Talentos de Probabilidad (se resuelven aquí mismo)
+            case 'chance_for_double_shot':
+                if (Math.random() * 100 < effect.chance) {
+                    // Si la tirada tiene éxito, añade el bonus de daño directamente.
+                    // 'bonusValue' es el multiplicador de daño (ej: 50 para 50%).
+                    bonuses.damage_increase_percentage += bonusValue;
+                    logMessage(`¡Talento activado: ${talentDef.name}!`, "success");
+                }
+                break;
+        }
+    }
+
+    // =======================================================
+    // === PASO 2: PROCESAR EQUIPO (¡NUEVA LÓGICA!) =========
+    // =======================================================
+    if (heroInstance.equipment && PlayerDataManager.currentPlayer.inventory.equipment) {
+        const playerInventory = PlayerDataManager.currentPlayer.inventory.equipment;
+
+        // Itera sobre cada slot del héroe (head, weapon, etc.)
+        for (const slot in heroInstance.equipment) {
+            const equippedInstanceId = heroInstance.equipment[slot];
+            
+            // Si hay un objeto equipado en este slot
+            if (equippedInstanceId) {
+                // Busca el objeto en el inventario del jugador
+                const itemInInventory = playerInventory.find(item => item.instance_id === equippedInstanceId);
+                
+                if (itemInInventory) {
+                    // Busca la definición del objeto en nuestro catálogo
+                    const itemDefinition = EQUIPMENT_DEFINITIONS[itemInInventory.item_id];
+                    
+                    if (itemDefinition && itemDefinition.bonuses) {
+                        // Aplica cada una de las bonificaciones del objeto
+                        itemDefinition.bonuses.forEach(bonus => {
+                            // La lógica es muy similar a la de los talentos
+                            switch (bonus.stat) {
+                                case 'attack':
+                                    if (bonus.is_percentage) bonuses.attack_percentage += bonus.value;
+                                    else bonuses.attack_flat += bonus.value;
+                                    break;
+                                case 'defense':
+                                    if (bonus.is_percentage) bonuses.defense_percentage += bonus.value;
+                                    else bonuses.defense_flat += bonus.value;
+                                    break;
+                                case 'health':
+                                    if (bonus.is_percentage) bonuses.health_percentage += bonus.value;
+                                    else bonuses.health_flat += bonus.value;
+                                    break;
+                                // ... Añadir el resto de casos para los stats que definimos en equipment.js
+                                case 'movement':
+                                    if (bonus.is_percentage) { /* Por ahora no manejamos % de movimiento */ }
+                                    else bonuses.movement_flat += bonus.value;
+                                    break;
+                                case 'initiative':
+                                    if (!bonus.is_percentage) bonuses.initiative_flat += bonus.value;
+                                    break;
+                                case 'xp_gain':
+                                    if (bonus.is_percentage) bonuses.xp_gain_percentage += bonus.value;
+                                    break;
+                                // Se pueden añadir más casos para stats de equipo más complejos
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+    }    
+
+    return bonuses;
+}
+
 console.log("utils.js se ha cargado.");

@@ -74,6 +74,7 @@
 
         <button id="openDeseosBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #8a2be2;">Altar de los Deseos</button>    
         <button id="barracksBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Cuartel</button>
+        <button id="openForgeBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #e67e22;">Forja</button>
         <button id="startCampaignBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Comenzar Campaña</button>
         <button id="startSkirmishBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
         <button id="startIberiaMagnaBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Tronos de Iberia</button>
@@ -239,67 +240,123 @@
         </div>
     </div>
     <!-- ====================================================================== -->
-    <!-- ================ MODAL DE DETALLES DE HÉROE (ESTILO ROK) =============== -->
-    <!-- ====================================================================== -->
-    <div id="heroDetailModal" class="modal" style="display: none;">
-        <div class="modal-content hero-detail-content-rok">
-            <span class="close-button" id="closeHeroDetailBtn">×</span>
+<!-- ====== MODAL DETALLES DE HÉROE (ESTRUCTURA CORREGIDA PARA EQUIPO) ====== -->
+<!-- ====================================================================== -->
+<div id="heroDetailModal" class="modal" style="display: none;">
+    <div class="modal-content hero-detail-content-rok">
+        <span class="close-button" id="closeHeroDetailBtn">×</span>
+        
+        <!-- CUERPO PRINCIPAL (Layout de 3 columnas) -->
+        <div class="hero-main-layout">
+
+            <!-- COLUMNA IZQUIERDA: HABILIDADES (Sin cambios) -->
+            <div class="hero-column hero-skills-column">
+                <h3 class="column-title">Habilidades</h3>
+                <div id="heroDetailSkillsContainer" class="skills-list">
+                    <!-- Las 4 habilidades se insertarán aquí con JS -->
+                </div>
+            </div>
+
+            <!-- COLUMNA CENTRAL: RETRATO, STATS Y PROGRESIÓN (Sin cambios) -->
+            <div class="hero-column hero-center-column">
+                <div id="hero-portrait-container"></div>
+                <div id="hero-name-title" class="hero-name-title">
+                    <h2 id="heroDetailName">Nombre Héroe</h2>
+                    <p id="heroDetailTitle">Título del Héroe</p>
+                </div>
+                <div id="hero-progression-bars">
+                    <div class="progress-item">
+                        <span>Nivel: <strong id="heroDetailLevel">1</strong></span>
+                        <div class="xp-bar-container"><div id="heroDetailXpBar" class="xp-bar"></div></div>
+                        <span id="heroDetailXpText">0/1000</span>
+                    </div>
+                    <div class="progress-item">
+                        <span>Evolución: <strong id="heroDetailStars">⭐</strong></span>
+                        <div class="xp-bar-container"><div id="heroDetailFragmentBar" class="xp-bar fragments"></div></div>
+                        <span id="heroDetailFragmentText">0/20</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- <<== CORRECCIÓN: COLUMNA DERECHA AHORA ES SOLO EQUIPO ==>> -->
+            <!-- ... dentro de .hero-equipment-column ... -->
+            <div class="equipment-layout">
+                <div class="equip-row-single">
+                    <div class="equipment-slot" id="equip-head"><span>Casco</span></div>
+                </div>
+                <div class="equip-row-middle">
+                    <div class="equipment-slot" id="equip-gloves"><span>Guantes</span></div>
+                    <div class="equipment-slot" id="equip-chest"><span>Coraza</span></div>
+                    <div class="equipment-slot" id="equip-weapon"><span>Arma</span></div>
+                    <div class="equipment-slot" id="equip-legs"><span>Pantalón</span></div>
+                </div>
+                <div class="equip-row-single">
+                    <div class="equipment-slot" id="equip-boots"><span>Botas</span></div>
+                </div>
+            </div>
             
-            <!-- CUERPO PRINCIPAL (Layout de 3 columnas) -->
-            <div class="hero-main-layout">
+        </div> <!-- Fin de .hero-main-layout -->
 
-                <!-- COLUMNA IZQUIERDA: HABILIDADES -->
-                <div class="hero-column hero-skills-column">
-                    <h3 class="column-title">Habilidades</h3>
-                    <div id="heroDetailSkillsContainer" class="skills-list">
-                        <!-- Las 4 habilidades se insertarán aquí con JS -->
-                    </div>
-                </div>
-
-                <!-- COLUMNA CENTRAL: RETRATO, STATS Y PROGRESIÓN -->
-                <div class="hero-column hero-center-column">
-                    <div id="hero-portrait-container">
-                        <!-- El retrato grande irá aquí -->
-                    </div>
-                    <div id="hero-name-title" class="hero-name-title">
-                        <h2 id="heroDetailName">Nombre Héroe</h2>
-                        <p id="heroDetailTitle">Título del Héroe</p>
-                    </div>
-                    <div id="hero-progression-bars">
-                        <div class="progress-item">
-                            <span>Nivel: <strong id="heroDetailLevel">1</strong></span>
-                            <div class="xp-bar-container"><div id="heroDetailXpBar" class="xp-bar"></div></div>
-                            <span id="heroDetailXpText">0/1000</span>
-                        </div>
-                        <div class="progress-item">
-                            <span>Evolución: <strong id="heroDetailStars">⭐</strong></span>
-                            <div class="xp-bar-container"><div id="heroDetailFragmentBar" class="xp-bar fragments"></div></div>
-                            <span id="heroDetailFragmentText">0/20</span>
-                        </div>
-                    </div>
-                    <div class="hero-action-buttons">
-                        <button id="heroLevelUpBtn">Usar Libros XP</button>
-                        <button id="heroEvolveBtn">Evolucionar</button>
-                    </div>
-                </div>
-
-                <!-- COLUMNA DERECHA: TALENTOS Y EQUIPAMIENTO (PREPARADO PARA EL FUTURO) -->
-                <div class="hero-column hero-talents-column">
-                    <div class="tabs">
-                        <button class="tab-button active" data-tab="talents">Talentos</button>
-                        <button class="tab-button" data-tab="equipment">Equipo</button>
-                    </div>
-                    <div id="talents" class="tab-content active">
-                        <p><i>El árbol de talentos se implementará aquí.</i></p>
-                    </div>
-                    <div id="equipment" class="tab-content">
-                        <p><i>Las 6 ranuras de equipamiento (Casco, Arma, etc.) irán aquí.</i></p>
-                    </div>
-                </div>
-
+        <!-- <<== CORRECCIÓN: PIE DE PÁGINA CON BOTONES DE ACCIÓN ==>> -->
+        <div class="hero-detail-footer">
+            <button id="openTalentTreeBtn" class="talent-button">Talentos</button>
+            <div class="upgrade-buttons">
+                <button id="heroLevelUpBtn">Usar Libros XP</button>
+                <button id="heroEvolveBtn">Evolucionar</button>
             </div>
         </div>
+
     </div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- ============== MODAL DE ÁRBOL DE TALENTOS              ================ -->
+<!-- ====================================================================== -->
+<div id="talentTreeModal" class="modal" style="display: none; background-color: rgba(10, 20, 30, 0.9);">
+    <div class="modal-content talent-tree-modal-content">
+        <span class="close-button" id="closeTalentTreeModalBtn">×</span>
+        <div class="talent-modal-header">
+            <h2 id="talentHeroName">Talentos de [Nombre Héroe]</h2>
+            <div class="talent-points-counter">Puntos: <span id="talentPointsAvailable">0</span></div>
+            <button id="resetTalentsBtn">Reiniciar</button>
+        </div>
+        
+        <!-- Contenedor ÚNICO para nexo y árbol -->
+        <div id="talentCanvasContainer" class="talent-canvas-container">
+            <!-- El nexo y el árbol se dibujarán aquí con JS -->
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- ============= MODAL DE SELECCIÓN DE EQUIPO             ================ -->
+<!-- ====================================================================== -->
+<div id="equipmentSelectorModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+        <span class="close-button" id="closeEquipmentSelectorBtn">×</span>
+        <h2 id="equipmentSelectorTitle">Seleccionar [Slot]</h2>
+        <p>Elige una pieza de equipo de tu inventario para equipar a este héroe.</p>
+        
+        <!-- Contenedor para la lista de equipo disponible -->
+        <div id="equipmentListContainer" class="equipment-list">
+            <!-- Las piezas de equipo se insertarán aquí con JS -->
+            <!-- Ejemplo de cómo se verá un item:
+            <div class="equipment-item" data-instance-id="eq_12345">
+                <span class="item-icon">🗡️</span>
+                <div class="item-info">
+                    <strong class="item-name rarity-Común">Espada Corta de Hierro</strong>
+                    <span class="item-stats">Ataque +10</span>
+                </div>
+            </div>
+            -->
+        </div>
+        
+        <div id="equipmentSelectorFooter" style="text-align: center; margin-top: 20px; display: none;">
+            <button id="equipItemBtn">Equipar Objeto Seleccionado</button>
+            <button id="unequipItemBtn" style="background-color: #dc3545;">Quitar Objeto Actual</button>
+        </div>
+    </div>
+</div>
 
     <!-- ====================================================================== -->
     <!-- ============= POP-UP DE DETALLES DE HABILIDAD (MODAL) ================ -->
@@ -612,6 +669,45 @@
     </div>
 
     <!-- ====================================================================== -->
+    <!-- ======================= MODAL DE LA FORJA (EQUIPO) =================== -->
+    <!-- ====================================================================== -->
+    <div id="forgeModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-button" id="closeForgeBtn">×</span>
+            <h2>Forja del General</h2>
+            <p>Aquí puedes usar los fragmentos que has conseguido para forjar poderosas piezas de equipo.</p>
+            
+            <div class="forge-container">
+                <!-- Columna Izquierda: Lista de Planos -->
+                <div id="blueprintList" class="blueprint-list">
+                    <!-- Los planos se insertarán aquí con JS -->
+                </div>
+
+                <!-- Columna Derecha: Detalles del Plano Seleccionado -->
+                <div id="blueprintDetail" class="blueprint-detail">
+                    <div id="blueprintDetailPlaceholder" style="text-align: center; margin-top: 50px; color: #888;">
+                        <p>Selecciona un plano de la izquierda para ver sus detalles y forjarlo.</p>
+                    </div>
+                    <div id="blueprintDetailContent" style="display: none;">
+                        <div id="blueprintItemIcon" class="item-icon-large"></div>
+                        <h3 id="blueprintItemName">Nombre del Objeto</h3>
+                        <p id="blueprintItemStats"></p>
+                        <hr>
+                        <h4>Progreso de Forja</h4>
+                        <div class="forge-progress-item">
+                            <div class="xp-bar-container">
+                                <div id="blueprintFragmentBar" class="xp-bar fragments"></div>
+                            </div>
+                            <span id="blueprintFragmentText">0 / 20</span>
+                        </div>
+                        <button id="forgeItemBtn" style="width: 100%; padding: 12px; font-size: 1.2em; margin-top: 20px;">FORJAR</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
     <!-- ======================= BUZÓN DEL GENERAL (Misiones, Banners, Mensajes) -->
     <!-- ====================================================================== -->
     <div id="inboxModal" class="modal" style="display: none;">
@@ -665,6 +761,9 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="commanders.js"></script>
     <script src="constants.js"></script>
+    <script src="talents.js"></script>
+    <script src="talents_sprites.js"></script>
+    <script src="equipment.js"></script>
     <script src="state.js"></script>
     <script src="utils.js"></script>
     <script src="map_generation_utils.js"></script>

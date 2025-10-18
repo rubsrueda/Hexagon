@@ -478,7 +478,8 @@ heraldo_real: (heroId, username = null) => {
                 stars: 1, 
                 fragments: 0, 
                 skill_levels: [1, 0, 0, 0],
-                skill_points_unspent: 0 
+                skill_points_unspent: 0, 
+                talent_points_unspent: 1 
             });
         }
         
@@ -495,6 +496,27 @@ heraldo_real: (heroId, username = null) => {
         logToConsole("Error al procesar el perfil del jugador: " + e.message, 'error');
     }
 },
+
+/**
+     * Recluta a un nuevo héroe para el jugador actual.
+     * Uso: reclutar <id_heroe>
+     * Ejemplo: reclutar g_viriato
+     */
+    reclutar: (heroId) => {
+        if (!heroId) {
+            return logToConsole("Uso: reclutar <id_heroe>", "error");
+        }
+        if (typeof PlayerDataManager !== 'undefined' && PlayerDataManager.addHeroToPlayer) {
+            const newHero = PlayerDataManager.addHeroToPlayer(heroId);
+            if (newHero) {
+                logToConsole(`Héroe ${heroId} reclutado. Puntos de talento: ${newHero.skill_points_unspent}`, 'success');
+            } else {
+                logToConsole(`No se pudo reclutar al héroe ${heroId}.`, 'error');
+            }
+        } else {
+            logToConsole("Error: PlayerDataManager no está disponible.", "error");
+        }
+    },
 
 /**
  * La Corona te concede un estipendio. Añade Sellos de Guerra a tu tesoro.
@@ -580,7 +602,146 @@ dar_sellos: (amountStr, username = null) => {
     next_turn: () => { /* ...Lógica original sin cambios... */ },
     win_game: () => { /* ...Lógica original sin cambios... */ },
     lose_game: () => { /* ...Lógica original sin cambios... */ },
-    // Pegar aquí las implementaciones originales de las 4 funciones de abajo si se borran accidentalmente
+    
+    /**
+     * ¡Un tesoro encontrado! Añade una pieza de equipo específica a tu inventario.
+     * Uso: forjar <id_del_equipo> [nombre_usuario]
+     * Ejemplo: forjar legendary_hammer_1 MiGeneral
+     */
+    forjar: (itemId, username = null) => {
+        if (!itemId || !EQUIPMENT_DEFINITIONS[itemId]) {
+            logToConsole(`Error: ID de equipo inválido. IDs disponibles: ${Object.keys(EQUIPMENT_DEFINITIONS).join(', ')}`, 'error');
+            return;
+        }
+
+        const itemDef = EQUIPMENT_DEFINITIONS[itemId];
+        
+        // Si no se especifica usuario, se usa el actual.
+        const targetPlayerUsername = username || PlayerDataManager.currentPlayer?.username;
+        if (!targetPlayerUsername) {
+            logToConsole("Error: No hay jugador activo para añadir el equipo.", "error");
+            return;
+        }
+
+        // Usamos PlayerDataManager para manejar los datos de forma segura
+        const playerDataKey = `player_${targetPlayerUsername.toLowerCase()}`;
+        const playerDataString = localStorage.getItem(playerDataKey);
+        
+        if (!playerDataString) {
+            logToConsole(`No se encontró el perfil de jugador: ${targetPlayerUsername}`, 'error');
+            return;
+        }
+        
+        const playerData = JSON.parse(playerDataString);
+        
+        // Crear la instancia del objeto
+        const newItemInstance = {
+            instance_id: `cheat_${Date.now()}`,
+            item_id: itemId
+        };
+
+        // Añadir al inventario
+        if (!playerData.inventory.equipment) {
+            playerData.inventory.equipment = [];
+        }
+        playerData.inventory.equipment.push(newItemInstance);
+
+        // Guardar los cambios
+        localStorage.setItem(playerDataKey, JSON.stringify(playerData));
+        if (targetPlayerUsername === PlayerDataManager.currentPlayer?.username) {
+            PlayerDataManager.currentPlayer = playerData;
+        }
+
+        logToConsole(`¡Equipo forjado! [${itemDef.rarity}] ${itemDef.name} añadido al inventario de ${targetPlayerUsername}.`, 'success');
+    },
+
+    /**
+     * ¡Llegan los suministros del reino! Añade una cantidad de equipo al azar de una rareza específica.
+     * Uso: armeria <rareza> [cantidad] [nombre_usuario]
+     * Ejemplo: armeria Epico 3 MiGeneral
+     * Rarezas: Comun, Raro, Epico, Legendario
+     */
+    armeria: (rarity, amountStr = '1', username = null) => {
+        if (!rarity) {
+            logToConsole("Uso: armeria <rareza> [cantidad] [nombre_usuario]. Rarezas: Comun, Raro, Epico, Legendario", 'error');
+            return;
+        }
+        
+        const amount = parseInt(amountStr);
+        const rarityFormatted = rarity.charAt(0).toUpperCase() + rarity.slice(1).toLowerCase();
+
+        const possibleItems = Object.values(EQUIPMENT_DEFINITIONS).filter(item => item.rarity === rarityFormatted);
+        
+        if (possibleItems.length === 0) {
+            logToConsole(`Error: No se encontraron objetos de rareza '${rarityFormatted}'.`, 'error');
+            return;
+        }
+
+        for (let i = 0; i < amount; i++) {
+            const randomItem = possibleItems[Math.floor(Math.random() * possibleItems.length)];
+            Cheats.forjar(randomItem.id, username);
+        }
+    },
+
+    /**
+     * ¡Un artesano te regala planos! Añade fragmentos de un equipo específico.
+     * Uso: planos <id_del_equipo> <cantidad> [nombre_usuario]
+     * Ejemplo: planos epic_weapon_1 10 MiGeneral
+     */
+    planos: (itemId, amountStr, username = null) => {
+        if (!itemId || !EQUIPMENT_DEFINITIONS[itemId]) {
+            logToConsole(`Error: ID de equipo inválido.`, 'error');
+            return;
+        }
+        const amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            logToConsole("Error: La cantidad debe ser un número positivo.", "error");
+            return;
+        }
+
+        const itemDef = EQUIPMENT_DEFINITIONS[itemId];
+        
+        const targetPlayerUsername = username || PlayerDataManager.currentPlayer?.username;
+        if (!targetPlayerUsername) {
+            logToConsole("Error: No hay jugador activo para añadir los fragmentos.", "error");
+            return;
+        }
+
+        const playerDataKey = `player_${targetPlayerUsername.toLowerCase()}`;
+        const playerDataString = localStorage.getItem(playerDataKey);
+        
+        if (!playerDataString) {
+            logToConsole(`No se encontró el perfil de jugador: ${targetPlayerUsername}`, 'error');
+            return;
+        }
+        
+        const playerData = JSON.parse(playerDataString);
+        
+        // Añadir los fragmentos al inventario
+        if (!playerData.inventory.equipment_fragments) {
+            playerData.inventory.equipment_fragments = {};
+        }
+        playerData.inventory.equipment_fragments[itemId] = (playerData.inventory.equipment_fragments[itemId] || 0) + amount;
+
+        // Guardar los cambios
+        localStorage.setItem(playerDataKey, JSON.stringify(playerData));
+        if (targetPlayerUsername.toLowerCase() === PlayerDataManager.currentPlayer?.username.toLowerCase()) {
+            PlayerDataManager.currentPlayer = playerData;
+        }
+
+        logToConsole(`¡Fragmentos obtenidos! +${amount} para [${itemDef.rarity}] ${itemDef.name} añadidos al inventario de ${targetPlayerUsername}.`, 'success');
+        
+        // Si la forja está abierta, refrescarla para ver el progreso
+        const forgeModal = document.getElementById('forgeModal');
+        if (forgeModal && forgeModal.style.display === 'flex' && typeof populateBlueprintList === 'function') {
+            populateBlueprintList();
+            if (selectedBlueprintId === itemId && typeof showBlueprintDetail === 'function') {
+                showBlueprintDetail(itemId);
+            }
+        }
+    },
+
+
 };
 
 Cheats.teleport_unit = (unitId, rStr, cStr) => {
@@ -623,5 +784,4 @@ Cheats.lose_game = () => {
         if(typeof logToConsole === "function") logToConsole("¡Derrota forzada!", 'error');
     } else throw new Error("endTacticalBattle no está definida.");
 };
-
 

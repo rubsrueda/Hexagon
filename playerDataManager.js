@@ -36,6 +36,7 @@ const PlayerDataManager = {
                 this.saveCurrentPlayer();
                 return { success: true, message: "Nuevo perfil creado con éxito." };
             } else {
+                // <<== CORRECCIÓN: Devolver un objeto de fallo aquí ==>>
                 return { success: false, message: "Creación de perfil cancelada." };
             }
         }
@@ -44,24 +45,50 @@ const PlayerDataManager = {
             const loadedPlayer = JSON.parse(playerDataString);
             const hashedPassword = this._hash(password);
 
-            // Comparar contraseñas hasheadas
             if (loadedPlayer.credentials.passwordHash === hashedPassword) {
-                // (Aquí va tu lógica de "migración" para perfiles antiguos)
+                
+                let profileUpdated = false;
                 if (loadedPlayer.heroes) {
                     loadedPlayer.heroes.forEach(hero => {
-                        if (typeof hero.skill_levels === 'undefined') {
-                            hero.skill_levels = { active: 1, passive1: 0, passive2: 0, passive3: 0 };
+                        if (typeof hero.equipment === 'undefined') {
+                            hero.equipment = {
+                                head: null, weapon: null, chest: null,
+                                legs: null, gloves: null, boots: null
+                            };
+                            profileUpdated = true;
                         }
-                        if (typeof hero.skill_points_unspent === 'undefined') {
-                            hero.skill_points_unspent = 0;
+                        if (typeof hero.talent_points_unspent === 'undefined') {
+                            const hasNoTalentsSpent = !hero.talents || Object.keys(hero.talents).length === 0;
+                            hero.talent_points_unspent = hasNoTalentsSpent ? 1 : 0;
+                            profileUpdated = true;
                         }
+                        if (typeof hero.talents === 'undefined') hero.talents = {};
+                        if (!Array.isArray(hero.skill_levels)) hero.skill_levels = [1, 0, 0, 0];
                     });
                 }
-                this.currentPlayer = loadedPlayer;
-                localStorage.setItem('lastUser', this.currentPlayer.username);
-                return { success: true, message: "Sesión iniciada." };
+
+            if (loadedPlayer.inventory) {
+                // Si el inventario de equipo completo no existe, créalo (esto ya lo teníamos)
+                if (typeof loadedPlayer.inventory.equipment === 'undefined') {
+                    loadedPlayer.inventory.equipment = [];
+                    profileUpdated = true;
+                }
+                
+                // Si el inventario de fragmentos no existe, créalo como un OBJETO
+                if (typeof loadedPlayer.inventory.equipment_fragments === 'undefined') {
+                    loadedPlayer.inventory.equipment_fragments = {}; // Debe ser un objeto {}
+                    profileUpdated = true;
+                }
             } else {
-                return { success: false, message: "Contraseña incorrecta." };
+                // Si el objeto inventory no existe en absoluto, lo creamos completo
+                loadedPlayer.inventory = {
+                    xp_books: 0,
+                    ascension_materials: {},
+                    equipment: [],
+                    equipment_fragments: {}
+                };
+                profileUpdated = true;
+            }
             }
         }
     },
@@ -101,9 +128,20 @@ const PlayerDataManager = {
                 stars: 1, 
                 fragments: 0, 
                 skill_levels: [1, 0, 0, 0], // Habilidad 1 (nivel 1), Habilidades 2, 3, 4 (nivel 0)
-                skill_points_unspent: 0 
+                skill_points_unspent: 0, 
+                talent_points_unspent: 1,
+                // <<== NUEVO: Objeto de equipo del héroe
+                equipment: {
+                    head: null, weapon: null, chest: null,
+                    legs: null, gloves: null, boots: null
+                }
             }],
-            inventory: { xp_books: 10, ascension_materials: {} },
+            inventory: { 
+                xp_books: 10, 
+                ascension_materials: {},
+                equipment: [], // El inventario de equipo completo
+                equipment_fragments: {} // El inventario de fragmentos
+            },
             // (NUEVO) Añadimos el objeto para rastrear el pity system del gacha
             gacha_state: {
                 pulls_since_last_legendary: 0,
@@ -112,35 +150,58 @@ const PlayerDataManager = {
         };
     },
 
+    /**
+     * (NUEVO) Añade fragmentos de una pieza de equipo al inventario del jugador.
+     * @param {string} itemId - El ID del equipo (ej: "common_sword_1").
+     * @param {number} amount - La cantidad de fragmentos a añadir.
+     */
+    addEquipmentFragments: function(itemId, amount) {
+        if (!this.currentPlayer) return;
+        
+        const inventory = this.currentPlayer.inventory;
+        if (!inventory.equipment_fragments) {
+            inventory.equipment_fragments = {};
+        }
+
+        inventory.equipment_fragments[itemId] = (inventory.equipment_fragments[itemId] || 0) + amount;
+        
+        const itemDef = EQUIPMENT_DEFINITIONS[itemId];
+        logMessage(`Has obtenido ${amount} fragmentos de [${itemDef.rarity}] ${itemDef.name}.`);
+
+        this.saveCurrentPlayer();
+    },
+    
     addFragmentsToHero: function(heroId, amount) {
         if (!this.currentPlayer) return;
 
         let heroInstance = this.currentPlayer.heroes.find(h => h.id === heroId);
         
-        // Si el jugador no tiene al héroe en absoluto.
+        // Si el jugador no tiene al héroe en absoluto (ni siquiera como "fantasma")
         if (!heroInstance) {
-            console.log(`Creando nueva entrada para fragmentos de un héroe no poseído: ${heroId}`);
-            // Creamos una NUEVA variable para el nuevo objeto, NO redeclaramos la anterior.
-            const newHero = {
+            console.log(`Creando nueva entrada "fantasma" para ${heroId}`);
+            heroInstance = {
                 id: heroId,
                 level: 0,
                 xp: 0,
                 stars: 0,
                 fragments: 0, 
-                skill_levels: { active: 1, passive1: 1, passive2: 0, passive3: 0 },
-                skill_points_unspent: 0
+                skill_levels: [0, 0, 0, 0], // Inicializar a 0
+                skill_points_unspent: 0,
+                talent_points_unspent: 0,
+                talents: {},
+                // <<== CORRECCIÓN CLAVE: Añadir el objeto de equipo aquí ==>>
+                equipment: {
+                    head: null, weapon: null, chest: null,
+                    legs: null, gloves: null, boots: null
+                }
             };
-            this.currentPlayer.heroes.push(newHero);
-            // Ahora asignamos la nueva instancia a nuestra variable principal.
-            heroInstance = newHero; 
+            this.currentPlayer.heroes.push(heroInstance);
         }
         
-        // Garantizamos que la propiedad 'fragments' existe.
-        if (typeof heroInstance.fragments === 'undefined' || heroInstance.fragments === null) {
+        if (typeof heroInstance.fragments === 'undefined') {
             heroInstance.fragments = 0;
         }
         
-        // Ahora, podemos sumar los fragmentos de forma segura.
         heroInstance.fragments += amount;
         logMessage(`Has obtenido ${amount} fragmentos de ${COMMANDERS[heroId].name}. Total: ${heroInstance.fragments}.`);
         
@@ -149,61 +210,107 @@ const PlayerDataManager = {
 
     useXpBook: function(heroId) {
         if (!this.currentPlayer) return;
-
         const hero = this.currentPlayer.heroes.find(h => h.id === heroId);
-        const playerInventory = this.currentPlayer.inventory;
-
-        if (!hero || (playerInventory.xp_books || 0) <= 0 || hero.level >= HERO_PROGRESSION_CONFIG.MAX_LEVEL) {
-            let reason = !hero ? "Héroe no encontrado." 
-                    : (playerInventory.xp_books || 0) <= 0 ? "No tienes libros de XP."
-                    : "El Héroe ya está al nivel máximo.";
-            if(typeof logMessage === 'function') logMessage(`No se puede usar el libro: ${reason}`, 'warning');
+        if (!hero || (this.currentPlayer.inventory.xp_books || 0) <= 0 || hero.level >= HERO_PROGRESSION_CONFIG.MAX_LEVEL) {
             return;
         }
-
-        playerInventory.xp_books--;
+        this.currentPlayer.inventory.xp_books--;
         hero.xp += HERO_PROGRESSION_CONFIG.XP_PER_BOOK;
 
-        // --- LÓGICA DE SUBIDA DE NIVEL Y PUNTOS DE HABILIDAD ---
         let xpNeeded = getXpForNextLevel(hero.level);
         while (xpNeeded !== 'Max' && hero.xp >= xpNeeded) {
             hero.level++;
             hero.xp -= xpNeeded; 
             
-            // <<== Otorgar un Punto de Habilidad por cada nivel subido ==>>
-            hero.skill_points_unspent = (hero.skill_points_unspent || 0) + 1;
-            logMessage(`¡${COMMANDERS[hero.id].name} ha subido al nivel ${hero.level}! Has ganado 1 Punto de Habilidad.`, 'success');
+            // --- INICIALIZACIÓN SEGURA DE PUNTOS (se mantiene) ---
+            if (typeof hero.skill_points_unspent !== 'number') hero.skill_points_unspent = 0;
+            if (typeof hero.talent_points_unspent !== 'number') hero.talent_points_unspent = 0;
+
+            // <<== LÓGICA DE PUNTOS CORREGIDA Y SEPARADA ==>>
+
+            // 1. Puntos de Talento: Se otorga 1 en CADA nivel.
+            hero.talent_points_unspent += 1;
+            let logMessageText = `¡${COMMANDERS[hero.id].name} ha subido al nivel ${hero.level}! Ganas +1 Punto de Talento.`;
+
+            // 2. Puntos de Habilidad: Se otorga 1 SÓLO en niveles pares.
+            if (hero.level % 2 === 0) {
+                hero.skill_points_unspent += 1;
+                logMessageText += ` Y +1 Punto de Habilidad.`;
+            }
             
-            xpNeeded = getXpForNextLevel(hero.level);
+            logMessage(logMessageText, 'success');
+            // <<== FIN DE LA CORRECCIÓN ==>>
         }
-        
         this.saveCurrentPlayer();
     },
 
-    /**
-     * Gasta un punto de habilidad para mejorar una habilidad específica de un Héroe.
-     */
-    upgradeHeroSkill: function(heroId, skillKey) {
-        if (!this.currentPlayer) return;
+    upgradeHeroSkill: function(heroId, skillIndex) {
         const hero = this.currentPlayer.heroes.find(h => h.id === heroId);
-
+        // <<== USA 'skill_points_unspent' ==>>
         if (!hero || (hero.skill_points_unspent || 0) <= 0) {
             logMessage("No tienes puntos de habilidad para gastar.", "warning");
-            return;
+            return false;
         }
+        if (!Array.isArray(hero.skill_levels)) hero.skill_levels = [1, 0, 0, 0];
+        const currentLevel = hero.skill_levels[skillIndex] || 0;
+        if (currentLevel >= 5) return false;
+        const starsRequired = skillIndex + 1;
+        if (hero.stars < starsRequired) return false;
 
-        // Comprobar que la habilidad no esté ya al máximo (nivel 5)
-        if (hero.skill_levels[skillKey] >= 5) {
-             logMessage("Esta habilidad ya está al nivel máximo.", "warning");
-            return;
-        }
-
-        // Gastar el punto y subir el nivel de la habilidad
-        hero.skill_points_unspent--;
-        hero.skill_levels[skillKey]++;
+        hero.skill_points_unspent--; // <<== GASTA 'skill_points_unspent'
+        hero.skill_levels[skillIndex]++;
         
-        logMessage(`¡Habilidad mejorada a nivel ${hero.skill_levels[skillKey]}!`, "success");
         this.saveCurrentPlayer();
+        logMessage(`¡Habilidad mejorada a nivel ${hero.skill_levels[skillIndex]}!`, "success");
+        return true;
+    },
+    
+    spendTalentPoint: function(heroId, talentId) {
+    const hero = this.currentPlayer.heroes.find(h => h.id === heroId);
+    
+    alert(`INTENTANDO GASTAR PUNTO DE TALENTO.\n\nPuntos de Talento disponibles: ${hero.talent_points_unspent}\nPuntos de Habilidad disponibles: ${hero.skill_points_unspent}`);
+    
+    // El resto de la función se mantiene igual
+    if (!hero || (hero.talent_points_unspent || 0) <= 0) {
+        logMessage("No tienes puntos de talento para gastar.", "warning");
+        return false;
+    }
+    const talentDef = TALENT_DEFINITIONS[talentId];
+    if (typeof hero.talents !== 'object' || hero.talents === null) hero.talents = {};
+    const currentLevel = hero.talents[talentId] || 0;
+    if (!talentDef || currentLevel >= talentDef.maxLevels) return false;
+    
+    hero.talent_points_unspent--;
+    hero.talents[talentId] = currentLevel + 1;
+    
+    this.saveCurrentPlayer();
+    logMessage(`Has aprendido "${talentDef.name}"`);
+    return true;
+},
+
+    resetTalents: function(heroId) {
+        const hero = this.currentPlayer.heroes.find(h => h.id === heroId);
+        const cost = 500;
+        if (!hero) return false;
+        let resourceSource = (gameState && (gameState.currentPhase === 'play' || gameState.currentPhase === 'deployment')) ? gameState.playerResources[gameState.currentPlayer] : this.currentPlayer.currencies;
+        if (!resourceSource || (resourceSource.oro || 0) < cost) {
+            logMessage(`Oro insuficiente. Se necesitan ${cost} para reiniciar.`, "warning");
+            return false;
+        }
+        resourceSource.oro -= cost;
+
+        const totalPointsSpent = hero.talents ? Object.values(hero.talents).reduce((sum, level) => sum + level, 0) : 0;
+        
+        // <<== DEVUELVE A 'talent_points_unspent' ==>>
+        hero.talent_points_unspent = (hero.talent_points_unspent || 0) + totalPointsSpent;
+        hero.talents = {};
+        
+        this.saveCurrentPlayer();
+        if (gameState && (gameState.currentPhase === 'play' || gameState.currentPhase === 'deployment')) {
+            UIManager.updatePlayerAndPhaseInfo();
+        }
+        logMessage(`Talentos reiniciados. Puntos recuperados: ${totalPointsSpent}.`, "success");
+        return true;
     },
 
     /**
@@ -215,6 +322,7 @@ const PlayerDataManager = {
         const hero = this.currentPlayer.heroes.find(h => h.id === heroId);
         if (!hero) return;
 
+        const isUnlocking = hero.stars === 0;
         const nextStar = hero.stars + 1;
         const fragmentsNeeded = HERO_FRAGMENTS_PER_STAR[nextStar];
 
@@ -223,13 +331,48 @@ const PlayerDataManager = {
             return;
         }
 
-        if (hero.fragments >= fragmentsNeeded) {
+        if ((hero.fragments || 0) >= fragmentsNeeded) {
             hero.fragments -= fragmentsNeeded;
             hero.stars = nextStar;
-            logMessage(`¡${COMMANDERS[hero.id].name} ha evolucionado a ${hero.stars} estrellas!`, 'success');
+
+            // <<== INICIO DE LA CORRECCIÓN ==>>
+            // Después de aumentar las estrellas, comprobamos qué habilidades están desbloqueadas.
+            // El índice de la habilidad en el array es `nivel_de_estrella - 1`.
+            // Ejemplo: 2 estrellas desbloquea la habilidad en el índice 1.
+            const newSkillIndex = hero.stars - 1; 
+
+            // Si el array de niveles de habilidad no existe, lo creamos.
+            if (!Array.isArray(hero.skill_levels)) {
+                hero.skill_levels = [0, 0, 0, 0];
+            }
+
+            // Si el nivel de la habilidad recién desbloqueada es 0, lo ponemos en 1.
+            // Esto solo se ejecutará la primera vez que se alcance este nivel de estrellas.
+            if (hero.skill_levels[newSkillIndex] === 0) {
+                hero.skill_levels[newSkillIndex] = 1;
+                console.log(`[Evolve] Habilidad en el índice ${newSkillIndex} desbloqueada y establecida en Nivel 1.`);
+            }
+            // <<== FIN DE LA CORRECCIÓN ==>>
+
+            if (isUnlocking) {
+                hero.level = 1;
+                hero.xp = 0;
+                // La corrección anterior ya se encarga de poner la primera habilidad en 1,
+                // así que podemos simplificar esta línea.
+                hero.skill_levels[0] = 1; 
+                hero.talent_points_unspent = 1;
+                hero.skill_points_unspent = 0;
+                // Nos aseguramos de que el objeto talents exista
+                if(!hero.talents) hero.talents = {};
+
+                logMessage(`¡Has desbloqueado a ${COMMANDERS[hero.id].name}!`, 'success');
+            } else {
+                logMessage(`¡${COMMANDERS[hero.id].name} ha evolucionado a ${hero.stars} estrellas!`, 'success');
+            }
+            
             this.saveCurrentPlayer();
         } else {
-            logMessage(`No tienes suficientes fragmentos para evolucionar a ${COMMANDERS[hero.id].name}.`, 'warning');
+            logMessage(`No tienes suficientes fragmentos.`, 'warning');
         }
     },
 

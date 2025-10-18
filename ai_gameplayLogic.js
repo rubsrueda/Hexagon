@@ -33,13 +33,24 @@ const AiGameplayManager = {
         // Esto garantiza que tanto las unidades de la Gran Apertura como las de producción normal
         // se incluyan en la lista de acciones de este turno.
         const unitsToAction = units.filter(u => u.player === playerNumber && u.currentHealth > 0 && !u.hasMoved);
+        console.log(`[IA PLANNER] ${unitsToAction.length} unidades listas para actuar este turno.`);
+
+        // 1. Primero, se intenta activar el protocolo de consolidación.
+        //    Esta función "marca" a las unidades necesarias con misiones de CONSOLIDATE/AWAIT.
+        this._checkForConsolidationProtocol(playerNumber);
+
+        // 2. A continuación, se planifican los ejes estratégicos de expansión.
+        this.planStrategicObjectives(playerNumber);
+
+        // 3. Finalmente, se asignan misiones de expansión (AXIS_ADVANCE)
+        //    SOLAMENTE a aquellas unidades que AÚN NO tienen una misión asignada.
+        const unassignedUnits = unitsToAction.filter(u => !this.missionAssignments.has(u.id));
+        this.assignUnitsToAxes(playerNumber, unassignedUnits);
         
-        console.log(`[IA PLANNER] ${unitsToAction.length} unidades listas para actuar este turno (incluyendo recién creadas).`);
+        // <<== FIN DE LA LÓGICA CORREGIDA ==>>
 
-        // Planificamos y ejecutamos las acciones para la lista completa.
-        AiGameplayManager.planStrategicObjectives(playerNumber);
-        AiGameplayManager.assignUnitsToAxes(playerNumber, unitsToAction);
-
+        // --- FASE 3: EJECUCIÓN DE ACCIONES ---
+        // La ejecución se mantiene igual, ya que cada unidad ahora tiene una misión clara.
         unitsToAction.sort((a, b) => (b.currentMovement || b.movement) - (a.currentMovement || a.movement));
 
         for (const unit of unitsToAction) {
@@ -58,7 +69,18 @@ const AiGameplayManager = {
     manageEmpire: async function(playerNumber) {
         console.groupCollapsed(`%c[IA Empire] Gestión Estratégica`, "color: #4CAF50");
 
-        // PRIORIDAD 1: CONSTRUCCIÓN Y DESARROLLO DE BASES AVANZADAS
+        // PRIORIDAD MÁXIMA: DEFENSA DE LA CAPITAL
+        const capitalDefenseActivated = this._executeCapitalDefenseProtocol(playerNumber);
+
+        // Si el protocolo de defensa se activó, la IA no hace nada más en esta fase.
+        // Se centra completamente en la producción de emergencia.
+        if (capitalDefenseActivated) {
+            console.log("[IA Empire] Protocolo de defensa de capital activado. Omitiendo otras gestiones de imperio.");
+            console.groupEnd();
+            return;
+        }
+
+        // SI NO HAY AMENAZA EN LA CAPITAL, CONTINÚA CON LA LÓGICA NORMAL:
         await AiGameplayManager._handle_BOA_Construction(playerNumber);
 
         // PRIORIDAD 2: PRODUCCIÓN AVANZADA DESDE LAS BASES (Lógica de a.js integrada)
@@ -451,6 +473,15 @@ const AiGameplayManager = {
         const mission = AiGameplayManager.missionAssignments.get(unit.id) || { type: 'DEFAULT' };
         console.groupCollapsed(`Decidiendo para ${unit.name} (Misión: ${mission.type})`);
         try {
+            if (mission.type === 'URGENT_DEFENSE') {
+                const threat = units.find(u => u.id === mission.objective.id && u.currentHealth > 0);
+                if (threat) {
+                    console.log(`[IA URGENT DEFENSE] ${unit.name} tiene orden de atacar a ${threat.name}.`);
+                    await this._executeCombatLogic(unit, [threat]); // Forzar combate solo contra esa amenaza
+                    return; // Acción completada
+                }
+            }
+
             if (AiGameplayManager.codeRed_rallyPoint && unit.id !== AiGameplayManager.codeRed_rallyPoint.anchorId) { await AiGameplayManager.moveToRallyPoint(unit); return; }
             if (unit.regiments.length < 5 && await AiGameplayManager.findAndExecuteMerge_Proactive(unit)) { return; }
 
@@ -686,4 +717,169 @@ const AiGameplayManager = {
     findBestStrategicObjective: function(unit, objectiveType = 'expansion', axisTarget = null) { const objectives = []; if (!unit) return []; board.flat().forEach(hex => { if (!hex || hex.owner === unit.player || hex.unit || TERRAIN_TYPES[hex.terrain].isImpassableForLand) return; let score = 0; if (axisTarget) { const distToAxisTarget = hexDistance(hex.r, hex.c, axisTarget.r, axisTarget.c); score = 1000 - distToAxisTarget; } else { score = 100 - hexDistance(unit.r, unit.c, hex.r, hex.c); } if (hex.resourceNode) score += 50; if (hex.isCity) score += 200; if (score > 0) objectives.push({ hex, score }); }); objectives.sort((a, b) => b.score - a.score); return objectives.map(o => o.hex); },
     _findBestLocalMove: function(unit) { const reachableHexes = AiGameplayManager.getReachableHexes(unit); if (reachableHexes.length === 0) return null; const aiCapital = gameState.cities.find(c => c.isCapital && c.owner === unit.player); if (!aiCapital) return null; let bestLocalTarget = null; let maxScore = -Infinity; for (const hexCoords of reachableHexes) { const hexData = board[hexCoords.r]?.[hexCoords.c]; if (hexData && hexData.owner === null) { const score = hexDistance(aiCapital.r, aiCapital.c, hexCoords.r, hexCoords.c); if (score > maxScore) { maxScore = score; bestLocalTarget = hexCoords; } } } return bestLocalTarget; },
 
+    /**
+     * (NUEVO) Protocolo de emergencia para defender la capital a toda costa.
+     * @param {number} playerNumber - El número del jugador IA.
+     * @returns {boolean} - Devuelve true si el protocolo se activó y se crearon unidades.
+     */
+    _executeCapitalDefenseProtocol: function(playerNumber) {
+        const capital = gameState.cities.find(c => c.isCapital && c.owner === playerNumber);
+         if (!capital) {
+            console.error(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] No se encontró capital para Jugador ${playerNumber}. El protocolo no puede activarse.`);
+            return false;
+        }
+        console.log(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] Capital de J${playerNumber} encontrada en (${capital.r}, ${capital.c}). Buscando amenazas...`);
+      
+
+        const enemyPlayer = playerNumber === 1 ? 2 : 1;
+        // Amenaza = enemigo a 2 hexágonos o menos de la capital.
+        const threats = units.filter(u => u.player === enemyPlayer && hexDistance(u.r, u.c, capital.r, capital.c) <= 2);
+
+        if (threats.length === 0) {
+            return false; // No hay amenaza, no se activa el protocolo.
+        }
+
+        console.log(`%c[IA CAPITAL DEFENSE] ¡PROTOCOLO DE EMERGENCIA ACTIVADO! ${threats.length} amenaza(s) detectada(s).`, "color: red; font-size: 1.2em; font-weight: bold;");
+        
+        const playerRes = gameState.playerResources[playerNumber];
+        let unitsCreated = false;
+
+        // Analizar la amenaza para decidir qué construir
+        let totalThreatAttack = 0;
+        let hasRangedThreat = false;
+        threats.forEach(threat => {
+                           console.log(`  -> Amenaza detectada: ${threat.name} en (${threat.r}, ${threat.c}). Distancia: ${hexDistance(threat.r, threat.c, capital.r, capital.c)}`);
+            totalThreatAttack += threat.attack || 0;
+            if ((threat.attackRange || 1) > 1) {
+                hasRangedThreat = true;
+            }
+        });
+
+        // Bucle de producción en masa hasta agotar recursos o espacio
+        while (true) {
+            let unitToProduceType = null;
+            
+            // Decisión de contramedida:
+            // Si hay amenaza a distancia o el poder de ataque enemigo es alto, priorizar Infantería Pesada por su defensa.
+            if (hasRangedThreat || totalThreatAttack > 500) {
+                if (playerRes.oro >= (REGIMENT_TYPES["Infantería Pesada"]?.cost.oro || 9999)) {
+                    unitToProduceType = "Infantería Pesada";
+                }
+            }
+            // Si no, o si no alcanza para la pesada, crear Arqueros para desgastar al enemigo.
+            if (!unitToProduceType && playerRes.oro >= (REGIMENT_TYPES["Arqueros"]?.cost.oro || 9999)) {
+                unitToProduceType = "Arqueros";
+            }
+            // Como última opción, la unidad más barata y versátil.
+            if (!unitToProduceType && playerRes.oro >= (REGIMENT_TYPES["Infantería Ligera"]?.cost.oro || 9999)) {
+                unitToProduceType = "Infantería Ligera";
+            }
+            
+            // Si no se puede permitir ninguna unidad, o no hay ninguna que producir, salir del bucle.
+            if (!unitToProduceType) {
+                console.log("[IA CAPITAL DEFENSE] Recursos insuficientes para continuar la producción.");
+                break;
+            }
+
+            // Intentar producir la unidad (la función produceUnit ya busca un spot adyacente)
+            const newUnit = this.produceUnit(playerNumber, [unitToProduceType], 'defender', `Guardia de la Capital`, capital);
+            
+            if (newUnit) {
+                unitsCreated = true;
+                logMessage(`¡La IA refuerza su capital con ${unitToProduceType}!`);
+
+                // Asignar misión inmediata de ataque a la nueva unidad
+                this.missionAssignments.set(newUnit.id, {
+                    type: 'URGENT_DEFENSE',
+                    objective: threats[0] // Atacar a la primera amenaza de la lista
+                });
+            } else {
+                // Si produceUnit devuelve null, es porque no hay más recursos o espacio.
+                 console.log(`[IA CAPITAL DEFENSE - DIAGNÓSTICO] No se encontraron amenazas en un radio de 2 hexágonos.`);
+                break;
+            }
+        }
+
+        return unitsCreated;
+    },
+
+    /**
+     * (NUEVO) Protocolo que se activa cuando la IA está en clara desventaja.
+     * Designa a la unidad más fuerte como "ancla" y ordena a las demás que se agrupen con ella.
+     * @param {number} playerNumber - El número del jugador IA.
+     * @returns {boolean} - Devuelve true si el protocolo de consolidación se activó.
+     */
+    _checkForConsolidationProtocol: function(playerNumber) {
+        const aiUnits = units.filter(u => u.player === playerNumber && u.currentHealth > 0);
+        if (aiUnits.length < 2) return false; // No se puede consolidar con menos de 2 unidades
+
+        const enemyPlayer = playerNumber === 1 ? 2 : 1;
+        const enemyUnits = units.filter(u => u.player === enemyPlayer && u.currentHealth > 0);
+        if (enemyUnits.length === 0) return false; // No hay enemigos, no hay necesidad de consolidar
+
+        // Encontrar la división más grande de cada bando
+        const biggestAiUnit = aiUnits.reduce((prev, current) => (prev.regiments.length > current.regiments.length) ? prev : current);
+        const biggestEnemyUnit = enemyUnits.reduce((prev, current) => (prev.regiments.length > current.regiments.length) ? prev : current);
+
+        // CONDICIÓN DE ACTIVACIÓN: Si la unidad más grande del enemigo es significativamente más grande
+        // que la unidad más grande de la IA (ej: más del doble de regimientos).
+        if (biggestEnemyUnit.regiments.length > biggestAiUnit.regiments.length * 2) {
+            console.log(`%c[IA CONSOLIDATION] ¡PROTOCOLO DE CONSOLIDACIÓN ACTIVADO! Amenaza principal: ${biggestEnemyUnit.name} (${biggestEnemyUnit.regiments.length} regs).`, "color: orange; font-size: 1.2em; font-weight: bold;");
+            
+            // Designar a la unidad más fuerte de la IA como el punto de reunión (ancla)
+            const rallyPointUnit = biggestAiUnit;
+
+            // Asignar una misión de "AGRUPARSE" a todas las demás unidades de la IA
+            aiUnits.forEach(unit => {
+                if (unit.id !== rallyPointUnit.id) {
+                    this.missionAssignments.set(unit.id, {
+                        type: 'CONSOLIDATE_FORCES',
+                        objective: { r: rallyPointUnit.r, c: rallyPointUnit.c },
+                        targetUnitId: rallyPointUnit.id
+                    });
+                } else {
+                    // La unidad ancla recibe una misión de "ESPERAR REFUERZOS" (mantenerse a la defensiva)
+                    this.missionAssignments.set(unit.id, { type: 'AWAIT_REINFORCEMENTS' });
+                }
+            });
+            return true; // Protocolo activado
+        }
+
+        return false; // No se necesita consolidación
+    },
+
+    /**
+     * (NUEVO) Mueve una unidad hacia otra con la intención de fusionarse.
+     * @param {object} movingUnit - La unidad que se va a mover.
+     * @param {object} targetUnit - La unidad ancla con la que se quiere fusionar.
+     */
+    _executeMoveAndMerge: async function(movingUnit, targetUnit) {
+        const distance = hexDistance(movingUnit.r, movingUnit.c, targetUnit.r, targetUnit.c);
+        
+        // Si ya está adyacente, intenta fusionarse.
+        if (distance <= (movingUnit.currentMovement || movingUnit.movement)) {
+             // Comprobar si la fusión es posible (límite de regimientos)
+             if ((movingUnit.regiments.length + targetUnit.regiments.length) <= MAX_REGIMENTS_PER_DIVISION) {
+                await _executeMoveUnit(movingUnit, targetUnit.r, targetUnit.c, true);
+                const unitOnTarget = getUnitOnHex(targetUnit.r, targetUnit.c);
+                if (unitOnTarget && unitOnTarget.id === targetUnit.id) {
+                     mergeUnits(movingUnit, targetUnit);
+                }
+             } else {
+                 console.log(`[IA CONSOLIDATION] ${movingUnit.name} está cerca pero la fusión con ${targetUnit.name} excedería el límite de regimientos.`);
+                 // Se queda quieta esperando.
+                 movingUnit.hasMoved = true;
+                 movingUnit.hasAttacked = true;
+             }
+        } else {
+            // Si está lejos, se acerca.
+            const path = this.findPathToTarget(movingUnit, targetUnit.r, targetUnit.c);
+            if (path && path.length > 1) {
+                const moveHex = path[Math.min(path.length - 1, (movingUnit.currentMovement || movingUnit.movement))];
+                if (!getUnitOnHex(moveHex.r, moveHex.c)) {
+                    await _executeMoveUnit(movingUnit, moveHex.r, moveHex.c);
+                }
+            }
+        }
+    },
 };

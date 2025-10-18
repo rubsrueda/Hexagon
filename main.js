@@ -189,7 +189,34 @@ function initApp() {
             }
         });
     }
-    
+    // <<== "Forja" ==>>
+
+    const openForgeBtn = document.getElementById('openForgeBtn');
+    if (openForgeBtn) {
+        openForgeBtn.addEventListener('click', () => {
+            if (typeof openForgeModal === "function") {
+                openForgeModal();
+            }
+        });
+    }
+
+    const closeForgeBtn = document.getElementById('closeForgeBtn');
+    if (closeForgeBtn) {
+        closeForgeBtn.addEventListener('click', () => {
+            const modal = document.getElementById('forgeModal');
+            if(modal) modal.style.display = 'none';
+        });
+    }
+
+    const forgeItemBtn = document.getElementById('forgeItemBtn');
+    if (forgeItemBtn) {
+        forgeItemBtn.addEventListener('click', () => {
+            if (typeof handleForgeItem === "function") {
+                handleForgeItem();
+            }
+        });
+    }
+
     // <<== "Cuartel" ==>>
     if (domElements.barracksBtn && !domElements.barracksBtn.hasListener) {
         domElements.barracksBtn.addEventListener('click', () => {
@@ -225,8 +252,9 @@ function initApp() {
             exportProfile();
         });
     }
-    
-//Juego en red    
+// ======================================================================    
+//Juego en red   
+// ====================================================================== 
 if (domElements.createNetworkGameBtn) {
         domElements.createNetworkGameBtn.addEventListener('click', () => {
              console.log("[Anfitrión] Clic en 'Crear Partida en Red'. Preparando lobby...");
@@ -268,8 +296,8 @@ if (domElements.createNetworkGameBtn) {
     }
     
     function onDatosLANRecibidos(datos) {
-        console.log("[Receptor de Red] Datos recibidos:", datos);
         
+        console.log(`%c[PROCESS DATA] onDatosLANRecibidos procesando paquete tipo: ${datos.type}`, 'background: #DAA520; color: black;');
         // Lógica del Cliente (cuando NO es anfitrión)
         if (!NetworkManager.esAnfitrion) {
             switch (datos.type) {
@@ -296,6 +324,7 @@ if (domElements.createNetworkGameBtn) {
         // Lógica del Anfitrión (recibiendo peticiones del cliente)
         else {
             if (datos.type === 'actionRequest') {
+                console.log(`%c[HOST PROCESS] Anfitrión va a procesar acción solicitada: ${datos.action.type}`, 'background: #DC143C; color: white;', datos.action.payload);
                 processActionRequest(datos.action);
             } else {
                 console.warn(`[Anfitrión] Recibido paquete desconocido del cliente: '${datos.type}'.`);
@@ -976,10 +1005,12 @@ function isNetworkGame() {
 }
 
 function reconstruirJuegoDesdeDatos(datos) {
-   // console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
+   console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
     try {
+        
         // --- ¡SOLUCIÓN DE IDENTIDAD! (Paso A) ---
         // 1. ANTES de sobrescribir, guardamos nuestra identidad local, que es la correcta.
+        console.log("%c[REBUILD] Iniciando reconstrucción del estado del juego en el cliente...", "color: #00BFFF");
         const miIdentidadLocal = gameState.myPlayerNumber;
 
         // Limpiar el estado local
@@ -1033,7 +1064,9 @@ function reconstruirJuegoDesdeDatos(datos) {
         logMessage("¡Sincronización completada! La partida está lista.");
 
     } catch (error) {
-        console.error("Error crítico al reconstruir el juego en el cliente:", error);
+        console.error("%c[REBUILD FAILED] ¡ERROR CRÍTICO AL RECONSTRUIR EL JUEGO!", "color: red; font-size: 1.5em;");
+        console.error("Datos recibidos que causaron el error:", JSON.parse(JSON.stringify(datos)));
+        console.error("El error fue:", error);
         logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
 }

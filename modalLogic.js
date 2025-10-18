@@ -159,6 +159,7 @@ function addModalEventListeners() {
         closeHeroDetailBtn.addEventListener('click', () => {
             const modal = document.getElementById('heroDetailModal');
             if (modal) modal.style.display = 'none';
+            refreshBarracksView();
         });
     } else {
         console.warn("modalLogic: closeHeroDetailBtn no encontrado.");
@@ -1633,12 +1634,69 @@ function RequestReinforceRegiment(division, regiment) {
 }
 
 /**
+ * Lee los datos actuales del jugador y vuelve a dibujar todas las tarjetas
+ * de héroe en el modal del Cuartel.
+ */
+function refreshBarracksView() {
+    const container = document.getElementById('heroCollectionContainer');
+    const playerData = PlayerDataManager.getCurrentPlayer();
+    if (!container || !playerData) return;
+
+    container.innerHTML = ''; // Limpiar el contenido actual
+
+    if (!playerData.heroes || playerData.heroes.length === 0) {
+        container.innerHTML = '<p>No has reclutado a ningún héroe todavía.</p>';
+        return;
+    }
+
+    // Ordenar para mostrar desbloqueados primero
+    playerData.heroes.sort((a, b) => b.stars - a.stars);
+    
+    // Volver a crear cada tarjeta (este es tu código de openBarracksModal)
+    playerData.heroes.forEach(heroInstance => {
+        const heroData = COMMANDERS[heroInstance.id];
+        if (!heroData) return;
+        
+        let spriteHTML = '';
+        if (heroData.sprite.includes('.png') || heroData.sprite.includes('.jpg')) {
+            spriteHTML = `<img src="${heroData.sprite}" alt="${heroData.name}" class="hero-card-image">`;
+        } else {
+            spriteHTML = `<div class="hero-sprite">${heroData.sprite}</div>`;
+        }
+
+        const isLocked = heroInstance.stars === 0;
+        const card = document.createElement('div');
+        card.className = `hero-card ${heroData.rarity} ${isLocked ? 'is-locked' : ''}`;
+        
+        if (isLocked) {
+            const fragmentsNeededToUnlock = HERO_FRAGMENTS_PER_STAR[1] || 10;
+            card.innerHTML = `
+                ${spriteHTML} 
+                <div class="hero-name">${heroData.name}</div>
+                <div class="hero-fragments-progress">Fragmentos: ${heroInstance.fragments || 0}/${fragmentsNeededToUnlock}</div>
+                <div class="hero-stars">BLOQUEADO</div>
+            `;
+        } else {
+            card.innerHTML = `
+                ${spriteHTML}
+                <div class="hero-name">${heroData.name}</div>
+                <div class="hero-level">Nivel ${heroInstance.level}</div>
+                <div class="hero-stars">${'⭐'.repeat(heroInstance.stars)}</div>
+            `;
+        }
+
+        // El onclick sigue abriendo el modal de detalles
+        card.onclick = () => {
+            openHeroDetailModal(heroInstance);
+        };
+        container.appendChild(card);
+    });
+}
+/**
  * Abre y rellena la pantalla de detalles de un héroe específico.
  * Muestra un botón de "Asignar" solo si se viene desde el flujo de asignación.
  * @param {object} heroInstance - La instancia del héroe del jugador (con su nivel, xp, etc.).
  */
-// En modalLogic.js
-
 function openHeroDetailModal(heroInstance) {
     const modal = document.getElementById('heroDetailModal');
     if (!modal) return;
@@ -1646,53 +1704,116 @@ function openHeroDetailModal(heroInstance) {
     const heroData = COMMANDERS[heroInstance.id];
     const playerData = PlayerDataManager.getCurrentPlayer();
     if (!heroData || !playerData) {
-        console.error("No se pueden mostrar los detalles del héroe: Faltan datos del héroe o del jugador.");
+        console.error("No se pueden mostrar los detalles del héroe: Faltan datos.");
         return;
     }
 
-    // --- COLUMNA CENTRAL: Retrato, Stats y Progresión ---
-    // Retrato grande
-    const portraitContainer = document.getElementById('hero-portrait-container');
-    if(portraitContainer) portraitContainer.innerHTML = `<img src="${heroData.sprite}" alt="${heroData.name}">`;
-    // Nombre y Título
+    // <<== INICIO DE LA NUEVA LÓGICA PARA EQUIPO ==>>
+
+    const playerInventory = PlayerDataManager.currentPlayer.inventory.equipment || [];
+
+    // Itera sobre los 6 slots de equipo definidos en el HTML
+    const slots = ['head', 'chest', 'legs', 'gloves', 'boots', 'weapon'];
+    slots.forEach(slotType => {
+        const slotElement = document.getElementById(`equip-${slotType}`);
+        if (!slotElement) return;
+
+        // Limpiar contenido y listeners anteriores
+        slotElement.innerHTML = `<span>${slotType.charAt(0).toUpperCase() + slotType.slice(1)}</span>`;
+        slotElement.classList.remove('available-upgrade');
+        
+        // 1. Mostrar el ícono del objeto equipado (si lo hay)
+        const equippedInstanceId = heroInstance.equipment[slotType];
+        if (equippedInstanceId) {
+            const itemInstance = playerInventory.find(i => i.instance_id === equippedInstanceId);
+            if (itemInstance) {
+                const itemDef = EQUIPMENT_DEFINITIONS[itemInstance.item_id];
+                if (itemDef) {
+                    slotElement.innerHTML = `<span style="font-size: 2.5em;">${itemDef.icon}</span>`;
+                    slotElement.title = itemDef.name;
+                }
+            }
+        } else {
+             slotElement.title = `Equipar ${slotType}`;
+        }
+
+        // 2. Comprobar si hay equipo disponible en el inventario para este slot
+        const hasAvailableItems = playerInventory.some(item => {
+            const itemDef = EQUIPMENT_DEFINITIONS[item.item_id];
+            return itemDef && itemDef.slot === slotType;
+        });
+
+        if (hasAvailableItems) {
+            slotElement.classList.add('available-upgrade');
+        }
+
+        // 3. Añadir el listener para abrir el selector
+        slotElement.onclick = () => {
+            openEquipmentSelector(heroInstance, slotType);
+        };
+    });
+    const isLocked = heroInstance.stars === 0;
+    // --- Rellenar UI de Detalles del Héroe ---
+    document.getElementById('hero-portrait-container').innerHTML = `<img src="${heroData.sprite}" alt="${heroData.name}">`;
     document.getElementById('heroDetailName').textContent = heroData.name;
     document.getElementById('heroDetailTitle').textContent = heroData.title;
-    // Nivel y XP
+    
     const currentLevel = heroInstance.level;
     const xpForNextLevel = getXpForNextLevel(currentLevel);
-    document.getElementById('heroDetailLevel').textContent = `${currentLevel} (${heroInstance.skill_points_unspent || 0} Ptos.)`;
+    const talentPoints = heroInstance.talent_points_unspent || 0;
+    const skillPoints = heroInstance.skill_points_unspent || 0;
+    document.getElementById('heroDetailLevel').textContent = `${currentLevel} (Talentos: ${talentPoints}, Habil: ${skillPoints})`;
     document.getElementById('heroDetailXpBar').style.width = `${xpForNextLevel === 'Max' ? 100 : Math.min(100, (heroInstance.xp / xpForNextLevel) * 100)}%`;
     document.getElementById('heroDetailXpText').textContent = `${heroInstance.xp} / ${xpForNextLevel}`;
-    // Evolución y Fragmentos
     const nextStar = heroInstance.stars + 1;
     const fragmentsNeeded = HERO_FRAGMENTS_PER_STAR[nextStar] || 'Max';
     document.getElementById('heroDetailStars').textContent = '⭐'.repeat(heroInstance.stars);
     document.getElementById('heroDetailFragmentBar').style.width = `${fragmentsNeeded === 'Max' ? 100 : Math.min(100, (heroInstance.fragments / fragmentsNeeded) * 100)}%`;
     document.getElementById('heroDetailFragmentText').textContent = `${heroInstance.fragments} / ${fragmentsNeeded}`;
     
-    // Botones de acción
-    document.getElementById('heroLevelUpBtn').disabled = (playerData.inventory.xp_books || 0) <= 0 || xpForNextLevel === 'Max';
-    document.getElementById('heroEvolveBtn').disabled = heroInstance.fragments < fragmentsNeeded || fragmentsNeeded === 'Max';
+    // --- LÓGICA DE BOTONES (Nivel y Evolución) ---
+    const levelUpBtn = document.getElementById('heroLevelUpBtn');
+    levelUpBtn.disabled = (playerData.inventory.xp_books || 0) <= 0 || xpForNextLevel === 'Max';
+    levelUpBtn.onclick = () => {
+        PlayerDataManager.useXpBook(heroInstance.id);
+        const updatedHero = PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroInstance.id);
+        if (updatedHero) openHeroDetailModal(updatedHero);
+    };
 
-    // --- COLUMNA IZQUIERDA: Habilidades ---
+    const evolveBtn = document.getElementById('heroEvolveBtn');
+    
+    if (isLocked) {
+        evolveBtn.textContent = "Desbloquear";
+    } else {
+        evolveBtn.textContent = "Evolucionar";
+    }
+    
+    // La condición para desactivar ahora es más robusta
+    evolveBtn.disabled = (heroInstance.fragments || 0) < fragmentsNeeded || !fragmentsNeeded;
+
+    evolveBtn.onclick = () => {
+        PlayerDataManager.evolveHero(heroInstance.id);
+        const updatedHero = PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroInstance.id);
+        if (updatedHero) openHeroDetailModal(updatedHero);
+    };
+    
+    // --- Lógica de Habilidades ---
     const skillsContainer = document.getElementById('heroDetailSkillsContainer');
-    if(skillsContainer) {
-        skillsContainer.innerHTML = ''; // Limpiar
-        
-        // La "traducción" de índice a clave del perfil del jugador
-        const skillLevelKeys = ['active', 'passive1', 'passive2', 'passive3'];
-
+    if (skillsContainer) {
+        skillsContainer.innerHTML = '';
         heroData.skills.forEach((skillData, index) => {
             if (!skillData) return;
-            
             const skillDef = SKILL_DEFINITIONS[skillData.skill_id];
             if (!skillDef) return;
-            
-            const skillKey = skillLevelKeys[index];
-            const skillLevel = heroInstance.skill_levels[skillKey] || 0;
+
             const starsRequired = index + 1;
             const isUnlocked = heroInstance.stars >= starsRequired;
 
+            let skillLevel = (Array.isArray(heroInstance.skill_levels) && heroInstance.skill_levels[index]) || 0;
+            if (isUnlocked && index === 0 && skillLevel === 0) {
+                 skillLevel = 1; 
+            }
+            
             const skillDiv = document.createElement('div');
             skillDiv.className = 'skill-item-rok';
             skillDiv.style.opacity = isUnlocked ? '1' : '0.6';
@@ -1702,10 +1823,11 @@ function openHeroDetailModal(heroInstance) {
                 skillDiv.onclick = () => openSkillDetailModal(heroInstance, index);
             }
 
+            // <<== CORRECCIÓN: Mostrar candado si no está desbloqueada ==>>
             let skillHTML = `
                 <div class="skill-icon ${index === 0 ? 'active' : ''}">
                     ${skillDef.sprite || 'H'}
-                    <div class="skill-level">${isUnlocked ? skillLevel : 0}/5</div>
+                    <div class="skill-level">${isUnlocked ? skillLevel : '🔒'}/5</div>
                 </div>
                 <div class="skill-info">
                     <h5>${skillDef.name}</h5>
@@ -1717,30 +1839,24 @@ function openHeroDetailModal(heroInstance) {
         });
     }
 
-    // --- COLUMNA DERECHA: Pestañas de Talentos y Equipo ---
-    const tabs = modal.querySelectorAll('.tab-button');
-    const contents = modal.querySelectorAll('.tab-content');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
-            tab.classList.add('active');
-            const contentToShow = document.getElementById(tab.dataset.tab);
-            if (contentToShow) contentToShow.classList.add('active');
-        });
-    });
-    // Forzar la primera pestaña como activa por defecto
-    document.querySelector('.tab-button[data-tab="talents"]').click();
-
-    // --- LÓGICA FINAL: ASIGNACIÓN Y VISUALIZACIÓN ---
+    // --- Botón para abrir el modal de talentos ---
+    const talentBtn = document.getElementById('openTalentTreeBtn');
+    talentBtn.onclick = () => {
+        modal.style.display = 'none';
+        openTalentModalForHero(heroInstance);
+    };
+    
+    // <<== INICIO DEL CÓDIGO RESTAURADO ==>>
+    
     const barracksModal = document.getElementById('barracksModal');
     const assignmentMode = barracksModal.dataset.assignmentMode === 'true';
-    const footer = document.querySelector('.hero-main-layout'); // Añadiremos el botón aquí
-    
-    // Limpiar botón de asignación previo
+    const footer = document.querySelector('#heroDetailModal .hero-detail-footer');
+
+    // Primero, limpiar cualquier botón de asignación anterior para evitar duplicados
     const oldAssignBtn = document.getElementById('heroAssignBtn');
     if (oldAssignBtn) oldAssignBtn.remove();
     
+    // Si estamos en modo asignación y hemos encontrado el footer
     if (assignmentMode && footer) {
         const targetUnitId = barracksModal.dataset.targetUnitId;
         const targetUnit = units.find(u => u.id === targetUnitId);
@@ -1749,41 +1865,71 @@ function openHeroDetailModal(heroInstance) {
             const assignBtn = document.createElement('button');
             assignBtn.id = 'heroAssignBtn';
             assignBtn.textContent = 'Asignar a esta División';
-            assignBtn.style.cssText = 'grid-column: 2; margin-top: 15px; padding: 12px; font-size: 1.1em; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;';
+            // Aplicamos estilos directamente para que se vea bien
+            assignBtn.style.cssText = 'background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 1em;';
             
             assignBtn.onclick = () => {
                 assignHeroToUnit(targetUnit, heroInstance.id);
                 modal.style.display = 'none';
                 barracksModal.style.display = 'none';
             };
+            // Lo añadimos al footer
             footer.appendChild(assignBtn);
         }
     }
+    // <<== FIN DEL CÓDIGO RESTAURADO ==>>
     
     modal.style.display = 'flex';
+}
+
+function openTalentModalForHero(heroInstance) {
+    const modal = document.getElementById('talentTreeModal');
+    const heroData = COMMANDERS[heroInstance.id];
+    if (!modal || !heroData) return;
+
+    modal.dataset.heroId = heroInstance.id;
+    document.getElementById('talentHeroName').textContent = `Talentos de ${heroData.name}`;
+    
+    // <<== CORRECCIÓN 1: Leer 'talent_points_unspent' ==>>
+    document.getElementById('talentPointsAvailable').textContent = (heroInstance.talent_points_unspent || 0);
+
+    document.getElementById('closeTalentTreeModalBtn').onclick = () => { modal.style.display = 'none'; };
+    
+    document.getElementById('resetTalentsBtn').onclick = () => {
+        if (confirm(`¿Reiniciar talentos por 500 de oro?`)) {
+            if (PlayerDataManager.resetTalents(heroInstance.id)) {
+                openTalentModalForHero(PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroInstance.id));
+            }
+        }
+    };
+
+    const canvasContainer = document.getElementById('talentCanvasContainer');
+    canvasContainer.innerHTML = `<div class="talent-tree-canvas"></div>`;
+    const treeCanvas = canvasContainer.querySelector('.talent-tree-canvas');
+    
+    drawCompleteTalentLayout(heroInstance, treeCanvas);
+    
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+        canvasContainer.scrollTop = (treeCanvas.scrollHeight - canvasContainer.clientHeight) / 2;
+        canvasContainer.scrollLeft = (treeCanvas.scrollWidth - canvasContainer.clientWidth) / 2;
+    });
 }
 
 function openSkillDetailModal(heroInstance, skillIndex) {
     const modal = document.getElementById('skillDetailModal');
     if (!modal) return;
-
     const heroData = COMMANDERS[heroInstance.id];
     const skillData = heroData.skills[skillIndex];
     const skillDef = SKILL_DEFINITIONS[skillData.skill_id];
     
-    // Rellenar cabecera
     document.getElementById('skillDetailIcon').textContent = skillDef.sprite || 'H';
     document.getElementById('skillDetailName').textContent = skillDef.name;
-    let currentLevel = heroInstance.skill_levels[skillIndex] || 0;
-    if (skillIndex === 0 && currentLevel === 0) {
-        currentLevel = 1;
-    }
+    
+    let currentLevel = (Array.isArray(heroInstance.skill_levels) && heroInstance.skill_levels[skillIndex]) || 0;
+    if (skillIndex === 0 && currentLevel === 0) currentLevel = 1;
     document.getElementById('skillDetailCurrentLevel').textContent = `Nivel Actual: ${currentLevel}/5`;
     
-    // Rellenar cuerpo
-    document.getElementById('skillDetailDescription').textContent = skillDef.description_template.replace('{filter_desc}', 'las tropas aplicables');
-    
-    // Rellenar vista previa de niveles
     const levelPreviewContainer = document.getElementById('skillLevelPreview');
     levelPreviewContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
@@ -1800,14 +1946,28 @@ function openSkillDetailModal(heroInstance, skillIndex) {
         levelPreviewContainer.appendChild(row);
     }
     
-    // Rellenar pie y configurar botón
+    // --- LÓGICA DEL BOTÓN DE MEJORA ---
     const upgradeBtn = document.getElementById('upgradeSkillBtn');
-    const canUpgrade = (heroInstance.skill_points_unspent || 0) > 0 && currentLevel < 5 && currentLevel > 0;
-    upgradeBtn.disabled = !canUpgrade;
+    const starsRequired = skillIndex + 1;
+    
+    // <<== LÓGICA DE ACTIVACIÓN CORREGIDA Y DEFINITIVA ==>>
+    const hasSkillPoints = (heroInstance.skill_points_unspent || 0) > 0;
+    const isUnlockedByStars = heroInstance.stars >= starsRequired;
+    const isNotMaxLevel = currentLevel < 5;
+    
+    upgradeBtn.disabled = !(hasSkillPoints && isUnlockedByStars && isNotMaxLevel);
     
     upgradeBtn.onclick = () => {
-        // Lógica de mejora (la implementaremos después, ahora solo cierra)
-        modal.style.display = 'none';
+        // Llama a la función correcta que gasta el punto de habilidad
+        const success = PlayerDataManager.upgradeHeroSkill(heroInstance.id, skillIndex);
+        if (success) {
+            modal.style.display = 'none';
+            const updatedHero = PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroInstance.id);
+            if (updatedHero) {
+                // Refresca el modal principal para que se vea el cambio de puntos
+                openHeroDetailModal(updatedHero);
+            }
+        }
     };
 
     document.getElementById('closeSkillDetailBtn').onclick = () => {
@@ -1817,6 +1977,209 @@ function openSkillDetailModal(heroInstance, skillIndex) {
     modal.style.display = 'flex';
 }
 
+// =======================================================================
+// === SISTEMA DE TALENTOS VISUAL v2.0 ===
+// =======================================================================
+
+
+
+function drawCompleteTalentLayout(heroInstance, canvas) {
+    canvas.innerHTML = ''; 
+    const heroData = COMMANDERS[heroInstance.id];
+    const playerTalents = heroInstance.talents || {};
+    const svgLines = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgLines.classList.add('talent-svg-lines');
+    
+    // --- Usamos tus coordenadas como el centro ---
+    const canvasCenterX = 750;
+    const canvasCenterY = 950;
+    const treeOffsetAmount = 330;
+
+    heroData.talent_trees.forEach((treeName, treeIndex) => {
+        const treeInfo = TALENT_TREES[treeName];
+        if (!treeInfo || !treeInfo.tree) return;
+        let treeOriginX = canvasCenterX, treeOriginY = canvasCenterY;
+        
+        // Posicionamiento de los árboles
+        if (treeIndex === 0) { // Izquierda
+            treeOriginX -= treeOffsetAmount;
+        } else if (treeIndex === 1) { // Arriba
+            treeOriginY -= treeOffsetAmount;
+        } else if (treeIndex === 2) { // Derecha
+            treeOriginX += treeOffsetAmount;
+        }
+
+        treeInfo.tree.nodes.forEach(nodeData => {
+            const talentDef = TALENT_DEFINITIONS[nodeData.talentId];
+            if (!talentDef) return;
+            const nodeDiv = document.createElement('div');
+            nodeDiv.id = `node-modal-${nodeData.talentId}`;
+            nodeDiv.className = `talent-node ${talentDef.maxLevels > 1 ? 'square' : 'circle'}`;
+            
+            // --- LA FÓRMULA SIMPLIFICADA ---
+            // Simplemente sumamos las coordenadas de la plantilla al origen del árbol.
+            const finalX = treeOriginX + nodeData.position.x;
+            const finalY = treeOriginY + nodeData.position.y; // Ya no hay que invertir nada.
+            
+            nodeDiv.style.left = `${finalX}px`;
+            nodeDiv.style.top = `${finalY}px`;
+            nodeDiv.style.transform = 'translate(-50%, -50%)';
+            nodeDiv.textContent = TALENT_SPRITES[nodeData.talentId] || '♦';
+
+            const currentLevel = playerTalents[nodeData.talentId] || 0;
+            
+            // <<== LA CORRECCIÓN CLAVE ESTÁ AQUÍ ==>>
+            const canAfford = (heroInstance.talent_points_unspent || 0) > 0;
+            
+            const prereqsMet = hasPrerequisitesForTalent(nodeData.id, treeName, playerTalents);
+
+            const values = talentDef.values ? `[${talentDef.values.join('/')}]` : '';
+            nodeDiv.title = `${talentDef.name}\n${talentDef.description.replace('{X}', values)}`;
+
+            if (currentLevel >= talentDef.maxLevels) {
+                nodeDiv.classList.add('maxed');
+            } else if (prereqsMet && canAfford) {
+                nodeDiv.classList.add('available');
+                // <<== ¡LA CORRECCIÓN DEFINITIVA ESTÁ AQUÍ! ==>>
+                nodeDiv.onclick = () => handleTalentNodeClick(heroInstance.id, nodeData.talentId);
+            }
+
+            if (currentLevel > 0) {
+                const levelSpan = document.createElement('span');
+                levelSpan.className = 'talent-node-level';
+                levelSpan.textContent = `${currentLevel}/${talentDef.maxLevels}`;
+                nodeDiv.appendChild(levelSpan);
+            }
+            canvas.appendChild(nodeDiv);
+        });
+    });
+
+    // dibujar las líneas
+    canvas.appendChild(svgLines);
+
+    // El resto de la función (requestAnimationFrame y nexo) no cambia.
+    requestAnimationFrame(() => {
+        heroData.talent_trees.forEach((treeName) => {
+             const treeInfo = TALENT_TREES[treeName];
+             if (!treeInfo || !treeInfo.tree) return;
+             treeInfo.tree.nodes.forEach(nodeData => {
+                 const childDiv = document.getElementById(`node-modal-${nodeData.talentId}`);
+                 if (!childDiv) return;
+                 const parentIds = Array.isArray(nodeData.requires) ? nodeData.requires : [nodeData.requires];
+                 parentIds.forEach(parentId => {
+                    let lineStartX, lineStartY;
+                    if (parentId === null) {
+                        lineStartX = canvasCenterX; lineStartY = canvasCenterY;
+                    } else {
+                        const parentNodeData = treeInfo.tree.nodes.find(n => n.id === parentId);
+                        if (!parentNodeData) return;
+                        const parentDiv = document.getElementById(`node-modal-${parentNodeData.talentId}`);
+                        if(!parentDiv) return;
+                        lineStartX = parentDiv.offsetLeft + parentDiv.offsetWidth / 2;
+                        lineStartY = parentDiv.offsetTop + parentDiv.offsetHeight / 2;
+                    }
+                    const isPathUnlocked = parentId === null || hasPrerequisitesForTalent(nodeData.id, treeName, playerTalents);
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", 'line');
+                    line.setAttribute('x1', lineStartX); line.setAttribute('y1', lineStartY);
+                    line.setAttribute('x2', childDiv.offsetLeft + childDiv.offsetWidth / 2); line.setAttribute('y2', childDiv.offsetTop + childDiv.offsetHeight / 2);
+                    line.setAttribute('stroke', isPathUnlocked ? treeInfo.color : '#718096');
+                    line.setAttribute('stroke-width', '4');
+                    svgLines.appendChild(line);
+                 });
+             });
+        });
+    });
+
+    const nexoContainer = document.createElement('div');
+    nexoContainer.id = 'talentNexoContainer';
+    heroData.talent_trees.forEach((treeName) => {
+        const treeInfo = TALENT_TREES[treeName];
+        if (!treeInfo) return;
+        const nexoPie = document.createElement('div');
+        nexoPie.className = 'nexo-pie';
+        nexoPie.innerHTML = `<span class="nexo-icon">${treeInfo.icon}</span><span class="nexo-name">${treeName}</span>`;
+        nexoPie.style.color = treeInfo.color;
+        nexoContainer.appendChild(nexoPie);
+    });
+    canvas.appendChild(nexoContainer);
+}
+function createNodeElement(heroInstance, treeName, nodeData) {
+    const talentDef = TALENT_DEFINITIONS[nodeData.talentId];
+    if (!talentDef) return document.createElement('div');
+
+    const playerTalents = heroInstance.talents || {};
+    const nodeDiv = document.createElement('div');
+    nodeDiv.id = `node-${nodeData.talentId}`;
+    nodeDiv.className = `talent-node`;
+    
+    nodeDiv.style.left = `calc(50% + ${nodeData.position.x}px)`;
+    nodeDiv.style.top = `calc(50% + ${nodeData.position.y}px)`;
+    nodeDiv.style.transform = 'translate(-50%, -50%)';
+    nodeDiv.textContent = TALENT_SPRITES[nodeData.talentId] || '♦';
+
+    const currentLevel = playerTalents[nodeData.talentId] || 0;
+
+    // <<== Y LA CORRECCIÓN CLAVE ESTÁ AQUÍ TAMBIÉN ==>>
+    const canAfford = (heroInstance.talent_points_unspent || 0) > 0;
+
+    const prereqsMet = hasPrerequisitesForTalent(treeName, nodeData.id, playerTalents);
+
+    if (currentLevel >= talentDef.maxLevels) {
+        nodeDiv.classList.add('maxed');
+    } else if (prereqsMet && canAfford) {
+        nodeDiv.classList.add('available');
+        
+        // <<== PRUEBA DE FUEGO: Reemplazamos el onclick con un alert ==>>
+        nodeDiv.onclick = () => {
+            // He quitado tu alert para que no moleste. La llamada es correcta.
+            handleTalentNodeClick(heroInstance.id, nodeData.talentId);
+        };
+    }
+    
+    const values = talentDef.values ? `[${talentDef.values.join('/')}]` : '';
+    nodeDiv.title = `${talentDef.name}\n${talentDef.description.replace('{X}', values)}`;
+
+    if (currentLevel > 0) {
+        const levelSpan = document.createElement('span');
+        levelSpan.className = 'talent-node-level';
+        levelSpan.textContent = `${currentLevel}/${talentDef.maxLevels}`;
+        nodeDiv.appendChild(levelSpan);
+    }
+
+    return nodeDiv;
+}
+
+/**
+ * Función de ayuda para determinar si se cumplen los prerrequisitos para un talento específico.
+ */
+function hasPrerequisitesForTalent(nodeId, treeName, playerTalents) {
+    // ... (Esta función auxiliar no necesita cambios)
+    const treeData = TALENT_TREES[treeName]?.tree;
+    if (!treeData) return false;
+    const nodeData = treeData.nodes.find(n => n.id === nodeId);
+    if (!nodeData) return false;
+    const parentIds = Array.isArray(nodeData.requires) ? nodeData.requires : [nodeData.requires];
+    if (parentIds.length === 1 && parentIds[0] === null) return true;
+    return parentIds.every(parentId => {
+        const parentNodeData = treeData.nodes.find(n => n.id === parentId);
+        if (!parentNodeData) return false;
+        const parentTalentId = parentNodeData.talentId;
+        return (playerTalents[parentTalentId] || 0) > 0;
+    });
+}
+
+function handleTalentNodeClick(heroId, talentId) {
+    // <<== CORRECCIÓN CLAVE: Llamar al método del objeto PlayerDataManager ==>>
+    const success = PlayerDataManager.spendTalentPoint(heroId, talentId);
+
+    if (success) {
+        const updatedHeroInstance = PlayerDataManager.currentPlayer.heroes.find(h => h.id === heroId);
+        if (updatedHeroInstance) {
+            openTalentModalForHero(updatedHeroInstance);
+        }
+    }
+}
+// =======================================================================
 /**
  * Asigna un héroe a una división y recalcula sus stats.
  * @param {object} unit - La división objetivo.
@@ -1851,11 +2214,10 @@ function assignHeroToUnit(unit, commanderId) {
     UIManager.renderAllUnitsFromData();
 }
 
-// AÑADIR ESTE BLOQUE AL FINAL DE modalLogic.js
 
-/**
+/**=======================================================================
  * Abre el modal del "Altar de los Deseos" y actualiza los datos.
- */
+ =======================================================================*/
 function openDeseosModal() {
     const modal = document.getElementById('deseosModal');
     if (!modal || !PlayerDataManager.currentPlayer) return;
@@ -1886,13 +2248,17 @@ function showGachaResults(results) {
         setTimeout(() => {
             const heroData = COMMANDERS[res.heroId];
             const li = document.createElement('li');
-
-            // Añadir clase de rareza para el color del CSS
             const rarityKey = res.rarity.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
             li.classList.add(`rarity-${rarityKey}`);
 
-            li.innerHTML = `Has obtenido <strong>${res.fragments} fragmentos</strong> de [${res.rarity}] ${heroData.sprite} ${heroData.name}`;
-            
+            if (res.type === 'fragments') {
+                const heroData = COMMANDERS[res.heroId];
+                li.innerHTML = `Has obtenido <strong>${res.fragments} fragmentos</strong> de [${res.rarity}] ${heroData.sprite} ${heroData.name}`;
+            } else if (res.type === 'equipment_fragments') { // 
+                const itemData = res.item;
+                // <<== Mostrar fragmentos
+                li.innerHTML = `Has obtenido <strong>${res.fragments} fragmentos</strong> de [${res.rarity}] ${itemData.icon} ${itemData.name}`;
+            }
             // Animación simple de entrada
             li.style.opacity = '0';
             li.style.transition = 'opacity 0.3s ease-in-out';
@@ -1933,6 +2299,293 @@ function setupGachaModalListeners() {
         const activeBannerId = document.querySelector('.banner.active').dataset.bannerId;
         GachaManager.executeWish(activeBannerId, 10);
     });
+}
+
+/**
+ * (NUEVO) Abre el modal para seleccionar una pieza de equipo para un slot específico.
+ * @param {object} heroInstance - La instancia del héroe que se está editando.
+ * @param {string} slotType - El tipo de slot (ej: 'head', 'weapon').
+ */
+function openEquipmentSelector(heroInstance, slotType) {
+    const modal = document.getElementById('equipmentSelectorModal');
+    if (!modal) return;
+
+    const allPlayerHeroes = PlayerDataManager.currentPlayer.heroes || [];
+    const playerInventory = PlayerDataManager.currentPlayer.inventory.equipment || [];
+
+    // <<== INICIO DE LA LÓGICA DE FILTRADO ==>>
+
+    // 1. Crear una lista de todos los IDs de instancia de equipo que ya están en uso por CUALQUIER héroe.
+    const equippedItemInstanceIds = new Set();
+    allPlayerHeroes.forEach(hero => {
+        if (hero.equipment) {
+            Object.values(hero.equipment).forEach(instanceId => {
+                if (instanceId) {
+                    equippedItemInstanceIds.add(instanceId);
+                }
+            });
+        }
+    });
+
+    // 2. Obtener el ID del objeto que el HÉROE ACTUAL tiene equipado en este slot (si lo tiene).
+    const currentHeroEquippedInstanceId = heroInstance.equipment[slotType];
+
+    // 3. Filtrar el inventario para obtener solo los items disponibles para ESTE slot.
+    // Un item está disponible si:
+    //    a) Coincide con el tipo de slot.
+    //    b) NO está en la lista de equipo en uso (equippedItemInstanceIds).
+    //    c) O es el objeto que el HÉROE ACTUAL ya tiene equipado (para permitir desequiparlo o volver a verlo).
+    const availableItems = playerInventory.filter(itemInstance => {
+        const itemDef = EQUIPMENT_DEFINITIONS[itemInstance.item_id];
+        if (!itemDef || itemDef.slot !== slotType) {
+            return false; // No es del tipo de slot correcto.
+        }
+        
+        const isEquippedByAnotherHero = equippedItemInstanceIds.has(itemInstance.instance_id);
+        const isEquippedByThisHero = itemInstance.instance_id === currentHeroEquippedInstanceId;
+
+        // Mostrar si NO está equipado por otro héroe, O si está equipado por ESTE héroe.
+        return !isEquippedByAnotherHero || isEquippedByThisHero;
+    });
+
+    // <<== FIN DE LA LÓGICA DE FILTRADO ==>>
+
+    document.getElementById('equipmentSelectorTitle').textContent = `Seleccionar ${slotType.charAt(0).toUpperCase() + slotType.slice(1)}`;
+    const listContainer = document.getElementById('equipmentListContainer');
+    const footer = document.getElementById('equipmentSelectorFooter');
+    listContainer.innerHTML = '';
+    footer.style.display = 'none';
+
+    if (availableItems.length === 0) {
+        // <<== MENSAJE MEJORADO: Ahora diferencia entre "no tienes" y "está en uso" ==>>
+        const totalItemsForSlot = playerInventory.filter(i => EQUIPMENT_DEFINITIONS[i.item_id]?.slot === slotType).length;
+        if (totalItemsForSlot > 0) {
+            listContainer.innerHTML = '<p style="text-align:center; padding: 20px;">Todas las piezas para este slot ya están equipadas por otros héroes.</p>';
+        } else {
+            listContainer.innerHTML = '<p style="text-align:center; padding: 20px;">No tienes equipo para este slot en tu inventario.</p>';
+        }
+    } else {
+        availableItems.forEach(itemInstance => {
+            // ... (El resto del código para crear el elemento visual del item se mantiene exactamente igual)
+            const itemDef = EQUIPMENT_DEFINITIONS[itemInstance.item_id];
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'equipment-item';
+            itemDiv.dataset.instanceId = itemInstance.instance_id;
+            itemDiv.dataset.itemId = itemInstance.item_id;
+
+            // Formatear las estadísticas para mostrarlas
+            const statsString = itemDef.bonuses.map(b => {
+                const sign = b.value > 0 ? '+' : '';
+                return `${b.stat.replace('_', ' ')} ${sign}${b.value}${b.is_percentage ? '%' : ''}`;
+            }).join(', ');
+
+            itemDiv.innerHTML = `
+                <span class="item-icon">${itemDef.icon}</span>
+                <div class="item-info">
+                    <strong class="item-name rarity-${itemDef.rarity}">${itemDef.name}</strong>
+                    <span class="item-stats">${statsString}</span>
+                </div>
+            `;
+            
+            // Lógica para la selección
+            itemDiv.addEventListener('click', () => {
+                document.querySelectorAll('.equipment-item').forEach(el => el.classList.remove('selected'));
+                itemDiv.classList.add('selected');
+                footer.style.display = 'block';
+            });
+
+            listContainer.appendChild(itemDiv);
+        });
+    }
+
+    // Lógica de los botones "Equipar" y "Quitar" (se mantiene igual)
+    document.getElementById('equipItemBtn').onclick = () => {
+        const selectedItem = listContainer.querySelector('.equipment-item.selected');
+        if (selectedItem) {
+            const instanceId = selectedItem.dataset.instanceId;
+            
+            // <<== LÓGICA DE DESEQUIPAMIENTO AUTOMÁTICO ==>>
+            // Antes de equipar, buscar si este objeto ya lo tenía otro héroe y quitárselo.
+            // (Aunque el filtro previene esto, es una buena salvaguarda).
+            allPlayerHeroes.forEach(hero => {
+                if(hero.equipment){
+                    for(const slot in hero.equipment){
+                        if(hero.equipment[slot] === instanceId){
+                            hero.equipment[slot] = null;
+                        }
+                    }
+                }
+            });
+
+            heroInstance.equipment[slotType] = instanceId;
+            PlayerDataManager.saveCurrentPlayer();
+            
+            modal.style.display = 'none';
+            openHeroDetailModal(heroInstance);
+        }
+    };
+    
+    // Lógica del botón "Quitar"
+    const unequipBtn = document.getElementById('unequipItemBtn');
+    // Mostrar el botón solo si ya hay algo equipado en ese slot
+    if (heroInstance.equipment[slotType]) {
+        unequipBtn.style.display = 'inline-block';
+        unequipBtn.onclick = () => {
+            heroInstance.equipment[slotType] = null; // Quitar el equipo
+            PlayerDataManager.saveCurrentPlayer();
+
+            modal.style.display = 'none';
+            openHeroDetailModal(heroInstance);
+        };
+    } else {
+        unequipBtn.style.display = 'none';
+    }
+
+    document.getElementById('closeEquipmentSelectorBtn').onclick = () => {
+        modal.style.display = 'none';
+    };
+
+    modal.style.display = 'flex';
+}
+
+//FORJA//
+
+let selectedBlueprintId = null; // Variable global para el modal de forja
+
+/**
+ * Abre el modal de la Forja y muestra los planos disponibles.
+ */
+function openForgeModal() {
+    const modal = document.getElementById('forgeModal');
+    if (!modal) return;
+
+    populateBlueprintList();
+    
+    // Mostrar placeholder y ocultar detalles al abrir
+    document.getElementById('blueprintDetailPlaceholder').style.display = 'block';
+    document.getElementById('blueprintDetailContent').style.display = 'none';
+    
+    modal.style.display = 'flex';
+}
+
+/**
+ * Rellena la lista de planos en la Forja basándose en los fragmentos del jugador.
+ */
+function populateBlueprintList() {
+    const listContainer = document.getElementById('blueprintList');
+    listContainer.innerHTML = '';
+    
+    const fragmentInventory = PlayerDataManager.currentPlayer.inventory.equipment_fragments || {};
+
+    if (Object.keys(fragmentInventory).length === 0) {
+        listContainer.innerHTML = '<p style="text-align:center; padding: 20px;">No tienes fragmentos de equipo.</p>';
+        return;
+    }
+
+    // Ordenar para mostrar los que se pueden forjar primero
+    const sortedItemIds = Object.keys(fragmentInventory).sort((a, b) => {
+        const itemA = EQUIPMENT_DEFINITIONS[a];
+        const itemB = EQUIPMENT_DEFINITIONS[b];
+        const canForgeA = fragmentInventory[a] >= itemA.fragments_needed;
+        const canForgeB = fragmentInventory[b] >= itemB.fragments_needed;
+        return canForgeB - canForgeA; // Pone los `true` (1) antes que los `false` (0)
+    });
+
+    sortedItemIds.forEach(itemId => {
+        const itemDef = EQUIPMENT_DEFINITIONS[itemId];
+        const fragmentsHeld = fragmentInventory[itemId];
+        const fragmentsNeeded = itemDef.fragments_needed;
+        
+        const canForge = fragmentsHeld >= fragmentsNeeded;
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'blueprint-item';
+        if (canForge) itemDiv.classList.add('can-forge');
+        
+        itemDiv.innerHTML = `
+            <span class="item-icon">${itemDef.icon}</span>
+            <div class="item-info">
+                <strong class="item-name rarity-${itemDef.rarity}">${itemDef.name}</strong>
+                <span class="item-progress">Fragmentos: ${fragmentsHeld} / ${fragmentsNeeded}</span>
+            </div>
+        `;
+        
+        itemDiv.addEventListener('click', () => {
+            selectedBlueprintId = itemId;
+            document.querySelectorAll('.blueprint-item').forEach(el => el.classList.remove('selected'));
+            itemDiv.classList.add('selected');
+            showBlueprintDetail(itemId);
+        });
+        
+        listContainer.appendChild(itemDiv);
+    });
+}
+
+/**
+ * nuestra los detalles de un plano seleccionado en la columna derecha.
+ * @param {string} itemId - El ID del objeto a mostrar.
+ */
+function showBlueprintDetail(itemId) {
+    document.getElementById('blueprintDetailPlaceholder').style.display = 'none';
+    document.getElementById('blueprintDetailContent').style.display = 'block';
+
+    const itemDef = EQUIPMENT_DEFINITIONS[itemId];
+    const fragmentsHeld = PlayerDataManager.currentPlayer.inventory.equipment_fragments[itemId] || 0;
+    const fragmentsNeeded = itemDef.fragments_needed;
+
+    document.getElementById('blueprintItemIcon').textContent = itemDef.icon;
+    document.getElementById('blueprintItemName').textContent = itemDef.name;
+
+    const statsString = itemDef.bonuses.map(b => {
+        const sign = b.value > 0 ? '+' : '';
+        return `${b.stat.replace(/_/g, ' ')} ${sign}${b.value}${b.is_percentage ? '%' : ''}`;
+    }).join(', ');
+    document.getElementById('blueprintItemStats').textContent = statsString;
+
+    const progressPercent = Math.min(100, (fragmentsHeld / fragmentsNeeded) * 100);
+    document.getElementById('blueprintFragmentBar').style.width = `${progressPercent}%`;
+    document.getElementById('blueprintFragmentText').textContent = `${fragmentsHeld} / ${fragmentsNeeded}`;
+    
+    const forgeBtn = document.getElementById('forgeItemBtn');
+    forgeBtn.disabled = fragmentsHeld < fragmentsNeeded;
+}
+
+/**
+ *  Lógica para forjar un objeto.
+ */
+function handleForgeItem() {
+    if (!selectedBlueprintId) return;
+
+    const itemId = selectedBlueprintId;
+    const itemDef = EQUIPMENT_DEFINITIONS[itemId];
+    const playerInventory = PlayerDataManager.currentPlayer.inventory;
+    const fragmentsHeld = playerInventory.equipment_fragments[itemId] || 0;
+    const fragmentsNeeded = itemDef.fragments_needed;
+
+    if (fragmentsHeld >= fragmentsNeeded) {
+        // 1. Restar los fragmentos
+        playerInventory.equipment_fragments[itemId] -= fragmentsNeeded;
+        // Si los fragmentos llegan a 0, se elimina la entrada
+        if (playerInventory.equipment_fragments[itemId] <= 0) {
+            delete playerInventory.equipment_fragments[itemId];
+        }
+
+        // 2. Crear y añadir la nueva instancia de equipo al inventario
+        const newItemInstance = {
+            instance_id: `eq_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            item_id: itemId
+        };
+        if (!playerInventory.equipment) playerInventory.equipment = [];
+        playerInventory.equipment.push(newItemInstance);
+
+        // 3. Guardar y actualizar UI
+        PlayerDataManager.saveCurrentPlayer();
+        logMessage(`¡Has forjado [${itemDef.rarity}] ${itemDef.name}!`, "success");
+
+        // Refrescar las dos vistas del modal de la forja
+        populateBlueprintList();
+        showBlueprintDetail(itemId);
+    }
 }
 
 // Asegurarse de que los listeners se configuran cuando el DOM está listo

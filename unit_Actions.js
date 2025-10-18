@@ -943,6 +943,13 @@ function isValidAttack(attacker, defender) {
     // --- 2. CÁLCULO DEL RANGO FINAL CON HABILIDADES ---
     let finalRange = attacker.attackRange || 1;
 
+    // <<== INICIO DE LA INTEGRACIÓN DE TALENTOS ==>>
+    const talentBonuses = calculateTalentBonuses(attacker);
+    if (talentBonuses && talentBonuses.attackRange_flat) {
+        finalRange += talentBonuses.attackRange_flat;
+    }
+    // <<== FIN DE LA INTEGRACIÓN DE TALENTOS ==>>
+
     if (attacker.commander) {
         const commanderData = COMMANDERS[attacker.commander];
         const playerProfile = PlayerDataManager.getCurrentPlayer();
@@ -1004,7 +1011,7 @@ function isValidAttack(attacker, defender) {
 **/
 async function attackUnit(attackerDivision, defenderDivision) {
     console.log(`%c[VIAJE-DESTINO FINAL] La función de combate 'attackUnit' ha sido ejecutada. Atacante: ${attackerDivision.name}, Defensor: ${defenderDivision.name}`, 'background: #222; color: #bada55; font-size: 1.2em; font-weight: bold;');
-    // <<== NUEVA LLAMADA AL CRONISTA ==>>
+    // <<== LLAMADA AL CRONISTA ==>>
     if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
         
         // Primero, notificamos siempre que se ha completado un ataque (útil para el paso 8).
@@ -1014,18 +1021,35 @@ async function attackUnit(attackerDivision, defenderDivision) {
         // Si el paso actual del tutorial está esperando la condición "flank_attack_completed",
         // entonces CUALQUIER ataque cumplirá la condición.
         const currentTutorialStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
-        if (currentTutorialStep && currentTutorialStep.actionCondition && currentTutorialStep.actionCondition.toString().includes('flank_attack_completed')) {
-            TutorialManager.notifyActionCompleted('flank_attack_completed');
+        if (currentTutorialStep && currentTutorialStep.actionCondition.toString().includes('flank_attack_completed')) {
+            // <<== LÓGICA DE FLANQUEO PARA EL TUTORIAL MEJORADA ==>>
+            // Comprobamos si realmente hay un aliado adyacente para considerarlo flanqueo
+            const neighbors = getHexNeighbors(defenderDivision.r, defenderDivision.c);
+            const isFlankedByAlly = neighbors.some(n => {
+                const unit = getUnitOnHex(n.r, n.c);
+                return unit && unit.player === attackerDivision.player && unit.id !== attackerDivision.id;
+            });
+            if (isFlankedByAlly) {
+                TutorialManager.notifyActionCompleted('flank_attack_completed');
+            }
         }
+        TutorialManager.notifyActionCompleted('attack_completed');
     }
         
     if (typeof Chronicle !== 'undefined') {
         Chronicle.logEvent('battle_start', { attacker: attackerDivision, defender: defenderDivision });
     }
+
     try {
         if (!attackerDivision || !defenderDivision) return;
         logMessage(`¡COMBATE! ${attackerDivision.name} (J${attackerDivision.player}) vs ${defenderDivision.name} (J${defenderDivision.player})`);
         
+        // <<== INICIO DE LA CORRECCIÓN DE FLANQUEO ==>>
+        // 1. Llamar a la función de detección de flanqueo ANTES de cualquier cálculo de daño.
+        // Le pasamos el defensor y el atacante principal.
+        applyFlankingPenalty(defenderDivision, attackerDivision);
+        // <<== FIN DE LA CORRECCIÓN DE FLANQUEO ==>>
+
         console.group(`--- ANÁLISIS DE COMBATE ---`);
 
         const initialHealthAttacker = attackerDivision.currentHealth;
@@ -1170,7 +1194,9 @@ async function attackUnit(attackerDivision, defenderDivision) {
             } else {
                 // Si el objetivo fijo sigue vivo, lo ataca
                 await new Promise(resolve => setTimeout(resolve, 100));
-            applyDamage(regiment, targetRegiment, division, opposingDivision);
+                applyDamage(regiment, targetRegiment, division, opposingDivision);
+            // La actualización de salud ahora se hace dentro de applyDamage, pero
+            // recalcular la salud total de la división aquí sigue siendo una buena práctica.
             recalculateUnitHealth(opposingDivision);
             if (UIManager) UIManager.updateUnitStrengthDisplay(opposingDivision);
         }
@@ -1194,8 +1220,8 @@ async function attackUnit(attackerDivision, defenderDivision) {
         const defenderEfficiency = damageDealtByDefender / (damageDealtByAttacker || 1);
 
         // 2. Calcular XP base por participar en el combate
-        let attackerXP = 5 + Math.round(attackerEfficiency * 10);
-        let defenderXP = 5 + Math.round(defenderEfficiency * 10);
+        let attackerXP = 5 + Math.round(attackerEfficiency * 2);
+        let defenderXP = 5 + Math.round(defenderEfficiency * 2);
         
         // 3. Comprobar destrucciones
         const attackerDestroyed = finalHealthAttacker <= 0;
@@ -1340,6 +1366,33 @@ function calculateRegimentStats(unit) {
         finalStats.initiative = Math.max(finalStats.initiative, baseRegData.initiative || 1);
         if (finalStats.sprite === '❓') finalStats.sprite = baseRegData.sprite;
     });
+       
+    // <<== INICIO DE LA INTEGRACIÓN DE TALENTOS ==>>
+    const talentBonuses = calculateTalentBonuses(unit);
+    if (talentBonuses) {
+        console.log(`[Talent Bonus] Aplicando talentos de ${unit.commander} a ${unit.name}:`, talentBonuses);
+
+        // Aplicar bonus planos (se suman directamente)
+        finalStats.attack += talentBonuses.attack_flat || 0;
+        finalStats.defense += talentBonuses.defense_flat || 0;
+        finalStats.maxHealth += talentBonuses.health_flat || 0;
+        
+        // Aplicar bonus porcentuales (se multiplican sobre la suma actual)
+        finalStats.attack *= (1 + (talentBonuses.attack_percentage || 0) / 100);
+        finalStats.defense *= (1 + (talentBonuses.defense_percentage || 0) / 100);
+        finalStats.maxHealth *= (1 + (talentBonuses.health_percentage || 0) / 100);
+
+        // Redondear para evitar decimales extraños
+        finalStats.attack = Math.round(finalStats.attack);
+        finalStats.defense = Math.round(finalStats.defense);
+        finalStats.maxHealth = Math.round(finalStats.maxHealth);
+
+        // Aplicar bonus a stats tácticos (siempre son planos)
+        finalStats.movement += talentBonuses.movement_flat || 0;
+        finalStats.attackRange += talentBonuses.attackRange_flat || 0;
+        finalStats.initiative += talentBonuses.initiative_flat || 0;
+    }
+    // <<== FIN DE LA INTEGRACIÓN DE TALENTOS ==>>
 
     finalStats.movement = (finalStats.movement === Infinity) ? 0 : finalStats.movement;
     Object.assign(unit, finalStats);
@@ -1370,6 +1423,13 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
         return 0;
     }
     
+        // --- CONTEXTO DEL DUELO ---
+    const isFirstHitOnTarget = (targetRegiment.hitsTakenThisRound || 0) === 0;
+
+    // --- 1. OBTENER BONIFICACIONES (¡AQUÍ ESTÁ EL CAMBIO!) ---
+    const attackerTalentBonuses = calculateTalentBonuses(attackerDivision, targetDivision, isFirstHitOnTarget) || {};
+    const defenderTalentBonuses = calculateTalentBonuses(targetDivision, attackerDivision, false) || {}; // El defensor nunca hace el "primer golpe"
+
     const attackerCivName = CIVILIZATIONS[gameState.playerCivilizations[attackerDivision.player]]?.name || 'Sin Civ';
     const defenderCivName = CIVILIZATIONS[gameState.playerCivilizations[targetDivision.player]]?.name || 'Sin Civ';
     console.groupCollapsed(`Duelo: [${attackerRegiment.type}] (${attackerCivName}) vs [${targetRegiment.type}] (${defenderCivName})`);
@@ -1388,7 +1448,14 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     console.log(`+ Bono Civilización (Ataque): ${civAttackBonus.toFixed(1)}`);
 
     let totalAttack = baseAttack + civAttackBonus;
+    // Aplicar bonus de talentos (ya vienen calculados)
+    totalAttack *= (1 + (attackerTalentBonuses.attack_percentage || 0) / 100);
+    totalAttack += attackerTalentBonuses.attack_flat || 0;
+    totalAttack *= (1 + (attackerTalentBonuses.damage_increase_percentage || 0) / 100);
 
+    // Modificador de salud
+    totalAttack *= (attackerRegiment.health / attackerData.health);
+    
     // <<== INICIO: LÓGICA DE HABILIDADES DE ATAQUE ==>>
     if (attackerDivision.commander) {
         const commanderData = COMMANDERS[attackerDivision.commander];
@@ -1448,6 +1515,11 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     console.log(`+ Bono Civilización (Defensa): ${civDefenseBonus.toFixed(1)}`);
     
     let totalDefense = baseDefense + civDefenseBonus;
+
+    // Aplicar bonus de talentos
+    totalDefense *= (1 + (defenderTalentBonuses.defense_percentage || 0) / 100);
+    totalDefense += defenderTalentBonuses.defense_flat || 0;
+    totalDefense *= (1 - (defenderTalentBonuses.damage_reduction_percentage || 0) / 100);
     
     // <<== INICIO: LÓGICA DE HABILIDADES DE DEFENSA/SALUD ==>>
     if (targetDivision.commander) {
@@ -1494,7 +1566,7 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
     console.log(`%c   = Defensa Total (con Habilidades): ${totalDefense.toFixed(1)}`, 'font-weight: bold;');
     // <<== FIN: LÓGICA DE HABILIDADES DE DEFENSA/SALUD ==>>
     
-// ====================================================================
+    // ====================================================================
     // --- MODIFICADORES SITUACIONALES DE COMBATE ---
     // ====================================================================
     console.log(`%c--- MODIFICADORES DE COMBATE ---`, 'color: gold;');
@@ -1562,8 +1634,23 @@ function applyDamage(attackerRegiment, targetRegiment, attackerDivision, targetD
  * @returns {object|null} El regimiento objetivo, o null si no hay objetivos válidos.
  */
 function selectTargetRegiment(opposingDivision) {
-    if (!opposingDivision || !opposingDivision.regiments) return []; // Devuelve array vacío
-    return opposingDivision.regiments.filter(r => r.health > 0);
+    if (!opposingDivision || !opposingDivision.regiments || opposingDivision.regiments.length === 0) {
+        return null; // No hay regimientos para atacar
+    }
+
+    // Filtra para obtener solo los regimientos que aún están vivos
+    const liveRegiments = opposingDivision.regiments.filter(r => r.health > 0);
+
+    if (liveRegiments.length === 0) {
+        return null; // No hay regimientos vivos para atacar
+    }
+
+    // Estrategia de objetivo: Atacar al más débil
+    // Ordena los regimientos vivos por su salud actual, de menor a mayor.
+    liveRegiments.sort((a, b) => a.health - b.health);
+    
+    // Devuelve el primer regimiento de la lista ordenada (el que tiene menos salud).
+    return liveRegiments[0];
 }
 
 function predictCombatOutcome(attacker, defender) {
@@ -1899,6 +1986,16 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
 
         // 1. Recompensa de Experiencia (XP) para el vencedor (Ahora con Bonus)
         let experienceGained = 10 + Math.floor((destroyedUnit.maxHealth || 0) / 10);
+
+        // <<== INICIO DE LA INTEGRACIÓN DE TALENTOS (XP) ==>>
+        const victorTalentBonuses = calculateTalentBonuses(victorUnit);
+        if (victorTalentBonuses && victorTalentBonuses.xp_gain_percentage) {
+            const xpBonus = experienceGained * (victorTalentBonuses.xp_gain_percentage / 100);
+            experienceGained += xpBonus;
+            logMessage(`¡Bonus de Talento! (+${victorTalentBonuses.xp_gain_percentage}% XP)`, "success");
+        }
+        // <<== FIN DE LA INTEGRACIÓN DE TALENTOS (XP) ==>>
+
         if (xpGainBonusPercent > 0) {
             const xpBonus = experienceGained * (xpGainBonusPercent / 100);
             experienceGained += xpBonus;
@@ -1942,8 +2039,35 @@ async function handleUnitDestroyed(destroyedUnit, victorUnit) {
                     const heroData = COMMANDERS[randomHeroId];
                     if(UIManager.showRewardToast) UIManager.showRewardToast(`+${fragmentsToAdd} Fragmentos de ${heroData.name}`, heroData.sprite);
                 }
+            
             }
             
+            // <<== INICIO DE LA NUEVA LÓGICA: OBTENCIÓN DE EQUIPO ==>>
+            const baseEquipmentChance = 15; // 15% de probabilidad base de obtener una pieza de equipo
+            if (Math.random() * 100 < baseEquipmentChance) {
+                
+                // Determinar la rareza del equipo obtenido (ej: 70% Común, 25% Raro, 5% Épico)
+                const rarityRoll = Math.random() * 100;
+                let rarityToDrop;
+                if (rarityRoll < 5) rarityToDrop = "Épico";
+                else if (rarityRoll < 30) rarityToDrop = "Raro";
+                else rarityToDrop = "Común";
+
+                // Obtener todos los objetos de esa rareza del catálogo
+                const possibleItems = Object.values(EQUIPMENT_DEFINITIONS).filter(item => item.rarity === rarityToDrop);
+                
+                if (possibleItems.length > 0) {
+                    // Elegir un objeto al azar de la rareza seleccionada
+                    const droppedItem = possibleItems[Math.floor(Math.random() * possibleItems.length)];
+
+                    // En lugar de crear una instancia, añadimos fragmentos
+                    const fragmentsAmount = Math.floor(Math.random() * 2) + 1; // 1-2 fragmentos por victoria
+                    PlayerDataManager.addEquipmentFragments(droppedItem.id, fragmentsAmount);
+                    
+                    if(UIManager.showRewardToast) UIManager.showRewardToast(`+${fragmentsAmount} Fragmentos de ${droppedItem.name}`, droppedItem.icon);
+                }
+            }
+
             PlayerDataManager.saveCurrentPlayer();
         }
 

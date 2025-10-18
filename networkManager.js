@@ -142,7 +142,9 @@ const NetworkManager = {
         });
 
         this.conn.on('data', (datos) => {
-            console.log(`[NetworkManager] Datos recibidos de ${this.conn.peer}:`, datos);
+   
+            console.log(`%c[NETWORK RECEIVE] Datos recibidos de ${this.conn.peer}:`, 'background: #2E8B57; color: white;', JSON.parse(JSON.stringify(datos)));
+            
             if (this._onDatosRecibidos) this._onDatosRecibidos(datos);
         });
 

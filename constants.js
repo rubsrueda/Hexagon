@@ -121,13 +121,13 @@ const XP_LEVELS = [
     // Nivel 0
     { currentLevelName: "Recluta", nextLevelXp: 50, attackBonus: 0, defenseBonus: 0, disciplineBonus: 0 },
     // Nivel 1
-    { currentLevelName: "Regular", nextLevelXp: 150, attackBonus: 1, defenseBonus: 0, disciplineBonus: 5 },
+    { currentLevelName: "Regular", nextLevelXp: 150, attackBonus: 10, defenseBonus: 0, disciplineBonus: 5 },
     // Nivel 2
-    { currentLevelName: "Veterano", nextLevelXp: 400, attackBonus: 1, defenseBonus: 1, disciplineBonus: 10 },
+    { currentLevelName: "Veterano", nextLevelXp: 400, attackBonus: 10, defenseBonus: 10, disciplineBonus: 10 },
     // Nivel 3
-    { currentLevelName: "Élite", nextLevelXp: 800, attackBonus: 2, defenseBonus: 1, disciplineBonus: 15 },
+    { currentLevelName: "Élite", nextLevelXp: 800, attackBonus: 20, defenseBonus: 10, disciplineBonus: 15 },
     // Nivel 4
-    { currentLevelName: "Héroe", nextLevelXp: 'Max', attackBonus: 2, defenseBonus: 2, disciplineBonus: 20 }
+    { currentLevelName: "Héroe", nextLevelXp: 'Max', attackBonus: 20, defenseBonus: 20, disciplineBonus: 20 }
 ];
 
 const CIVILIZATIONS = {
@@ -331,10 +331,11 @@ const HERO_PROGRESSION_CONFIG = {
 
 const HERO_FRAGMENTS_PER_STAR = {
     // Para evolucionar A esta estrella
-    2: 20,
-    3: 50,
-    4: 100,
-    5: 200
+    1: 20,
+    2: 40,
+    3: 80,
+    4: 160,
+    5: 320
 };
 
 const SKIRMISH_VICTORY_GOLD_BONUS = 200;
@@ -634,27 +635,25 @@ const TUTORIAL_MESSAGES = {
 };
 
 const GACHA_CONFIG = {
-    COST_PER_WISH: 1, // ¿Cuántos Sellos de Guerra cuesta 1 Deseo?
-    COST_PER_TEN_WISHES: 10, // Coste para 10 deseos
+    COST_PER_WISH: 1,
+    COST_PER_TEN_WISHES: 10,
     
-    // Probabilidades para el Banner Común (en porcentaje)
     COMMON_BANNER_ODDS: {
-        COMUN: 60.0,
-        RARO: 35.0,
-        EPICO: 4.5,
-        LEGENDARIO: 0.5
+        COMUN: 75.0,      // Aumentada la probabilidad de común
+        RARO: 20.0,       // Reducida
+        EPICO: 4.5,       // Se mantiene
+        LEGENDARIO: 0.5   // Se mantiene
     },
 
    HERO_POOLS_BY_RARITY: {},
 
-    // (ACTUALIZADO) Tus nuevos valores para fragmentos
+    // FRAGMENTOS ==>>
     FRAGMENTS_PER_PULL: {
-        COMUN: [8, 10, 12],
-        RARO: [5, 6, 8],
-        EPICO: [3, 4, 5],
-        LEGENDARIO: [1, 2, 3]
+        COMUN: [1, 2, 3],         // Antes [8, 10, 12]
+        RARO: [1,1, 2],             // Antes [5, 6, 8]
+        EPICO: [1,1,1],               // Antes [3, 4, 5]
+        LEGENDARIO: [1,1,1]           // Antes [1, 2, 3]
     },
-    
     // Contadores del sistema de Pity (Misericordia)
     PITY_EPIC: 10,          // Un épico garantizado cada 10 deseos en un multi-pull
     PITY_LEGENDARY: 50      // Un legendario garantizado cada 50 deseos
