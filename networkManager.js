@@ -39,9 +39,17 @@ const NetworkManager = {
      * @param {function} onIdGenerado - Callback que se ejecuta cuando el servidor nos asigna un ID.
      */
     iniciarAnfitrion: function(onIdGenerado) {
+        // <<== INICIO DE LA CORRECCIÓN ==>>
+        // Si ya tenemos un peer y está conectado al servidor, no hacemos nada.
+        // Si no está conectado, lo destruimos para empezar de cero.
         if (this.peer) {
-            console.warn("PeerJS ya está inicializado. Desconectando instancia anterior.");
-            this.desconectar();
+            if (this.peer.disconnected === false) {
+                 console.warn("PeerJS ya está conectado. No se iniciará una nueva instancia de anfitrión.");
+                 // Si ya tenemos un ID, lo devolvemos de nuevo por si la UI lo necesita.
+                 if (this.miId && onIdGenerado) onIdGenerado(this.miId);
+                 return;
+            }
+            this.desconectar(); // Desconectar y limpiar completamente antes de reintentar.
         }
 
         this.esAnfitrion = true;
@@ -55,6 +63,14 @@ const NetworkManager = {
             // Escuchamos por conexiones entrantes
             this.peer.on('connection', (newConnection) => {
                 console.log(`[NetworkManager] ¡Conexión entrante de ${newConnection.peer}!`);
+                
+                // Si ya tenemos una conexión, rechazar la nueva
+                if (this.conn && this.conn.open) {
+                    console.warn("Ya hay un jugador conectado. Rechazando nueva conexión.");
+                    newConnection.close();
+                    return;
+                }
+
                 this.conn = newConnection;
                 this.idRemoto = newConnection.peer;
                 this._configurarEventosDeConexion();
@@ -63,7 +79,8 @@ const NetworkManager = {
 
         this.peer.on('error', (err) => {
             console.error("[NetworkManager] Error en PeerJS:", err);
-            alert(`Error de conexión: ${err.type}. Es posible que el servidor de señalización esté ocupado. Inténtalo de nuevo.`);
+            alert(`Error de conexión: ${err.type}. Es posible que el servidor de señalización esté ocupado o bloqueado. Inténtalo de nuevo o revisa la consola.`);
+            this.desconectar(); // Limpiar en caso de error
         });
     },
 
@@ -72,8 +89,12 @@ const NetworkManager = {
      * @param {string} anfitrionId - El ID de la sala del anfitrión al que queremos conectarnos.
      */
     unirseAPartida: function(anfitrionId) {
+        // <<== APLICAMOS LA MISMA LÓGICA DE CORRECCIÓN AQUÍ ==>>
         if (this.peer) {
-            console.warn("PeerJS ya está inicializado. Desconectando instancia anterior.");
+             if (this.peer.disconnected === false) {
+                console.warn("PeerJS ya está conectado. No se puede iniciar una nueva conexión de cliente.");
+                return;
+            }
             this.desconectar();
         }
 
@@ -84,6 +105,11 @@ const NetworkManager = {
             this.miId = id;
             console.log(`[NetworkManager] Cliente iniciado. Mi ID es: ${this.miId}. Intentando conectar a ${anfitrionId}`);
             
+            if (!anfitrionId) {
+                console.error("Error: Se intentó unirse a una partida sin ID de anfitrión.");
+                return;
+            }
+
             this.conn = this.peer.connect(anfitrionId);
             this.idRemoto = anfitrionId;
             this._configurarEventosDeConexion();
@@ -92,6 +118,7 @@ const NetworkManager = {
          this.peer.on('error', (err) => {
             console.error("[NetworkManager] Error en PeerJS:", err);
             alert(`Error de conexión: ${err.type}`);
+            this.desconectar();
         });
     },
     
