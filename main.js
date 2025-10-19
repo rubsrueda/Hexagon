@@ -1069,7 +1069,7 @@ function executeConfirmedAction(action) {
         case 'mergeUnits': 
             const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
-            if(mergingUnit && targetUnitMerge) await mergeUnits(mergingUnit, targetUnitMerge); 
+            if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge); 
             break;
         case 'splitUnit': 
             const originalUnit = units.find(u => u.id === payload.originalUnitId); 
@@ -1503,5 +1503,6 @@ function reconstruirJuegoDesdeDatos(datos) {
         logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
     }
 }
+
 
 document.addEventListener('DOMContentLoaded', initApp);
