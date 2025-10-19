@@ -1217,6 +1217,9 @@ function iniciarPartidaLAN(settings) {
     }
 }
 
+// ========== VERSIÓN DE CÓDIGO: v3.1 - DEDUPLICACIÓN ACTIVA ==========
+console.log("%c[SISTEMA] main.js v3.1 CARGADO - Sistema de deduplicación activo", "background: #00FF00; color: #000; font-weight: bold; padding: 4px;");
+
 // Cache de deduplicación de acciones (para evitar procesar la misma acción múltiples veces)
 const _processedActions = new Map(); // actionId -> timestamp
 const _ACTION_CACHE_DURATION = 5000; // 5 segundos
@@ -1232,6 +1235,14 @@ setInterval(() => {
 }, _ACTION_CACHE_DURATION);
 
 async function processActionRequest(action) { // <<== async
+    // DIAGNÓSTICO: Log explícito de la acción recibida
+    console.log(`%c[processActionRequest] Acción recibida: ${action.type}`, 'background: #4169E1; color: white; font-weight: bold;');
+    console.log(`  - actionId presente: ${!!action.actionId}`);
+    if (action.actionId) {
+        console.log(`  - actionId valor: ${action.actionId}`);
+    } else {
+        console.warn(`  - ⚠️ ADVERTENCIA: Esta acción NO tiene actionId, NO se puede deduplicar`);
+    }
     
     // DEDUPLICACIÓN: Verificar si esta acción ya fue procesada
     if (action.actionId) {

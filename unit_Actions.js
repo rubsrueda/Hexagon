@@ -1,7 +1,8 @@
 /// unit_Actions.js
 // Lógica relacionada con las acciones de las unidades (selección, movimiento, ataque, colocación).
 
-console.log("unit_Actions.js CARGADO (Corregido para usar 'attackRange')");
+// ========== VERSIÓN DE CÓDIGO: v3.1 - DEDUPLICACIÓN ACTIVA ==========
+console.log("%c[SISTEMA] unit_Actions.js v3.1 CARGADO - actionId incluido en todas las acciones", "background: #00FF00; color: #000; font-weight: bold; padding: 4px;");
 
 function showFloatingDamage(target, damageAmount) {
     // Verificación robusta. gameBoard se obtiene directamente del DOM por seguridad.
@@ -2478,6 +2479,7 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
 
         // Generar ID único para esta acción (para deduplicación en el anfitrión)
         const actionId = `merge_${mergingUnit.id}_${targetUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        console.log(`%c[RequestMergeUnits] ID único generado: ${actionId}`, 'background: #FFD700; color: #000; font-weight: bold;');
         const action = { type: 'mergeUnits', actionId: actionId, payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
         if (isNetworkGame()) {
             if (NetworkManager.esAnfitrion) {
