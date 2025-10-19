@@ -1217,7 +1217,32 @@ function iniciarPartidaLAN(settings) {
     }
 }
 
+// Cache de deduplicación de acciones (para evitar procesar la misma acción múltiples veces)
+const _processedActions = new Map(); // actionId -> timestamp
+const _ACTION_CACHE_DURATION = 5000; // 5 segundos
+
+// Limpiar cache antiguo periódicamente
+setInterval(() => {
+    const now = Date.now();
+    for (const [actionId, timestamp] of _processedActions.entries()) {
+        if (now - timestamp > _ACTION_CACHE_DURATION) {
+            _processedActions.delete(actionId);
+        }
+    }
+}, _ACTION_CACHE_DURATION);
+
 async function processActionRequest(action) { // <<== async
+    
+    // DEDUPLICACIÓN: Verificar si esta acción ya fue procesada
+    if (action.actionId) {
+        if (_processedActions.has(action.actionId)) {
+            console.warn(`%c[DEDUPLICACIÓN] Acción duplicada detectada (${action.type}, ID: ${action.actionId}), IGNORANDO.`, 'background: #FF4500; color: white;');
+            return; // Ignorar esta acción duplicada
+        }
+        // Registrar esta acción como procesada
+        _processedActions.set(action.actionId, Date.now());
+        console.log(`%c[DEDUPLICACIÓN] Acción registrada (${action.type}, ID: ${action.actionId})`, 'color: #32CD32;');
+    }
     
     console.log(`%c[Anfitrión] Procesando petición de acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     

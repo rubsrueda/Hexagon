@@ -2421,7 +2421,9 @@ function handlePlacementModeClick(r, c) {
 }
 
 async function RequestMoveUnit(unit, toR, toC) {
-    const action = { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR, toC }};
+    // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    const actionId = `move_${unit.id}_${toR}_${toC}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const action = { type: 'moveUnit', actionId: actionId, payload: { playerId: unit.player, unitId: unit.id, toR, toC }};
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             // El Anfitrión se procesa a sí mismo, sin enviar por la red
@@ -2436,7 +2438,9 @@ async function RequestMoveUnit(unit, toR, toC) {
 }
 
 async function RequestAttackUnit(attacker, defender) {
-    const action = { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
+    // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    const actionId = `attack_${attacker.id}_${defender.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const action = { type: 'attackUnit', actionId: actionId, payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             await processActionRequest(action);
@@ -2472,7 +2476,9 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
             return;
         }
 
-        const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
+        // Generar ID único para esta acción (para deduplicación en el anfitrión)
+        const actionId = `merge_${mergingUnit.id}_${targetUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const action = { type: 'mergeUnits', actionId: actionId, payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
         if (isNetworkGame()) {
             if (NetworkManager.esAnfitrion) {
                 await processActionRequest(action);
@@ -2491,8 +2497,11 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
 
 function RequestSplitUnit(originalUnit, targetR, targetC) {
     const actionData = gameState.preparingAction;
+    // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    const actionId = `split_${originalUnit.id}_${targetR}_${targetC}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const action = { 
-        type: 'splitUnit', 
+        type: 'splitUnit',
+        actionId: actionId, 
         payload: { 
             playerId: originalUnit.player, 
             originalUnitId: originalUnit.id, 
@@ -2519,7 +2528,9 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
  */
 function RequestPillageAction() {
     if (!selectedUnit) return;
-    const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
+    // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    const actionId = `pillage_${selectedUnit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const action = { type: 'pillageHex', actionId: actionId, payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
@@ -2536,7 +2547,9 @@ function RequestPillageAction() {
 
 function RequestDisbandUnit(unitToDisband) {
     if (!unitToDisband) return;
-    const action = { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
+    // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    const actionId = `disband_${unitToDisband.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const action = { type: 'disbandUnit', actionId: actionId, payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
     if (isNetworkGame()) {
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
@@ -2878,4 +2891,3 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
-
