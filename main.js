@@ -1,4 +1,4 @@
-/ main.js
+// main.js
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
@@ -576,7 +576,9 @@ if (domElements.createNetworkGameBtn) {
             
             if (typeof showScreen === "function" && domElements.gameContainer) { showScreen(domElements.gameContainer); } 
             else { console.error("main.js: CRÍTICO: showScreen o domElements.gameContainer no disponibles."); }
-            gameState.currentPhase = "deployment"; 
+            gameState.currentPhase = "deployment";
+            // CORRECCIÓN: Inicializar contador de unidades desplegadas para el jugador 1
+            gameState.unitsPlacedByPlayer = { 1: 0, 2: 0 }; 
             if (typeof initializeNewGameBoardDOMAndData === "function") { initializeNewGameBoardDOMAndData(selectedResourceLevel, selectedBoardSize); } 
             else { console.error("CRÍTICO: initializeNewGameBoardDOMAndData NO es una función."); }
             if (typeof UIManager !== 'undefined' && typeof UIManager.updateAllUIDisplays === "function") { UIManager.updateAllUIDisplays(); } 
@@ -1004,73 +1006,6 @@ function isNetworkGame() {
     return NetworkManager.conn && NetworkManager.conn.open;
 }
 
-function reconstruirJuegoDesdeDatos(datos) {
-   console.log("[Red - Cliente] Reconstruyendo el juego desde los datos del anfitrión...");
-    try {
-        
-        // --- ¡SOLUCIÓN DE IDENTIDAD! (Paso A) ---
-        // 1. ANTES de sobrescribir, guardamos nuestra identidad local, que es la correcta.
-        console.log("%c[REBUILD] Iniciando reconstrucción del estado del juego en el cliente...", "color: #00BFFF");
-        const miIdentidadLocal = gameState.myPlayerNumber;
-
-        // Limpiar el estado local
-        if (domElements.gameBoard) domElements.gameBoard.innerHTML = '';
-        board = [];
-        units = [];
-
-        // 2. Sincronizamos el estado. ESTO SOBREESCRIBE myPlayerNumber TEMPORALMENTE.
-        Object.assign(gameState, datos.gameState);
-        const boardData = datos.board;
-        const unitsData = datos.units;
-        unitIdCounter = datos.unitIdCounter;
-        
-        // 3. DESPUÉS de sobrescribir, restauramos nuestra verdadera identidad.
-        gameState.myPlayerNumber = miIdentidadLocal;
-        // --- FIN DE LA SOLUCIÓN (Paso A) ---
-
-        // Reconstrucción del tablero (tu código original intacto)
-        const boardSize = { rows: boardData.length, cols: boardData[0].length };
-        domElements.gameBoard.style.width = `${boardSize.cols * HEX_WIDTH + HEX_WIDTH / 2}px`;
-        domElements.gameBoard.style.height = `${boardSize.rows * HEX_VERT_SPACING + HEX_HEIGHT * 0.25}px`;
-        board = Array(boardSize.rows).fill(null).map(() => Array(boardSize.cols).fill(null));
-        for (let r = 0; r < boardSize.rows; r++) {
-            for (let c = 0; c < boardSize.cols; c++) {
-                const hexElement = createHexDOMElementWithListener(r, c);
-                domElements.gameBoard.appendChild(hexElement);
-                board[r][c] = { ...boardData[r][c], element: hexElement, unit: null };
-            }
-        }
-        unitsData.forEach(unitData => {
-            const unitElement = document.createElement('div');
-            unitElement.classList.add('unit', `player${unitData.player}`);
-            unitElement.textContent = unitData.sprite;
-            unitElement.dataset.id = unitData.id;
-            const strengthDisplay = document.createElement('div');
-            strengthDisplay.classList.add('unit-strength');
-            unitElement.appendChild(strengthDisplay);
-            domElements.gameBoard.appendChild(unitElement);
-            unitData.element = unitElement;
-            units.push(unitData);
-            if (unitData.r !== -1 && board[unitData.r]?.[unitData.c]) {
-                board[unitData.r][unitData.c].unit = unitData;
-            }
-        });
-
-        // Renderizar y llamar a la función de bloqueo, que ahora funcionará correctamente.
-        renderFullBoardVisualState();
-        UIManager.updateAllUIDisplays();
-        UIManager.updateTurnIndicatorAndBlocker();
-
-        logMessage("¡Sincronización completada! La partida está lista.");
-
-    } catch (error) {
-        console.error("%c[REBUILD FAILED] ¡ERROR CRÍTICO AL RECONSTRUIR EL JUEGO!", "color: red; font-size: 1.5em;");
-        console.error("Datos recibidos que causaron el error:", JSON.parse(JSON.stringify(datos)));
-        console.error("El error fue:", error);
-        logMessage("Error: No se pudo sincronizar la partida con el anfitrión.", "error");
-    }
-}
-
 function executeConfirmedAction(action) {
     
     console.log(`%c[VIAJE-7] Cliente ${gameState.myPlayerNumber} ha recibido un 'actionBroadcast' y está dentro de executeConfirmedAction. Acción: ${action.type}`, 'color: #DAA520; font-weight: bold;', action.payload);
@@ -1179,7 +1114,9 @@ function iniciarPartidaLAN(settings) {
     gameState.isCampaignBattle = false;
 
     showScreen(domElements.gameContainer);
-    gameState.currentPhase = "deployment"; 
+    gameState.currentPhase = "deployment";
+    // CORRECCIÓN: Inicializar contador de unidades desplegadas
+    gameState.unitsPlacedByPlayer = { 1: 0, 2: 0 }; 
     
     // El anfitrión es J1, el cliente es J2
     gameState.myPlayerNumber = NetworkManager.esAnfitrion ? 1 : 2;

@@ -1470,6 +1470,9 @@ async function handleEndTurn(isHostProcessing = false) {
         // Si el jugador actual NO es el último jugador, simplemente pasa al siguiente
         if (playerEndingTurn < gameState.numPlayers) {
             gameState.currentPlayer++;
+            // CORRECCIÓN: Resetear el contador de unidades desplegadas para el nuevo jugador
+            if (!gameState.unitsPlacedByPlayer) gameState.unitsPlacedByPlayer = {};
+            gameState.unitsPlacedByPlayer[gameState.currentPlayer] = 0;
             logMessage(`Despliegue: Turno del Jugador ${gameState.currentPlayer}.`);
         } else {
             // Si es el último jugador, termina la fase de despliegue y empieza el juego
@@ -1594,16 +1597,4 @@ async function handleEndTurn(isHostProcessing = false) {
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 

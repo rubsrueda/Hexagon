@@ -1,4 +1,4 @@
-// unit_Actions.js
+/// unit_Actions.js
 // Lógica relacionada con las acciones de las unidades (selección, movimiento, ataque, colocación).
 
 // ========== VERSIÓN DE CÓDIGO: v3.1 - DEDUPLICACIÓN ACTIVA ==========
@@ -2914,4 +2914,3 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
-
