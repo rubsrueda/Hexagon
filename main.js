@@ -1389,7 +1389,7 @@ async function processActionRequest(action) { // <<== async
                             target: targetUnitMerge.currentHealth
                         };
                         
-                        mergeUnits(mergingUnit, targetUnitMerge);
+                        await mergeUnits(mergingUnit, targetUnitMerge);
                         
                         // Si llegamos aquí sin errores, consideramos la fusión exitosa
                         // Ya no validamos por conteo de unidades, sino por ejecución sin errores

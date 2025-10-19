@@ -197,7 +197,7 @@ function recalculateUnitHealth(unit) {
     if (UIManager) UIManager.updateUnitStrengthDisplay(unit);
 }
 
-function mergeUnits(mergingUnit, targetUnit) {
+async function mergeUnits(mergingUnit, targetUnit) {
     if (!mergingUnit || !targetUnit || mergingUnit.player !== targetUnit.player || mergingUnit.id === targetUnit.id) {
         return false;
     }
@@ -230,7 +230,7 @@ function mergeUnits(mergingUnit, targetUnit) {
     // La salud se suma, sin exceder el nuevo máximo
     targetUnit.currentHealth = Math.min(oldTargetHealth + mergingUnit.currentHealth, targetUnit.maxHealth);
 
-    handleUnitDestroyed(mergingUnit, null);
+    await handleUnitDestroyed(mergingUnit, null);
     
     // <<==El movimiento actual se recarga ==>
     targetUnit.hasMoved = false;
@@ -2490,7 +2490,7 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
             }
             return;
         }
-        mergeUnits(mergingUnit, targetUnit);
+        await mergeUnits(mergingUnit, targetUnit);
     } finally {
         // Desbloquear después de un breve delay para evitar clics accidentales
         setTimeout(() => { _isMergingUnits = false; }, 500);
