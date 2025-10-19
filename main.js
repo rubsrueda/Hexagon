@@ -988,7 +988,7 @@ if (domElements.createNetworkGameBtn) {
     } 
 
     // ======================================================================
-    // 4. LÓGICA DE ARRANQUE ÚNICA Y DEFINITIVA (SE EJECUTA AL FINAL)
+    // 4. LÓGICA DE ARRANQUE
     // ======================================================================
     const lastUser = localStorage.getItem('lastUser');
     if (lastUser && PlayerDataManager.autoLogin(lastUser)) {
@@ -1218,10 +1218,7 @@ function iniciarPartidaLAN(settings) {
 }
 
 async function processActionRequest(action) { // <<== async
-    if (NetworkManager.esAnfitrion && action.payload.playerId === gameState.myPlayerNumber) {
-        console.warn(`[Red - Anfitrión] Ignorando eco de mi propia acción: ${action.type}`);
-        return;
-    }
+    
     console.log(`%c[Anfitrión] Procesando petición de acción: ${action.type}`, 'color: #FF69B4; font-weight: bold;', action.payload);
     
     // Si la acción no es del anfitrión, la ignora para evitar que procese sus propias retransmisiones

@@ -1,25 +1,26 @@
 // modalLogic.js
 
-// FUNCIÓN "REQUEST" PARA CONSTRUIR
 function RequestConfirmBuildStructure() {
     if (!selectedStructureToBuild || !hexToBuildOn) return;
+    
+    const { r, c } = hexToBuildOn;
+    const unitOnHex = getUnitOnHex(r,c);
+    const action = {
+        type: 'buildStructure',
+        payload: {
+            playerId: gameState.currentPlayer,
+            r, c,
+            structureType: selectedStructureToBuild,
+            builderUnitId: unitOnHex && STRUCTURE_TYPES[selectedStructureToBuild].cost.Colono ? unitOnHex.id : null
+        }
+    };
+
     if (isNetworkGame()) {
-        const { r, c } = hexToBuildOn;
-        const unitOnHex = getUnitOnHex(r,c);
-        const action = {
-            type: 'buildStructure',
-            payload: {
-                playerId: gameState.currentPlayer,
-                r: r, c: c,
-                structureType: selectedStructureToBuild,
-                builderUnitId: unitOnHex && STRUCTURE_TYPES[selectedStructureToBuild].cost.Colono ? unitOnHex.id : null
-            }
-        };
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
         domElements.buildStructureModal.style.display = 'none';
         UIManager.hideContextualPanel();
@@ -31,28 +32,30 @@ function RequestConfirmBuildStructure() {
 
 function RequestReinforceRegiment(division, regiment) {
     const regData = REGIMENT_TYPES[regiment.type];
-    const healthToRestore = regData.health - regiment.health;
-    if (healthToRestore <= 0) return;
+    if ((regiment.health || 0) >= regData.health) return;
+    
     const reinforceCostMultiplier = 1.5;
     const baseRegCost = regData.cost.oro || 0;
     const costPerHp = baseRegCost / regData.health;
+    const healthToRestore = regData.health - regiment.health;
     const totalCost = Math.ceil(costPerHp * healthToRestore * reinforceCostMultiplier);
     
     if (confirm(`¿Reforzar ${getAbbreviatedName(regiment.type)} por ${totalCost} de oro?`)) {
+        const action = {
+            type: 'reinforceRegiment',
+            payload: {
+                playerId: division.player,
+                divisionId: division.id,
+                regimentId: regiment.id 
+            }
+        };
+
         if (isNetworkGame()) {
-            const action = {
-                type: 'reinforceRegiment',
-                payload: {
-                    playerId: division.player,
-                    divisionId: division.id,
-                    regimentId: regiment.id
-                }
-            };
             if (NetworkManager.esAnfitrion) {
                 processActionRequest(action);
                 NetworkManager.broadcastFullState();
             } else {
-                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+                NetworkManager.enviarDatos({ type: 'actionRequest', action });
             }
             logMessage("Petición de refuerzo enviada...");
             return;
@@ -982,7 +985,6 @@ function handleFinalizeDivision() {
     logMessage(`División "${newDivisionDataObject.name}" lista. Haz clic en un hexágono válido para colocarla.`);
     if (UIManager) UIManager.updatePlayerAndPhaseInfo();
 }
-
 
 function handleFinalizeSplit() {
     if (!_unitBeingSplit || _tempOriginalRegiments.length === 0 || _tempNewUnitRegiments.length === 0) {
@@ -2027,8 +2029,6 @@ function openSkillDetailModal(heroInstance, skillIndex) {
 // === SISTEMA DE TALENTOS VISUAL v2.0 ===
 // =======================================================================
 
-
-
 function drawCompleteTalentLayout(heroInstance, canvas) {
     canvas.innerHTML = ''; 
     const heroData = COMMANDERS[heroInstance.id];
@@ -2259,7 +2259,6 @@ function assignHeroToUnit(unit, commanderId) {
     UIManager.showUnitContextualInfo(unit, true);
     UIManager.renderAllUnitsFromData();
 }
-
 
 /**=======================================================================
  * Abre el modal del "Altar de los Deseos" y actualiza los datos.

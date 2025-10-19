@@ -61,139 +61,6 @@ function getHexDistance(startCoords, endCoords) {
     return Infinity; 
 }
 
-function handlePlacementModeClick(r, c) {
-    console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
-    
-    if (!placementMode.active || !placementMode.unitData) {
-        console.error("[Placement] Error: Modo de colocación inactivo o sin datos de unidad. Se cancelará.");
-        placementMode.active = false;
-        if (UIManager) UIManager.clearHighlights();
-        return;
-    }
-
-    const unitToPlace = placementMode.unitData;
-    const hexData = board[r]?.[c];
-
-    if (!hexData) {
-        logMessage("Hexágono inválido.");
-        return; // Mantenemos el modo activo para que el jugador pueda intentarlo en otro sitio.
-    }
-
-    if (getUnitOnHex(r, c)) {
-        logMessage(`Ya hay una unidad en este hexágono.`);
-        return; // Mantenemos el modo activo.
-    }
-
-    let canPlace = false;
-    let reasonForNoPlacement = "";
-
-    // Lógica para reclutamiento DURANTE la partida (desde ciudad/fortaleza)
-    if (gameState.currentPhase === "play") {
-        if (!placementMode.recruitHex) {
-            reasonForNoPlacement = "Error: Falta el origen del reclutamiento.";
-            canPlace = false;
-        } else {
-            const dist = hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c);
-            if (dist > 1) {
-                reasonForNoPlacement = "Las unidades reclutadas deben colocarse en la base o adyacente.";
-                canPlace = false;
-            } else {
-                // <<== CORRECCIÓN CLAVE PARA COLINAS/FORTALEZAS ==>>
-                // Ignoramos las reglas de intransitabilidad de movimiento para la colocación INICIAL.
-                // Una unidad se puede crear en una colina, aunque luego no pueda moverse desde ella.
-                canPlace = true;
-            }
-        }
-    }
-    // Lógica para despliegue al INICIO de la partida
-    else if (gameState.currentPhase === "deployment") {
-        // En despliegue, también ignoramos las reglas de movimiento. Se asume que la zona de despliegue es válida.
-        // Aquí puedes añadir tu lógica de zona de despliegue si la tienes.
-        // Por ahora, permitimos colocar en cualquier casilla que no sea agua.
-        if (hexData.terrain === 'water') {
-            reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
-            canPlace = false;
-        } else {
-            canPlace = true;
-        }
-    }
-
-    if (canPlace) {
-        // --- INICIO DE LA INTEGRACIÓN DE RED ---
-        
-        // Comprobamos si estamos en un juego de red.
-        if (isNetworkGame()) {
-            console.log("[Red] La colocación es válida. Preparando para enviar acción al anfitrión...");
-            
-            const replacer = (key, value) => (key === 'element' ? undefined : value);
-            const cleanUnitData = JSON.parse(JSON.stringify(unitToPlace, replacer));
-            
-            // Creamos el paquete de la acción.
-            const action = {
-                type: 'placeUnit',
-                payload: { 
-                    playerId: gameState.myPlayerNumber,
-                    unitData: cleanUnitData,
-                    r: r,
-                    c: c
-                }
-            };
-            
-            // El anfitrión se procesa a sí mismo, el cliente envía una petición.
-            if (NetworkManager.esAnfitrion) {
-                processActionRequest(action); 
-            } else {
-                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-            }
-            
-            // Salimos del modo de colocación localmente para el jugador que hizo la acción.
-            placementMode.active = false;
-            placementMode.unitData = null;
-            placementMode.recruitHex = null;
-            if (UIManager) UIManager.clearHighlights();
-            logMessage(`Petición para colocar ${unitToPlace.name} procesada/enviada...`);
-
-        } else {
-            // --- CÓDIGO ORIGINAL PARA JUEGO LOCAL (SE MANTIENE INTACTO) ---
-            
-            console.log("[Local] La colocación es válida. Ejecutando lógíca local.");
-            placeFinalizedDivision(unitToPlace, r, c);
-            
-            // Finalizar y salir del modo colocación
-            placementMode.active = false;
-            placementMode.unitData = null;
-            placementMode.recruitHex = null;
-            if (UIManager) UIManager.clearHighlights();
-            
-            logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
-            if (UIManager) {
-                UIManager.updateAllUIDisplays();
-                UIManager.hideContextualPanel();
-            }
-        }
-
-    } else {
-        // Si no se puede colocar...
-        logMessage(`No se puede colocar: ${reasonForNoPlacement}`);
-        
-        // <<== CORRECCIÓN CLAVE PARA EVITAR BUCLES ==>>
-        // Se cancela la colocación y se devuelven los recursos.
-        if (unitToPlace.cost) {
-            for (const resourceType in unitToPlace.cost) {
-                gameState.playerResources[gameState.currentPlayer][resourceType] = 
-                    (gameState.playerResources[gameState.currentPlayer][resourceType] || 0) + unitToPlace.cost[resourceType];
-            }
-            if (UIManager) UIManager.updatePlayerAndPhaseInfo();
-            logMessage("Colocación cancelada. Recursos reembolsados.");
-        }
-        
-        placementMode.active = false;
-        placementMode.unitData = null;
-        placementMode.recruitHex = null;
-        if (UIManager) UIManager.clearHighlights();
-    }
-}
-
 function checkAndApplyLevelUp(unit) {
     if (!unit || !XP_LEVELS) return false; 
     if (XP_LEVELS[unit.level]?.nextLevelXp === 'Max') return false; 
@@ -2273,8 +2140,6 @@ function handlePillageAction() {
     RequestPillageAction();
 }
 
-
-
 /**
  * [Función de Ejecución] Contiene la lógica real del saqueo.
  * Es llamada por RequestPillageAction (local) o por el receptor de red.
@@ -2367,6 +2232,7 @@ function handlePlacementModeClick(r, c) {
         return;
     }
 
+    // --- Lógica de validación `canPlace`
     let canPlace = false;
     let reasonForNoPlacement = "";
 
@@ -2395,67 +2261,59 @@ function handlePlacementModeClick(r, c) {
     // --- A partir de aquí, integramos la lógica de red---
 
     if (canPlace) {
-        const isNetworkGame = NetworkManager.conn && NetworkManager.conn.open;
-
-        if (isNetworkGame) {
-            // Preparamos la acción que se va a ejecutar/enviar.
-            const replacer = (key, value) => (key === 'element' ? undefined : value);
-            const cleanUnitData = JSON.parse(JSON.stringify(unitToPlace, replacer));
-            const action = {
-                type: 'placeUnit',
-                payload: { 
-                    playerId: gameState.myPlayerNumber,
-                    unitData: cleanUnitData,
-                    r: r,
-                    c: c
-                }
-            };
-            //console.log(`%c[VIAJE-2] Cliente ENVIANDO acción 'placeUnit'. El ID en unitData debería ser null.`, 'color: #FFA500; font-weight: bold;', action);
-            
-            // Bifurcación clave: el Anfitrión se procesa a sí mismo, el Cliente envía una petición.
-            if (NetworkManager.esAnfitrion) {
-                console.log("[Red - Anfitrión] Procesando acción local de colocación de unidad...");
-                processActionRequest(action); 
-            } else {
-                console.log("[Red - Cliente] Enviando petición al anfitrión para colocar unidad...");
-                NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
-            }
-
-            // Desactivamos el modo de colocación localmente.
-            placementMode.active = false;
-            placementMode.unitData = null;
-            if (UIManager) UIManager.clearHighlights();
-            logMessage(`Petición para colocar ${unitToPlace.name} procesada/enviada...`);
-
-        } else {
-            // --- JUEGO LOCAL (funciona como siempre) ---
-            placeFinalizedDivision(unitToPlace, r, c);
-            
-            placementMode.active = false;
-            placementMode.unitData = null;
-            placementMode.recruitHex = null;
-            if (UIManager) UIManager.clearHighlights();
-            
-            logMessage(`${unitToPlace.name} colocada con éxito en (${r},${c}).`);
-            if (UIManager) {
-                UIManager.updateAllUIDisplays();
-                UIManager.hideContextualPanel();
+        // --- GESTIÓN DE RECURSOS (SE HACE SIEMPRE, ANTES DE LA ACCIÓN) ---
+        const totalCost = unitToPlace.cost || {};
+        const playerRes = gameState.playerResources[gameState.currentPlayer];
+        
+        for (const res in totalCost) {
+            if ((playerRes[res] || 0) < totalCost[res]) {
+                logMessage(`No tienes suficientes ${res} para desplegar esta unidad.`, 'error');
+                return;
             }
         }
+        for (const res in totalCost) {
+            playerRes[res] -= totalCost[res];
+        }
+        if (UIManager) UIManager.updatePlayerAndPhaseInfo();
+
+        // --- LÓGICA DE RED / LOCAL ---
+        if (isNetworkGame()) {
+            const actionPayload = { 
+                playerId: gameState.currentPlayer, 
+                unitData: JSON.parse(JSON.stringify(unitToPlace, (key, value) => key === 'element' ? undefined : value)),
+                r, c 
+            };
+
+            if (NetworkManager.esAnfitrion) {
+                // ANFITRIÓN: Ejecuta la acción localmente y luego notifica a los demás.
+                placeFinalizedDivision(actionPayload.unitData, r, c);
+                NetworkManager.broadcastFullState();
+            } else {
+                // CLIENTE: Solo envía la petición al anfitrión.
+                NetworkManager.enviarDatos({ type: 'actionRequest', action: { type: 'placeUnit', payload: actionPayload } });
+            }
+        } else {
+            // JUEGO LOCAL: Simplemente ejecuta la acción.
+            placeFinalizedDivision(unitToPlace, r, c);
+        }
+
+        // --- LIMPIEZA DE UI (SE HACE SIEMPRE) ---
+        placementMode.active = false;
+        placementMode.unitData = null;
+        placementMode.recruitHex = null;
+        if (UIManager) UIManager.clearHighlights();
+        logMessage(`Unidad ${unitToPlace.name} desplegada / petición enviada.`);
 
     } else {
-        // --- Tu lógica original para el caso de fallo (se mantiene intacta) ---
+        // --- LÓGICA DE FALLO (Tu código original, con reembolso) ---
         logMessage(`No se puede colocar: ${reasonForNoPlacement}`);
-        
         if (unitToPlace.cost) {
             for (const resourceType in unitToPlace.cost) {
-                gameState.playerResources[gameState.currentPlayer][resourceType] = 
-                    (gameState.playerResources[gameState.currentPlayer][resourceType] || 0) + unitToPlace.cost[resourceType];
+                gameState.playerResources[gameState.currentPlayer][resourceType] += unitToPlace.cost[resourceType];
             }
             if (UIManager) UIManager.updatePlayerAndPhaseInfo();
             logMessage("Colocación cancelada. Recursos reembolsados.");
         }
-        
         placementMode.active = false;
         placementMode.unitData = null;
         placementMode.recruitHex = null;
@@ -2468,17 +2326,104 @@ function handlePlacementModeClick(r, c) {
 //==============================================================
 
 // --- FUNCIONES DE ACC IÓN CON LÓGICA DE RED CORREGIDA ---
+function handlePlacementModeClick(r, c) {
+    console.log(`[Placement] Clic en (${r},${c}). Modo activo: ${placementMode.active}, Unidad: ${placementMode.unitData?.name || 'Ninguna'}`);
+    
+    if (!placementMode.active || !placementMode.unitData) {
+        console.error("[Placement] Error: Modo de colocación inactivo o sin datos de unidad. Se cancelará.");
+        placementMode.active = false;
+        if (UIManager) UIManager.clearHighlights();
+        return;
+    }
+
+    const unitToPlace = placementMode.unitData;
+    const hexData = board[r]?.[c];
+
+    if (!hexData) {
+        logMessage("Hexágono inválido.");
+        return; // Mantenemos el modo activo para que el jugador pueda intentarlo en otro sitio.
+    }
+
+    if (getUnitOnHex(r, c)) {
+        logMessage(`Ya hay una unidad en este hexágono.`);
+        return; // Mantenemos el modo activo.
+    }
+
+    let canPlace = false;
+    if (hexData && !getUnitOnHex(r,c)) {
+        if (gameState.currentPhase === "deployment" && hexData.terrain !== 'water') {
+            canPlace = true;
+        } else if (gameState.currentPhase === "play" && placementMode.recruitHex) {
+            if (hexDistance(placementMode.recruitHex.r, placementMode.recruitHex.c, r, c) <= 1) {
+                canPlace = true;
+            }
+        }
+    }
+    // Lógica para despliegue al INICIO de la partida
+    else if (gameState.currentPhase === "deployment") {
+        // En despliegue, también ignoramos las reglas de movimiento. Se asume que la zona de despliegue es válida.
+        // Aquí puedes añadir tu lógica de zona de despliegue si la tienes.
+        // Por ahora, permitimos colocar en cualquier casilla que no sea agua.
+        if (hexData.terrain === 'water') {
+            reasonForNoPlacement = "No se pueden desplegar unidades de tierra en el agua.";
+            canPlace = false;
+        } else {
+            canPlace = true;
+        }
+    }
+
+    if (canPlace) {
+        const action = {
+            type: 'placeUnit',
+            payload: { 
+                playerId: gameState.currentPlayer, // Siempre el jugador actual
+                unitData: JSON.parse(JSON.stringify(unitToPlace, (key, value) => key === 'element' ? undefined : value)),
+                r, c 
+            }
+        };
+
+        if (isNetworkGame()) {
+            if (NetworkManager.esAnfitrion) {
+                processActionRequest(action);
+                NetworkManager.broadcastFullState();
+            } else {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action });
+            }
+        } else {
+            // Juego Local
+            placeFinalizedDivision(unitToPlace, r, c);
+        }
+
+        placementMode.active = false;
+        placementMode.unitData = null;
+        if (UIManager) UIManager.clearHighlights();
+        logMessage(`Unidad ${unitToPlace.name} colocada / petición enviada.`);
+
+    } else {
+        logMessage("No se puede colocar la unidad aquí.");
+        // Lógica de reembolso de recursos (se mantiene)
+        if (unitToPlace.cost) {
+            for (const resourceType in unitToPlace.cost) {
+                gameState.playerResources[gameState.currentPlayer][resourceType] += unitToPlace.cost[resourceType];
+            }
+            if (UIManager) UIManager.updatePlayerAndPhaseInfo();
+            logMessage("Colocación cancelada. Recursos reembolsados.");
+        }
+        placementMode.active = false;
+        placementMode.unitData = null;
+        if (UIManager) UIManager.clearHighlights();
+    }
+}
 
 async function RequestMoveUnit(unit, toR, toC) {
+    const action = { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR, toC }};
     if (isNetworkGame()) {
-        const action = { type: 'moveUnit', payload: { playerId: unit.player, unitId: unit.id, toR: toR, toC: toC }};
         if (NetworkManager.esAnfitrion) {
             // El Anfitrión se procesa a sí mismo, sin enviar por la red
             await processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            // El Cliente envía la petición al Anfitrión
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
         return;
     }// En un juego local, la "petición" es simplemente ejecutar el movimiento directamente.
@@ -2486,34 +2431,28 @@ async function RequestMoveUnit(unit, toR, toC) {
 }
 
 async function RequestAttackUnit(attacker, defender) {
-    console.log(`%c[VIAJE-1] Dentro de RequestAttackUnit. Soy Jugador ${gameState.myPlayerNumber}. Anfitrión: ${NetworkManager.esAnfitrion}`, 'color: #FFA500; font-weight: bold;');
-    
+    const action = { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
     if (isNetworkGame()) {
-        const action = { type: 'attackUnit', payload: { playerId: attacker.player, attackerId: attacker.id, defenderId: defender.id }};
         if (NetworkManager.esAnfitrion) {
-            console.log('%c[VIAJE-2A] Soy Anfitrión. Procesando mi propio ataque directamente.', 'color: #FFA500; font-weight: bold;');
-            // El anfitrión procesa la acción Y LUEGO retransmite el estado.
             await processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            console.log('%c[VIAJE-2B] Soy Cliente. Enviando petición de ataque al anfitrión.', 'color: #FFA500; font-weight: bold;');
-            // El cliente SÓLO envía la petición. NO ejecuta nada localmente.
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
-        return; // Detener la ejecución aquí para el juego en red
+        return;
     }
     // Juego local
     await attackUnit(attacker, defender);
 }
 
 async function RequestMergeUnits(mergingUnit, targetUnit) {
+    const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
     if (isNetworkGame()) {
-        const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
         if (NetworkManager.esAnfitrion) {
             await processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
         return;
     }
@@ -2522,13 +2461,22 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
 
 function RequestSplitUnit(originalUnit, targetR, targetC) {
     const actionData = gameState.preparingAction;
+    const action = { 
+        type: 'splitUnit', 
+        payload: { 
+            playerId: originalUnit.player, 
+            originalUnitId: originalUnit.id, 
+            newUnitRegiments: actionData.newUnitRegiments, 
+            remainingOriginalRegiments: actionData.remainingOriginalRegiments, 
+            targetR, targetC 
+        }
+    };
     if (isNetworkGame()) {
-        const action = { type: 'splitUnit', payload: { playerId: originalUnit.player, originalUnitId: originalUnit.id, newUnitRegiments: actionData.newUnitRegiments, remainingOriginalRegiments: actionData.remainingOriginalRegiments, targetR: targetR, targetC: targetC }};
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
         cancelPreparingAction();
         return;
@@ -2540,15 +2488,14 @@ function RequestSplitUnit(originalUnit, targetR, targetC) {
  * Decide si ejecutar localmente o enviar una petición a la red.
  */
 function RequestPillageAction() {
-    if (!selectedUnit) return; // No hay unidad seleccionada
-
+    if (!selectedUnit) return;
+    const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
     if (isNetworkGame()) {
-        const action = { type: 'pillageHex', payload: { playerId: selectedUnit.player, unitId: selectedUnit.id }};
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
         return;
     }
@@ -2559,37 +2506,25 @@ function RequestPillageAction() {
 
 function RequestDisbandUnit(unitToDisband) {
     if (!unitToDisband) return;
+    const action = { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
     if (isNetworkGame()) {
-        const action = { type: 'disbandUnit', payload: { playerId: unitToDisband.player, unitId: unitToDisband.id }};
         if (NetworkManager.esAnfitrion) {
             processActionRequest(action);
             NetworkManager.broadcastFullState();
         } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action: action });
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
         }
-
-        // Cierre de UI inmediato para el jugador que realiza la acción
-        if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
-        if (UIManager) UIManager.hideContextualPanel();
-        return;
+    } else {
+        const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
+        if (gameState.playerResources[unitToDisband.player]) {
+            gameState.playerResources[unitToDisband.player].oro += goldToRefund;
+        }
+        handleUnitDestroyed(unitToDisband, null);
     }
-    // Lógica local...
-    const goldToRefund = Math.floor((unitToDisband.cost?.oro || 0) * 0.5);
-        
-    if (gameState.playerResources[unitToDisband.player]) {
-        gameState.playerResources[unitToDisband.player].oro += goldToRefund;
-            logMessage(`Has recuperado ${goldToRefund} de oro al disolver a ${unitToDisband.name}.`);
-    }
-
-    handleUnitDestroyed(unitToDisband, null);
-
+    // La limpieza de la UI se hace en ambos casos, después de la acción de red o local
     if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
-        if (UIManager) {
-            UIManager.hideContextualPanel();
-            UIManager.updateAllUIDisplays();
-        }
-    }
-
+    if (UIManager) UIManager.hideContextualPanel();
+}
 
 /**
  * [Función Pura de Ejecución] Mueve la unidad en el estado del juego y la UI.
