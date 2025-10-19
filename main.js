@@ -1504,5 +1504,4 @@ function reconstruirJuegoDesdeDatos(datos) {
     }
 }
 
-
 document.addEventListener('DOMContentLoaded', initApp);
