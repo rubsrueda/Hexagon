@@ -145,6 +145,11 @@ function placeFinalizedDivision(unitData, r, c) {
         if (!gameState.unitsPlacedByPlayer[unitData.player]) gameState.unitsPlacedByPlayer[unitData.player] = 0;
         gameState.unitsPlacedByPlayer[unitData.player]++;
         logMessage(`J${unitData.player} desplegó ${gameState.unitsPlacedByPlayer[unitData.player]}/${gameState.deploymentUnitLimit === Infinity ? '∞' : gameState.deploymentUnitLimit}.`);
+        
+        // CORRECCIÓN: Actualizar la UI para ocultar el botón si se alcanzó el límite
+        if (UIManager && typeof UIManager.updateActionButtonsBasedOnPhase === 'function') {
+            UIManager.updateActionButtonsBasedOnPhase();
+        }
     }
 }
 
@@ -2914,3 +2919,4 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
+
