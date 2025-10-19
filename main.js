@@ -1328,11 +1328,49 @@ async function processActionRequest(action) { // <<== async
             break;
 
         case 'mergeUnits': 
+            console.log(`[DEBUG] Recibida solicitud mergeUnits:`, payload);
+            
             const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
-            if(mergingUnit && targetUnitMerge) {
-                mergeUnits(mergingUnit, targetUnitMerge);
-                actionExecuted = true;
+            
+            console.log(`[DEBUG] Unidades encontradas - Fusionar: ${!!mergingUnit}, Objetivo: ${!!targetUnitMerge}`);
+            
+            if (mergingUnit && targetUnitMerge) {
+                // Verificaciones adicionales
+                const esElMismoJugador = mergingUnit.player === payload.playerId && targetUnitMerge.player === payload.playerId;
+                const distance = Math.abs(mergingUnit.r - targetUnitMerge.r) + Math.abs(mergingUnit.c - targetUnitMerge.c);
+                const estanAdyacentes = distance <= 1;
+                
+                console.log(`[DEBUG] Validaciones - Mismo jugador: ${esElMismoJugador}, Adyacentes: ${estanAdyacentes}`);
+                
+                if (esElMismoJugador && estanAdyacentes) {
+                    try {
+                        // Guarda el estado antes de la fusión para debugging
+                        const unitsCountBefore = units.length;
+                        
+                        mergeUnits(mergingUnit, targetUnitMerge);
+                        
+                        // Verifica si realmente se fusionaron (debería haber una unidad menos)
+                        const unitsCountAfter = units.length;
+                        const fusionExitosa = unitsCountAfter < unitsCountBefore;
+                        
+                        if (fusionExitosa) {
+                            actionExecuted = true;
+                            console.log(`[Red - Anfitrión] ✅ Fusión exitosa. Unidades antes: ${unitsCountBefore}, después: ${unitsCountAfter}`);
+                        } else {
+                            console.log(`[Red - Anfitrión] ⚠️ mergeUnits se ejecutó pero no cambió el número de unidades`);
+                        }
+                    } catch (error) {
+                        console.error(`[Red - Anfitrión] ❌ Error en mergeUnits:`, error);
+                    }
+                } else {
+                    console.log(`[Red - Anfitrión] ❌ Fusión rechazada por validaciones`);
+                }
+            } else {
+                console.log(`[Red - Anfitrión] ❌ Una o ambas unidades no encontradas`);
+                // Debug adicional
+                console.log(`IDs buscados: ${payload.mergingUnitId}, ${payload.targetUnitId}`);
+                console.log(`IDs disponibles:`, units.map(u => u.id));
             }
             break;
         case 'splitUnit': 

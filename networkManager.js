@@ -1,7 +1,6 @@
 // networkManager.js
 console.log("networkManager.js CARGADO - Lógica de red lista.");
 
-// <<== CONFIGURACIÓN: Estos valores podrían eventualmente salir a un archivo de configuración ==>>
 const PEER_SERVER_CONFIG = {
     host: '0.peerjs.com',
     port: 443,
@@ -10,154 +9,144 @@ const PEER_SERVER_CONFIG = {
 };
 
 const NetworkManager = {
-    peer: null,             // Nuestro objeto Peer principal.
-    conn: null,             // La conexión de datos con el otro jugador.
-    esAnfitrion: false,       // ¿Somos nosotros quienes creamos la sala?
-    miId: null,             // Nuestro ID de PeerJS en la red.
-    idRemoto: null,       // El ID del otro jugador.
+    peer: null,
+    conn: null,
+    esAnfitrion: false,
+    miId: null,
+    idRemoto: null,
     
-    // --- FUNCIONES DE INICIALIZACIÓN Y CALLBACKS ---
     _onConexionAbierta: null,
     _onDatosRecibidos: null,
     _onConexionCerrada: null,
 
-    /**
-     * Prepara el manager para ser usado, asignando las funciones que se llamarán en cada evento.
-     * @param {function} onConexionAbierta - Se llama cuando la conexión con el otro jugador es exitosa.
-     * @param {function} onDatosRecibidos - Se llama cuando se recibe un paquete de datos.
-     * @param {function} onConexionCerrada - Se llama cuando la conexión se pierde o se cierra.
-     */
     preparar: function(onConexionAbierta, onDatosRecibidos, onConexionCerrada) {
         this._onConexionAbierta = onConexionAbierta;
         this._onDatosRecibidos = onDatosRecibidos;
         this._onConexionCerrada = onConexionCerrada;
     },
 
-    /**
-     * Inicia el proceso para ser el anfitrión de una partida.
-     * Se conecta al servidor de señalización y espera a que otro jugador se una.
-     * @param {function} onIdGenerado - Callback que se ejecuta cuando el servidor nos asigna un ID.
-     */
     iniciarAnfitrion: function(onIdGenerado) {
-        // <<== CORRECCIÓN DEFINITIVA: Limpiar siempre antes de iniciar ==>>
-        // Si ya existe una instancia de Peer, la destruimos completamente
-        // para asegurar que empezamos desde un estado limpio.
         if (this.peer) {
-            console.log("Detectada instancia de PeerJS anterior. Destruyendo para reiniciar...");
             this.peer.destroy();
         }
-
+        this.peer = null;
         this.esAnfitrion = true;
-        // La creación de un nuevo peer ahora se hace sobre un estado garantizado como limpio.
-        this.peer = new Peer(undefined, PEER_SERVER_CONFIG);
+        
+        // Damos un respiro un poco más largo al navegador.
+        setTimeout(() => {
+            try {
+                // <<== CAMBIO CLAVE: Generar un ID aleatorio explícito ==>>
+                // Esto a veces ayuda a la conexión con servidores públicos.
+                // Usamos una combinación de timestamp y aleatorio para asegurar que sea único.
+                const peerId = `hge-host-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+                console.log(`Intentando conectar a PeerJS con ID: ${peerId}`);
 
-        this.peer.on('open', (id) => {
-            this.miId = id;
-            console.log(`[NetworkManager] Anfitrión iniciado. Mi ID es: ${this.miId}`);
-            if (onIdGenerado) onIdGenerado(this.miId);
+                this.peer = new Peer(peerId, PEER_SERVER_CONFIG);
+                // <<== FIN DEL CAMBIO ==>>
 
-            // Escuchamos por conexiones entrantes
-            this.peer.on('connection', (newConnection) => {
-                console.log(`[NetworkManager] ¡Conexión entrante de ${newConnection.peer}!`);
-                
-                // Si ya tenemos una conexión, rechazar la nueva
-                if (this.conn && this.conn.open) {
-                    console.warn("Ya hay un jugador conectado. Rechazando nueva conexión.");
-                    newConnection.close();
-                    return;
-                }
+                this.peer.on('open', (id) => {
+                    console.log(`%c¡CONEXIÓN CON SERVIDOR PEERJS EXITOSA! Mi ID es: ${id}`, "background: green; color: white;");
+                    this.miId = id;
+                    if (onIdGenerado) onIdGenerado(this.miId);
 
-                this.conn = newConnection;
-                this.idRemoto = newConnection.peer;
-                this._configurarEventosDeConexion();
-            });
-        });
+                    this.peer.on('connection', (newConnection) => {
+                        console.log(`Conexión entrante de: ${newConnection.peer}`);
+                        if (this.conn && this.conn.open) {
+                            newConnection.close();
+                            return;
+                        }
+                        this.conn = newConnection;
+                        this.idRemoto = newConnection.peer;
+                        this._configurarEventosDeConexion();
+                    });
+                });
 
-        this.peer.on('error', (err) => {
-            console.error("[NetworkManager] Error en PeerJS:", err);
-            alert(`Error de conexión: ${err.type}.`);
-            this.desconectar();
-        });
+                this.peer.on('error', (err) => {
+                    console.error("Error en PeerJS (Anfitrión):", err);
+                    alert(`Error de conexión de red: ${err.type}. Puede que un firewall esté bloqueando la conexión o el servidor esté ocupado.`);
+                    this.desconectar();
+                });
+
+            } catch (e) {
+                console.error("Fallo catastrófico al crear la instancia de Peer:", e);
+            }
+        }, 500); // Aumentado a 500ms
     },
 
-    /**
-     * Inicia el proceso para unirse a la partida de un anfitrión.
-     * @param {string} anfitrionId - El ID de la sala del anfitrión al que queremos conectarnos.
-     */
     unirseAPartida: function(anfitrionId) {
-        // <<== APLICAMOS LA MISMA LÓGICA DE CORRECCIÓN AQUÍ ==>>
+        console.log("%c[Paso 1 Client] Se ha llamado a unirseAPartida.", "color: cyan;");
         if (this.peer) {
-            console.log("Detectada instancia de PeerJS anterior. Destruyendo para reiniciar...");
+            console.log("%c[Paso 2 Client] Instancia de PeerJS anterior detectada. Llamando a destroy().", "color: cyan;");
             this.peer.destroy();
         }
-
+        this.peer = null;
         this.esAnfitrion = false;
-        this.peer = new Peer(undefined, PEER_SERVER_CONFIG);
 
-        this.peer.on('open', (id) => {
-            this.miId = id;
-            console.log(`[NetworkManager] Cliente iniciado. Mi ID es: ${this.miId}. Intentando conectar a ${anfitrionId}`);
-            
-            if (!anfitrionId) {
-                console.error("Error: Se intentó unirse a una partida sin ID de anfitrion.");
-                return;
+        console.log("%c[Paso 3 Client] Entrando en setTimeout para crear nueva instancia de Peer.", "color: cyan;");
+        setTimeout(() => {
+            try {
+                console.log("%c[Paso 4 Client] Dentro de setTimeout. Creando new Peer()...", "color: cyan;");
+                this.peer = new Peer(undefined, PEER_SERVER_CONFIG);
+
+                console.log("%c[Paso 5 Client] Objeto Peer creado. Añadiendo listeners...", "color: cyan;");
+
+                this.peer.on('open', (id) => {
+                    console.log(`%c[Paso 6 Client - ÉXITO] Evento 'open' disparado. Mi ID es: ${id}`, "background: green; color: white;");
+                    this.miId = id;
+                    
+                    if (!anfitrionId) {
+                        console.error("Error: Se intentó unirse a una partida sin ID de anfitrion.");
+                        return;
+                    }
+                    
+                    console.log(`%c[Paso 7 Client] Llamando a peer.connect('${anfitrionId}')...`, "color: cyan;");
+                    this.conn = this.peer.connect(anfitrionId);
+                    this.idRemoto = anfitrionId;
+                    this._configurarEventosDeConexion();
+                });
+
+                this.peer.on('error', (err) => {
+                    console.error("%c[Paso E1 Client - ERROR] Evento 'error' disparado en PeerJS (Cliente):", "background: red; color: white;", err);
+                    alert(`Error de conexión: ${err.type}`);
+                    this.desconectar();
+                });
+
+            } catch(e) {
+                 console.error("%c[Paso E2 Client - ERROR CATASTRÓFICO] Fallo al crear new Peer():", "background: red; color: white;", e);
             }
-
-            this.conn = this.peer.connect(anfitrionId);
-            this.idRemoto = anfitrionId;
-            this._configurarEventosDeConexion();
-        });
-
-         this.peer.on('error', (err) => {
-            console.error("[NetworkManager] Error en PeerJS:", err);
-            alert(`Error de conexión: ${err.type}`);
-            this.desconectar();
-        });
+        }, 200);
     },
-    
-    /**
-     * Envía un objeto de datos al otro jugador. El objeto será convertido a JSON.
-     * @param {object} datos - El objeto de datos a enviar (ej. una acción del juego).
-     */
+
+    desconectar: function() {
+        console.log("[NetworkManager] Iniciando desconexión completa...");
+        if (this.conn) {
+            this.conn.close();
+        }
+        if (this.peer && !this.peer.destroyed) {
+            this.peer.destroy();
+        }
+        this.peer = null;
+        this.conn = null;
+        this.miId = null;
+        this.idRemoto = null;
+        this.esAnfitrion = false;
+        console.log("[NetworkManager] Desconexión y limpieza completadas.");
+    },
+
     enviarDatos: function(datos) {
         if (this.conn && this.conn.open) {
-            // --- AÑADE ESTE LOG ---
             console.log(`%c[VIAJE-RED] Enviando datos a ${this.idRemoto}:`, 'color: #00FFFF;', datos);
-            // --- FIN ---
             this.conn.send(datos);
         } else {
             console.warn("[NetworkManager] Intento de enviar datos sin una conexión activa.");
         }
     },
 
-    /**
-     * Cierra la conexión actual y destruye la instancia de Peer.
-     */
-    desconectar: function() {
-        if (this.conn) {
-            this.conn.close();
-            this.conn = null;
-        }
-        if (this.peer) {
-            this.peer.destroy();
-            this.peer = null;
-        }
-        this.miId = null;
-        this.idRemoto = null;
-        this.esAnfitrion = false;
-        console.log("[NetworkManager] Desconectado.");
-    },
-
-
-    /**
-     * Función privada para añadir los listeners a una nueva conexión.
-     * @private
-     */
     _configurarEventosDeConexion: function() {
         if (!this.conn) return;
 
         this.conn.on('open', () => {
-            console.log(`[NetworkManager] ¡Conexión establecida con ${this.conn.peer}!`);
+            console.log(`%c[Paso 8 - ÉXITO CONEXIÓN] La conexión de datos con ${this.conn.peer} está abierta.`, "background: blue; color: white;");
             if (this._onConexionAbierta) this._onConexionAbierta(this.idRemoto);
         });
 
@@ -169,71 +158,35 @@ const NetworkManager = {
         });
 
         this.conn.on('close', () => {
-            console.log(`[NetworkManager] La conexión con ${this.conn.peer} se ha cerrado.`);
+            console.warn(`[NetworkManager] La conexión con ${this.conn.peer} se ha cerrado.`);
             if (this._onConexionCerrada) this._onConexionCerrada();
             this.conn = null; // Limpiar la conexión
         });
+    },
+
+    broadcastFullState: function() {
+        if (!this.esAnfitrion || !this.conn || !this.conn.open) return;
+
+    console.log("%c[Anfitrión Broadcast] Empaquetando y enviando estado completo del juego...", "background: #FFD700; color: black;");
+
+    // Preparamos un objeto de estado limpio para no enviar elementos del DOM
+        const replacer = (key, value) => (key === 'element' ? undefined : value);
+    
+    // El gameState se envía tal cual, el cliente lo fusionará
+        const gameStateForBroadcast = JSON.parse(JSON.stringify(gameState, replacer));
+    // Limpiamos la identidad del jugador para que el cliente use la suya propia
+        delete gameStateForBroadcast.myPlayerNumber;
+
+        const fullStatePacket = {
+        type: 'fullStateUpdate', // Un nuevo tipo de mensaje claro y único
+            payload: {
+                gameState: gameStateForBroadcast,
+                board: JSON.parse(JSON.stringify(board, replacer)),
+                units: JSON.parse(JSON.stringify(units, replacer)),
+                unitIdCounter: unitIdCounter
+            }
+        };
+        
+        this.enviarDatos(fullStatePacket);
     }
 };
-
-/**
- * [SOLO ANFITRIÓN] Empaqueta el estado COMPLETO del juego (gameState, board, units)
- * y lo retransmite a todos los clientes conectados.
- * Esta es la "fuente de la verdad".
- */
-NetworkManager.broadcastFullState = function() {
-    if (!this.esAnfitrion || !this.conn || !this.conn.open) return;
-
-    console.log("%c[Anfitrión Broadcast] Empaquetando y enviando estado completo del juego...", "background: #FFD700; color: black;");
-
-    // Preparamos un objeto de estado limpio para no enviar elementos del DOM
-    const replacer = (key, value) => (key === 'element' ? undefined : value);
-    
-    // El gameState se envía tal cual, el cliente lo fusionará
-    const gameStateForBroadcast = JSON.parse(JSON.stringify(gameState, replacer));
-    // Limpiamos la identidad del jugador para que el cliente use la suya propia
-    delete gameStateForBroadcast.myPlayerNumber;
-
-    const fullStatePacket = {
-        type: 'fullStateUpdate', // Un nuevo tipo de mensaje claro y único
-        payload: {
-            gameState: gameStateForBroadcast,
-            board: JSON.parse(JSON.stringify(board, replacer)),
-            units: JSON.parse(JSON.stringify(units, replacer)),
-            unitIdCounter: unitIdCounter
-        }
-    };
-    
-    this.enviarDatos(fullStatePacket);
-}; 
-
-/**
- * [SOLO ANFITRIÓN] Empaqueta el estado COMPLETO del juego (gameState, board, units)
- * y lo retransmite a todos los clientes conectados.
- * Esta es la "fuente de la verdad".
- */
-NetworkManager.broadcastFullState = function() {
-    if (!this.esAnfitrion || !this.conn || !this.conn.open) return;
-
-    console.log("%c[Anfitrión Broadcast] Empaquetando y enviando estado completo del juego...", "background: #FFD700; color: black;");
-
-    // Preparamos un objeto de estado limpio para no enviar elementos del DOM
-    const replacer = (key, value) => (key === 'element' ? undefined : value);
-    
-    // El gameState se envía tal cual, el cliente lo fusionará
-    const gameStateForBroadcast = JSON.parse(JSON.stringify(gameState, replacer));
-    // Limpiamos la identidad del jugador para que el cliente use la suya propia
-    delete gameStateForBroadcast.myPlayerNumber;
-
-    const fullStatePacket = {
-        type: 'fullStateUpdate', // Un nuevo tipo de mensaje claro y único
-        payload: {
-            gameState: gameStateForBroadcast,
-            board: JSON.parse(JSON.stringify(board, replacer)),
-            units: JSON.parse(JSON.stringify(units, replacer)),
-            unitIdCounter: unitIdCounter
-        }
-    };
-    
-    this.enviarDatos(fullStatePacket);
-}
