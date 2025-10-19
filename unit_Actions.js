@@ -325,15 +325,25 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
         console.log(`[handleAction] Detectada acción preparada: ${gameState.preparingAction.type}`);
         
         if (gameState.preparingAction.type === 'split_unit') {
-            // La función splitUnit devuelve true si la división fue exitosa
-            if (splitUnit(selectedUnit, r_target, c_target)) {
+            // ANTES (PROBLEMÁTICO):
+            // if (splitUnit(selectedUnit, r_target, c_target)) {
+            
+            // DESPUÉS (CORREGIDO):
+            if (isNetworkGame()) {
+                // En partidas de red, usar el sistema de red
+                RequestSplitUnit(selectedUnit, r_target, c_target);
                 success = true;
-                console.log("[handleAction] División exitosa. Finalizando y limpiando acción preparada.");
-                
-                // <<== ¡SOLUCIÓN APLICADA AQUÍ! ==>>
-                // Si la división tiene éxito, limpiamos el estado de la acción para evitar clics múltiples.
+                console.log("[handleAction] División enviada al anfitrión. Limpiando acción preparada.");
                 cancelPreparingAction();
-                return true; // La acción se completó con éxito
+                return true;
+            } else {
+                // En partidas locales, usar el método directo
+                if (splitUnit(selectedUnit, r_target, c_target)) {
+                    success = true;
+                    console.log("[handleAction] División exitosa. Finalizando y limpiando acción preparada.");
+                    cancelPreparingAction();
+                    return true;
+                }
             }
         }
         
