@@ -1336,43 +1336,53 @@ async function processActionRequest(action) { // <<== async
             console.log(`[DEBUG] Unidades encontradas - Fusionar: ${!!mergingUnit}, Objetivo: ${!!targetUnitMerge}`);
             
             if (mergingUnit && targetUnitMerge) {
-                // Verificaciones adicionales
+                console.log(`[DEBUG] Posiciones - Fusionar: (${mergingUnit.r}, ${mergingUnit.c}), Objetivo: (${targetUnitMerge.r}, ${targetUnitMerge.c})`);
+                
+                // Solo verificamos que pertenezcan al mismo jugador
                 const esElMismoJugador = mergingUnit.player === payload.playerId && targetUnitMerge.player === payload.playerId;
-                const distance = Math.abs(mergingUnit.r - targetUnitMerge.r) + Math.abs(mergingUnit.c - targetUnitMerge.c);
-                const estanAdyacentes = distance <= 1;
                 
-                console.log(`[DEBUG] Validaciones - Mismo jugador: ${esElMismoJugador}, Adyacentes: ${estanAdyacentes}`);
+                console.log(`[DEBUG] Validación - Mismo jugador: ${esElMismoJugador}`);
                 
-                if (esElMismoJugador && estanAdyacentes) {
+                if (esElMismoJugador) {
                     try {
-                        // Guarda el estado antes de la fusión para debugging
-                        const unitsCountBefore = units.length;
+                        console.log(`[DEBUG] Ejecutando mergeUnits...`);
+                        
+                        // Guardamos el estado de salud antes de la fusión para validar el éxito
+                        const healthBefore = {
+                            merging: mergingUnit.currentHealth,
+                            target: targetUnitMerge.currentHealth
+                        };
                         
                         mergeUnits(mergingUnit, targetUnitMerge);
                         
-                        // Verifica si realmente se fusionaron (debería haber una unidad menos)
-                        const unitsCountAfter = units.length;
-                        const fusionExitosa = unitsCountAfter < unitsCountBefore;
+                        // Si llegamos aquí sin errores, consideramos la fusión exitosa
+                        // Ya no validamos por conteo de unidades, sino por ejecución sin errores
+                        actionExecuted = true;
+                        console.log(`[Red - Anfitrión] ✅ Fusión ejecutada exitosamente`);
                         
-                        if (fusionExitosa) {
-                            actionExecuted = true;
-                            console.log(`[Red - Anfitrión] ✅ Fusión exitosa. Unidades antes: ${unitsCountBefore}, después: ${unitsCountAfter}`);
-                        } else {
-                            console.log(`[Red - Anfitrión] ⚠️ mergeUnits se ejecutó pero no cambió el número de unidades`);
-                        }
+                        // Log adicional para debugging
+                        const healthAfter = {
+                            merging: mergingUnit.currentHealth,
+                            target: targetUnitMerge.currentHealth
+                        };
+                        console.log(`[DEBUG] Salud antes:`, healthBefore, `después:`, healthAfter);
+                        
                     } catch (error) {
                         console.error(`[Red - Anfitrión] ❌ Error en mergeUnits:`, error);
+                        // Solo si hay error real no marcamos como exitosa
                     }
                 } else {
-                    console.log(`[Red - Anfitrión] ❌ Fusión rechazada por validaciones`);
+                    console.log(`[Red - Anfitrión] ❌ Fusión rechazada: unidades no pertenecen al jugador ${payload.playerId}`);
+                    console.log(`  - mergingUnit.player: ${mergingUnit.player}`);
+                    console.log(`  - targetUnitMerge.player: ${targetUnitMerge.player}`);
                 }
             } else {
                 console.log(`[Red - Anfitrión] ❌ Una o ambas unidades no encontradas`);
-                // Debug adicional
                 console.log(`IDs buscados: ${payload.mergingUnitId}, ${payload.targetUnitId}`);
                 console.log(`IDs disponibles:`, units.map(u => u.id));
             }
             break;
+            
         case 'splitUnit': 
             const originalUnit = units.find(u => u.id === payload.originalUnitId); 
             gameState.preparingAction = { newUnitRegiments: payload.newUnitRegiments, remainingOriginalRegiments: payload.remainingOriginalRegiments }; 
