@@ -212,46 +212,41 @@ function mergeUnits(mergingUnit, targetUnit) {
         return false;
     }
 
-    // <<== CORRECCIÓN: Comprobación para la IA, salta la confirmación ==>>
-    const isHumanPlayer = gameState.playerTypes[`player${mergingUnit.player}`] === 'human';
-    const confirmation = isHumanPlayer ? 
-        window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`) : 
-        true; // La IA siempre confirma
-
-    if (confirmation) {
-        if (gameState.isTutorialActive) {
-            TutorialManager.notifyActionCompleted('unit_merged');
-        }
-        if (mergingUnit.commander && !targetUnit.commander) {
-            targetUnit.commander = mergingUnit.commander;
-        }
-        const oldTargetHealth = targetUnit.currentHealth;
-        mergingUnit.regiments.forEach(reg => targetUnit.regiments.push(reg));
-
-        calculateRegimentStats(targetUnit);
-        // La salud se suma, sin exceder el nuevo máximo
-        targetUnit.currentHealth = Math.min(oldTargetHealth + mergingUnit.currentHealth, targetUnit.maxHealth);
-
-        handleUnitDestroyed(mergingUnit, null);
-        
-        // <<==El movimiento actual se recarga ==>>
-        targetUnit.hasMoved = false;
-        targetUnit.hasAttacked = false;
-        targetUnit.currentMovement = targetUnit.movement; // Se recarga el movimiento de la nueva mega-unidad
-
-        if (UIManager) {
-            UIManager.showUnitContextualInfo(targetUnit, true);
-            UIManager.renderAllUnitsFromData();
-        }
-
-        if (gameState.isTutorialActive) {
-            TutorialManager.notifyActionCompleted('unitHasMerge');
-        }
-
-        logMessage(`Fusión completa.`, "success");
-        return true;
+    // CORRECCIÓN: La confirmación ya se hizo en RequestMergeUnits antes de enviar la acción
+    // Por lo tanto, cuando esta función se ejecuta, ya está confirmado
+    // Eliminamos el window.confirm para evitar que aparezca en el anfitrión
+    
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('unit_merged');
     }
-    return false;
+    if (mergingUnit.commander && !targetUnit.commander) {
+        targetUnit.commander = mergingUnit.commander;
+    }
+    const oldTargetHealth = targetUnit.currentHealth;
+    mergingUnit.regiments.forEach(reg => targetUnit.regiments.push(reg));
+
+    calculateRegimentStats(targetUnit);
+    // La salud se suma, sin exceder el nuevo máximo
+    targetUnit.currentHealth = Math.min(oldTargetHealth + mergingUnit.currentHealth, targetUnit.maxHealth);
+
+    handleUnitDestroyed(mergingUnit, null);
+    
+    // <<==El movimiento actual se recarga ==>
+    targetUnit.hasMoved = false;
+    targetUnit.hasAttacked = false;
+    targetUnit.currentMovement = targetUnit.movement; // Se recarga el movimiento de la nueva mega-unidad
+
+    if (UIManager) {
+        UIManager.showUnitContextualInfo(targetUnit, true);
+        UIManager.renderAllUnitsFromData();
+    }
+
+    if (gameState.isTutorialActive) {
+        TutorialManager.notifyActionCompleted('unitHasMerge');
+    }
+
+    logMessage(`Fusión completa.`, "success");
+    return true;
 }
 
 function prepareSplitOrDisembark(unit) {
@@ -2455,18 +2450,43 @@ async function RequestAttackUnit(attacker, defender) {
     await attackUnit(attacker, defender);
 }
 
+// Variable global para prevenir fusiones simultáneas
+let _isMergingUnits = false;
+
 async function RequestMergeUnits(mergingUnit, targetUnit) {
-    const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
-    if (isNetworkGame()) {
-        if (NetworkManager.esAnfitrion) {
-            await processActionRequest(action);
-            NetworkManager.broadcastFullState();
-        } else {
-            NetworkManager.enviarDatos({ type: 'actionRequest', action });
-        }
+    // PROTECCIÓN: Prevenir múltiples llamadas simultáneas
+    if (_isMergingUnits) {
+        console.warn("[RequestMergeUnits] Ya hay una fusión en proceso, ignorando solicitud duplicada.");
+        logMessage("Ya hay una fusión en proceso.", "warning");
         return;
     }
-    mergeUnits(mergingUnit, targetUnit);
+    
+    _isMergingUnits = true; // Bloquear nuevas solicitudes
+    
+    try {
+        // CORRECCIÓN: La confirmación debe ocurrir ANTES de enviar la acción al anfitrión
+        // para que el modal aparezca en el cliente que inicia la fusión
+        const confirmation = window.confirm(`¿Fusionar "${mergingUnit.name}" con "${targetUnit.name}"?`);
+        if (!confirmation) {
+            logMessage("Fusión cancelada.", "info");
+            return;
+        }
+
+        const action = { type: 'mergeUnits', payload: { playerId: mergingUnit.player, mergingUnitId: mergingUnit.id, targetUnitId: targetUnit.id }};
+        if (isNetworkGame()) {
+            if (NetworkManager.esAnfitrion) {
+                await processActionRequest(action);
+                NetworkManager.broadcastFullState();
+            } else {
+                NetworkManager.enviarDatos({ type: 'actionRequest', action });
+            }
+            return;
+        }
+        mergeUnits(mergingUnit, targetUnit);
+    } finally {
+        // Desbloquear después de un breve delay para evitar clics accidentales
+        setTimeout(() => { _isMergingUnits = false; }, 500);
+    }
 }
 
 function RequestSplitUnit(originalUnit, targetR, targetC) {
