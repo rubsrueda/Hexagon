@@ -1,4 +1,4 @@
-/// unit_Actions.js
+// unit_Actions.js
 // Lógica relacionada con las acciones de las unidades (selección, movimiento, ataque, colocación).
 
 // ========== VERSIÓN DE CÓDIGO: v3.1 - DEDUPLICACIÓN ACTIVA ==========
@@ -230,6 +230,8 @@ async function mergeUnits(mergingUnit, targetUnit) {
     // La salud se suma, sin exceder el nuevo máximo
     targetUnit.currentHealth = Math.min(oldTargetHealth + mergingUnit.currentHealth, targetUnit.maxHealth);
 
+    // CORRECCIÓN CRÍTICA: Esperar a que handleUnitDestroyed complete la eliminación
+    // antes de continuar con la actualización de la UI y el broadcast del estado
     await handleUnitDestroyed(mergingUnit, null);
     
     // <<==El movimiento actual se recarga ==>
@@ -2490,6 +2492,7 @@ async function RequestMergeUnits(mergingUnit, targetUnit) {
             }
             return;
         }
+        // CORRECCIÓN: Usar await también para juegos locales
         await mergeUnits(mergingUnit, targetUnit);
     } finally {
         // Desbloquear después de un breve delay para evitar clics accidentales
@@ -2569,6 +2572,24 @@ function RequestDisbandUnit(unitToDisband) {
     // La limpieza de la UI se hace en ambos casos, después de la acción de red o local
     if (domElements.unitDetailModal) domElements.unitDetailModal.style.display = 'none';
     if (UIManager) UIManager.hideContextualPanel();
+}
+
+function RequestUndoLastUnitMove(unit) {
+    if (!unit) return;
+    // Generar ID único para esta acción (para deduplicación en el anfitrión)
+    const actionId = `undo_${unit.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const action = { type: 'undoMove', actionId: actionId, payload: { playerId: unit.player, unitId: unit.id }};
+    if (isNetworkGame()) {
+        if (NetworkManager.esAnfitrion) {
+            processActionRequest(action);
+            NetworkManager.broadcastFullState();
+        } else {
+            NetworkManager.enviarDatos({ type: 'actionRequest', action });
+        }
+    } else {
+        // Juego local: ejecutar directamente
+        undoLastUnitMove(unit);
+    }
 }
 
 /**
@@ -2893,3 +2914,4 @@ function findPath_A_Star(unit, startCoords, targetCoords) {
 }
 
 console.log("unit_Actions.js se ha cargado.");
+

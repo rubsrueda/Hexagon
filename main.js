@@ -1,4 +1,4 @@
-// main.js
+/ main.js
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
@@ -852,8 +852,8 @@ if (domElements.createNetworkGameBtn) {
         domElements.floatingUndoMoveBtn.addEventListener('click', (event) => {
             event.stopPropagation(); 
             console.log("[DEBUG Botón Deshacer] click detectado");
-            if (typeof undoLastUnitMove === "function" && typeof selectedUnit !== 'undefined' && selectedUnit) {
-                 undoLastUnitMove(selectedUnit);
+            if (typeof RequestUndoLastUnitMove === "function" && typeof selectedUnit !== 'undefined' && selectedUnit) {
+                 RequestUndoLastUnitMove(selectedUnit);
                  if(typeof UIManager !== 'undefined' && typeof UIManager.updateSelectedUnitInfoPanel === 'function') UIManager.updateSelectedUnitInfoPanel();
             } else {
                  console.warn("[DEBUG Botón Deshacer] No se puede deshacer el movimiento.");
@@ -1134,7 +1134,7 @@ function executeConfirmedAction(action) {
         case 'mergeUnits': 
             const mergingUnit = units.find(u => u.id === payload.mergingUnitId); 
             const targetUnitMerge = units.find(u => u.id === payload.targetUnitId); 
-            if(mergingUnit && targetUnitMerge) mergeUnits(mergingUnit, targetUnitMerge); 
+            if(mergingUnit && targetUnitMerge) await mergeUnits(mergingUnit, targetUnitMerge); 
             break;
         case 'splitUnit': 
             const originalUnit = units.find(u => u.id === payload.originalUnitId); 
@@ -1389,6 +1389,8 @@ async function processActionRequest(action) { // <<== async
                             target: targetUnitMerge.currentHealth
                         };
                         
+                        // CORRECCIÓN CRÍTICA: Usar await para esperar a que mergeUnits complete
+                        // la eliminación de la unidad antes de hacer el broadcast
                         await mergeUnits(mergingUnit, targetUnitMerge);
                         
                         // Si llegamos aquí sin errores, consideramos la fusión exitosa
@@ -1398,7 +1400,6 @@ async function processActionRequest(action) { // <<== async
                         
                         // Log adicional para debugging
                         const healthAfter = {
-                            merging: mergingUnit.currentHealth,
                             target: targetUnitMerge.currentHealth
                         };
                         console.log(`[DEBUG] Salud antes:`, healthBefore, `después:`, healthAfter);
@@ -1481,6 +1482,15 @@ async function processActionRequest(action) { // <<== async
                  actionExecuted = true;
             }
             break;
+
+        case 'undoMove':
+            const unitToUndo = units.find(u => u.id === payload.unitId);
+            if (unitToUndo && unitToUndo.player === payload.playerId) {
+                await undoLastUnitMove(unitToUndo);
+                actionExecuted = true;
+            }
+            break;
+
         default:
             console.warn(`[Red - Anfitrión] Recibida petición de acción desconocida: ${action.type}`);
             break;
@@ -1541,6 +1551,13 @@ function reconstruirJuegoDesdeDatos(datos) {
         renderFullBoardVisualState();
         UIManager.updateAllUIDisplays();
         UIManager.updateTurnIndicatorAndBlocker();
+
+        // CORRECCIÓN: Deseleccionar la unidad para evitar referencias obsoletas
+        // Esto soluciona el problema donde el cliente no puede mover después de atacar
+        // y el botón de "siguiente unidad" no aparece
+        if (typeof deselectUnit === 'function') {
+            deselectUnit();
+        }
 
         logMessage("¡Sincronización con el anfitrión completada! La partida está lista.");
 

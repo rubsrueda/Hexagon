@@ -290,6 +290,16 @@ const UIManager = {
             const isHumanPlayerTurn = playerTypes?.[`player${currentPlayer}`] === 'human';
             const unitsPlaced = unitsPlacedByPlayer?.[currentPlayer] || 0;
             const canDeploy = unitsPlaced < deploymentUnitLimit;
+            
+            // DIAGNÓSTICO: Logs para detectar el problema del límite de construcción
+            console.log(`%c[DIAGNÓSTICO CONSTRUCCIÓN] Jugador ${currentPlayer}:`, 'background: #FF6347; color: white; font-weight: bold;');
+            console.log(`  - Unidades colocadas: ${unitsPlaced}`);
+            console.log(`  - Límite de despliegue: ${deploymentUnitLimit}`);
+            console.log(`  - Puede desplegar: ${canDeploy}`);
+            console.log(`  - Es turno humano: ${isHumanPlayerTurn}`);
+            console.log(`  - Fase actual: ${currentPhase}`);
+            console.log(`  - Botón se mostrará: ${currentPhase === "deployment" && isHumanPlayerTurn && canDeploy}`);
+            
             this._domElements.floatingCreateDivisionBtn.style.display = (currentPhase === "deployment" && isHumanPlayerTurn && canDeploy) ? 'flex' : 'none';
         }
 
