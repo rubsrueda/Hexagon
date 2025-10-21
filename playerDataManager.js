@@ -1,4 +1,5 @@
-// Esta función debe estar FUERA del objeto PlayerDataManager.
+// playerDataManager.js (CORREGIDO PARA LOGIN)
+
 function getXpForNextLevel(currentLevel) {
     if (currentLevel >= HERO_PROGRESSION_CONFIG.MAX_LEVEL) {
         return 'Max';
@@ -24,7 +25,9 @@ const PlayerDataManager = {
      * @returns {object} Un objeto con { success: boolean, message: string }
      */
     login: function(username, password) {
-        if (!username || !password) return { success: false, message: "Usuario y contraseña no pueden estar vacíos." };
+        if (!username || !password) {
+            return { success: false, message: "Usuario y contraseña no pueden estar vacíos." };
+        }
 
         const playerDataKey = `player_${username.trim().toLowerCase()}`;
         let playerDataString = localStorage.getItem(playerDataKey);
@@ -34,6 +37,7 @@ const PlayerDataManager = {
             if (confirm(`El General "${username}" no existe. ¿Quieres crear un nuevo perfil con esta contraseña?`)) {
                 this.currentPlayer = this.createNewPlayer(username, password);
                 this.saveCurrentPlayer();
+                localStorage.setItem('lastUser', username.trim());
                 return { success: true, message: "Nuevo perfil creado con éxito." };
             } else {
                 // <<== CORRECCIÓN: Devolver un objeto de fallo aquí ==>>
@@ -45,51 +49,60 @@ const PlayerDataManager = {
             const loadedPlayer = JSON.parse(playerDataString);
             const hashedPassword = this._hash(password);
 
-            if (loadedPlayer.credentials.passwordHash === hashedPassword) {
-                
-                let profileUpdated = false;
-                if (loadedPlayer.heroes) {
-                    loadedPlayer.heroes.forEach(hero => {
-                        if (typeof hero.equipment === 'undefined') {
-                            hero.equipment = {
-                                head: null, weapon: null, chest: null,
-                                legs: null, gloves: null, boots: null
-                            };
-                            profileUpdated = true;
-                        }
-                        if (typeof hero.talent_points_unspent === 'undefined') {
-                            const hasNoTalentsSpent = !hero.talents || Object.keys(hero.talents).length === 0;
-                            hero.talent_points_unspent = hasNoTalentsSpent ? 1 : 0;
-                            profileUpdated = true;
-                        }
-                        if (typeof hero.talents === 'undefined') hero.talents = {};
-                        if (!Array.isArray(hero.skill_levels)) hero.skill_levels = [1, 0, 0, 0];
-                    });
-                }
+            if (loadedPlayer.credentials.passwordHash !== hashedPassword) {
+                return { success: false, message: "Contraseña incorrecta." };
+            }
+
+            // Si la contraseña es correcta, procedemos
+            let profileUpdated = false;
+
+            // --- Lógica de actualización de perfil (tu código, sin cambios) ---
+            if (loadedPlayer.heroes) {
+                loadedPlayer.heroes.forEach(hero => {
+                    if (typeof hero.equipment === 'undefined') {
+                        hero.equipment = { head: null, weapon: null, chest: null, legs: null, gloves: null, boots: null };
+                        profileUpdated = true;
+                    }
+                    if (typeof hero.talent_points_unspent === 'undefined') {
+                        const hasNoTalentsSpent = !hero.talents || Object.keys(hero.talents).length === 0;
+                        hero.talent_points_unspent = hasNoTalentsSpent ? 1 : 0;
+                        profileUpdated = true;
+                    }
+                    if (typeof hero.talents === 'undefined') hero.talents = {};
+                    if (!Array.isArray(hero.skill_levels)) hero.skill_levels = [1, 0, 0, 0];
+                });
+            }
 
             if (loadedPlayer.inventory) {
-                // Si el inventario de equipo completo no existe, créalo (esto ya lo teníamos)
                 if (typeof loadedPlayer.inventory.equipment === 'undefined') {
                     loadedPlayer.inventory.equipment = [];
                     profileUpdated = true;
                 }
-                
-                // Si el inventario de fragmentos no existe, créalo como un OBJETO
                 if (typeof loadedPlayer.inventory.equipment_fragments === 'undefined') {
-                    loadedPlayer.inventory.equipment_fragments = {}; // Debe ser un objeto {}
+                    loadedPlayer.inventory.equipment_fragments = {};
                     profileUpdated = true;
                 }
             } else {
-                // Si el objeto inventory no existe en absoluto, lo creamos completo
-                loadedPlayer.inventory = {
-                    xp_books: 0,
-                    ascension_materials: {},
-                    equipment: [],
-                    equipment_fragments: {}
-                };
+                loadedPlayer.inventory = { xp_books: 0, ascension_materials: {}, equipment: [], equipment_fragments: {} };
                 profileUpdated = true;
             }
+            // --- Fin de la lógica de actualización ---
+
+            // Asignamos el jugador cargado (y potencialmente actualizado)
+            this.currentPlayer = loadedPlayer;
+
+            // Si el perfil fue modificado, lo guardamos
+            if (profileUpdated) {
+                console.log("Perfil de jugador actualizado a la nueva versión.");
+                this.saveCurrentPlayer();
             }
+
+            // Guardamos el último usuario que ha iniciado sesión
+            localStorage.setItem('lastUser', username.trim());
+
+            // <<== ¡LA CORRECCIÓN CLAVE! ==>>
+            // Devolvemos el objeto de éxito DESPUÉS de todas las comprobaciones.
+            return { success: true, message: "Inicio de sesión exitoso." };
         }
     },
     
@@ -419,4 +432,3 @@ const PlayerDataManager = {
     },
 
 };
-
