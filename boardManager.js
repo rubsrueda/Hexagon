@@ -511,14 +511,31 @@ function initializeBoardPanning() {
 
     // --- Función Unificada para Aplicar Transformaciones (Translate y Scale) y Límites ---
     function applyTransform() {
+        // <<== INICIO DE LA MODIFICACIÓN CLAVE ==>>
+        // Calculamos dinámicamente la altura de la UI inferior que está visible AHORA.
+        let bottomUiHeight = 0;
+        if (domElements.tacticalUiContainer && domElements.tacticalUiContainer.style.display !== 'none') {
+            // Usamos la altura del grupo de botones derecho como referencia principal
+            const rightButtonGroup = domElements.tacticalUiContainer.querySelector('.floating-action-group.right');
+            if (rightButtonGroup) {
+                bottomUiHeight = Math.max(bottomUiHeight, rightButtonGroup.offsetHeight + 20); // +20 de margen
+            }
+        }
+        if (domElements.contextualInfoPanel && domElements.contextualInfoPanel.classList.contains('visible')) {
+            bottomUiHeight = Math.max(bottomUiHeight, domElements.contextualInfoPanel.offsetHeight);
+        }
+        // <<== FIN DE LA MODIFICACIÓN CLAVE ==>>
+
         // Obtenemos dimensiones actuales
         const boardWidth = domElements.gameBoard.offsetWidth * domElements.currentBoardScale;
         const boardHeight = domElements.gameBoard.offsetHeight * domElements.currentBoardScale;
         const viewportWidth = viewport.clientWidth;
-        const viewportHeight = viewport.clientHeight;
+        
+        // <<== USAMOS LA ALTURA CORREGIDA ==>>
+        const viewportHeight = viewport.clientHeight - bottomUiHeight;
 
         // Limitar la escala
-        const MIN_SCALE = 0.1;
+        const MIN_SCALE = 0.15; // Aumentamos un poco el mínimo para que no se pierda en móvil
         const MAX_SCALE = 2.0;
         domElements.currentBoardScale = Math.max(MIN_SCALE, Math.min(domElements.currentBoardScale, MAX_SCALE));
 
@@ -532,6 +549,7 @@ function initializeBoardPanning() {
             targetX = (viewportWidth - boardWidth) / 2; // Centrar si es más pequeño
         }
         if (boardHeight > viewportHeight) {
+            // El límite superior es 0, el inferior es la altura visible menos la del tablero.
             targetY = Math.min(0, Math.max(viewportHeight - boardHeight, targetY));
         } else {
             targetY = (viewportHeight - boardHeight) / 2; // Centrar si es más pequeño
@@ -568,7 +586,7 @@ function initializeBoardPanning() {
         domElements.gameBoard.classList.remove('grabbing');
     });
 
-    // --- Zoom con Rueda del Ratón (Bonus) ---
+    // --- Zoom con Rueda del Ratón  ---
     domElements.gameBoard.addEventListener('wheel', function(e) {
         e.preventDefault();
         const scaleAmount = -e.deltaY * 0.001;
@@ -631,7 +649,7 @@ function initializeBoardPanning() {
         lastTouchY_pan_bm = null;
     });
 
-    console.log("BoardManager: Panning and Zoom listeners inicializados.");
+    console.log("BoardManager: Panning and Zoom listeners (versión móvil) inicializados.");
     applyTransform(); // Aplicar transformación inicial para centrar correctamente.
 }
 

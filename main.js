@@ -152,7 +152,12 @@ function initApp() {
             const username = domElements.usernameInput.value;
             const password = domElements.passwordInput.value;
             const result = PlayerDataManager.login(username, password);
+            
             if (result.success) {
+                // 1. Ocultamos explícitamente la pantalla de login.
+                showScreen(null); // Esto oculta todas las pantallas.
+                
+                // 2. Luego, procedemos a mostrar el menú principal.
                 showMainMenu();
             } else {
                 domElements.loginErrorMessage.textContent = result.message;
