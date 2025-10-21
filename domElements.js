@@ -17,6 +17,7 @@ domElements.currentBoardTranslateY = 0;
 domElements.domElementsInitialized = false; 
 
 // --- Inicializar todas las propiedades a null ---
+domElements.tacticalUiContainer = null;
 domElements.unitManagementModal = null;
 domElements.closeUnitManagementModalBtn = null;
 domElements.unitManagementTitle = null;
@@ -159,6 +160,7 @@ domElements.player2Civ = null;
 
 domElements.floatingInboxBtn = null;
 domElements.inboxModal = null;
+domElements.toggleRightMenuBtn = null;
 
 // Nuevas propiedades para el modal de detalles de unidad rediseñado
 domElements.unitDetailTotalHealthBar = null;
@@ -204,6 +206,7 @@ function initializeDomElements() {
     domElements.domElementsInitialized = false;
 
     // --- Obtener referencias de elementos DOM ---
+    domElements.tacticalUiContainer = document.getElementById('tactical-ui-container');
     domElements.welcomeHelpModalEl = document.getElementById('welcomeHelpModal');
     domElements.closeWelcomeHelpBtn = document.getElementById('closeWelcomeHelpBtn');
     domElements.welcomeHelpTitleEl = document.getElementById('welcomeHelpTitle');
@@ -358,6 +361,8 @@ function initializeDomElements() {
     domElements.floatingReinforceBtn = document.getElementById('floatingReinforceBtn');
     domElements.floatingSplitBtn = document.getElementById('floatingSplitBtn');
     domElements.floatingBuildBtn = document.getElementById('floatingBuildBtn');
+    domElements.toggleRightMenuBtn = document.getElementById('toggle-right-menu-btn');
+    
     
     // Asignaciones a variables más generales o de conveniencia (compatibilidad)
     domElements.endTurnBtn = domElements.floatingEndTurnBtn;

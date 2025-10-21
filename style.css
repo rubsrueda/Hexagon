@@ -924,22 +924,22 @@ html, body {
 #floatingEndTurnBtn:active { background-color: transparent !important; transform: translateY(1px) scale(1.05); box-shadow: none !important; }
 
 /* --- Posicionamiento específico --- */
-#floatingEndTurnBtn        { bottom: 20px;  right: 20px; }
-#floatingCreateDivisionBtn { bottom: 100px;  right: 20px; }
-#floatingTechTreeBtn       { bottom: 160px; right: 20px; }
-#floatingMenuBtn           { bottom: 220px; right: 20px; }
-#floatingConsoleBtn        { bottom: 280px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
-#floatingWikiBtn           { bottom: 340px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
-#floatingPillageBtn        { bottom: 40px;  left: 20px; } 
-#floatingBuildBtn          { bottom: 100px;  left: 20px; }
-#floatingSplitBtn          { bottom: 160px;  left: 20px; }
-#floatingReinforceBtn      { bottom: 220px; left: 20px; }
-#floatingUndoMoveBtn       { bottom: 280px; left: 20px; }
-#floatingConsolidateBtn    { bottom: 320px; left: 20px; display: none; } 
-#floatingAssignGeneralBtn  { bottom: 380px; left: 20px; display: none;}
-#floatingNextUnitBtn       { bottom: 440px; left: 20px; display: none; }
-#floatingManageBtn         { bottom: 320px; left: 20px; display: none; }
-#floatingInboxBtn          { bottom: 400px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; padding: 0; display: flex; justify-content: center; align-items: center; }
+/*#floatingEndTurnBtn        { bottom: 20px;  right: 20px; }
+/*#floatingCreateDivisionBtn { bottom: 100px;  right: 20px; }
+/*#floatingTechTreeBtn       { bottom: 160px; right: 20px; }
+/*#floatingMenuBtn           { bottom: 220px; right: 20px; }
+/*#floatingConsoleBtn        { bottom: 280px; right: 20px; font-size: 1.1em; padding: 10px 12px; }
+/*#floatingWikiBtn           { bottom: 340px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; font-weight: bold; font-style: italic; padding: 0; display: flex; justify-content: center; align-items: center; }
+/*#floatingPillageBtn        { bottom: 40px;  left: 20px; } 
+/*#floatingBuildBtn          { bottom: 100px;  left: 20px; }
+/*#floatingSplitBtn          { bottom: 160px;  left: 20px; }
+/*#floatingReinforceBtn      { bottom: 220px; left: 20px; }
+/*#floatingUndoMoveBtn       { bottom: 280px; left: 20px; }
+/*#floatingConsolidateBtn    { bottom: 320px; left: 20px; display: none; } 
+/*#floatingAssignGeneralBtn  { bottom: 380px; left: 20px; display: none;}
+/*#floatingNextUnitBtn       { bottom: 440px; left: 20px; display: none; }
+/*#floatingManageBtn         { bottom: 320px; left: 20px; display: none; }
+/*#floatingInboxBtn          { bottom: 400px; right: 20px; width: 50px; height: 50px; border-radius: 50%; font-size: 28px; padding: 0; display: flex; justify-content: center; align-items: center; }
 
 /* --- Estados Deshabilitados --- */
 .floating-btn:disabled, #floatingUndoMoveBtn:disabled, #floatingReinforceBtn:disabled, #floatingSplitBtn:disabled, #floatingBuildBtn:disabled {
@@ -950,6 +950,194 @@ html, body {
     background-color: #6c757d !important; opacity: 0.5;
     cursor: not-allowed; transform: scale(1) !important;
 }
+
+/* ========================================================================== */
+/* 6.1 BOTONES FLOTANTES sustituye al /* --- Posicionamiento específico --- */
+/* ========================================================================== */
+
+/* --- Contenedor Maestro de la UI Táctica --- */
+#tactical-ui-container {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* --- Grupos de Botones --- */
+.floating-action-group {
+    position: fixed;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 15px;
+    z-index: 1001;
+    pointer-events: all;
+    /* <<== NUEVO: Transición para que se muevan suavemente hacia arriba ==>> */
+    transition: bottom 0.3s ease-out;
+}
+
+.floating-action-group.left {
+    bottom: 20px;
+    left: 20px;
+}
+/*
+.floating-action-group.right {
+    bottom: 20px;
+    right: 20px;
+    align-items: flex-end;
+}
+*/
+.floating-action-group.right {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 15px;
+    z-index: 1001; 
+    
+    pointer-events: all;
+    align-items: flex-end;
+}
+
+/* --- Estilo Base para TODOS los botones flotantes --- */
+#tactical-ui-container button {
+    position: relative;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 1px solid #7f8c8d;
+    background-color: rgba(44, 62, 80, 0.9);
+    color: #ecf0f1;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+#tactical-ui-container button:hover:not(:disabled) {
+    background-color: #34495e;
+    transform: scale(1.1);
+}
+
+/* --- Lógica de Visibilidad (Sin cambios) --- */
+.floating-action-group.left button { display: none; }
+.floating-action-group.left button[style*="display: flex"] { display: flex !important; }
+#toggle-right-menu-btn, #floatingEndTurnBtn { display: flex; }
+
+/* --- Botones Especiales FIJOS --- */
+#floatingEndTurnBtn {
+    width: 60px;
+    height: 60px;
+    font-size: 32px;
+    background-color: rgba(40, 167, 69, 0.9);
+    order: 99;
+}
+
+#floatingNextUnitBtn {
+    position: fixed;
+    display: none; /* JS controla su visibilidad, esto es correcto */
+    left: 20px;
+    bottom: 300px; /* Lo bajamos a una posición más razonable y visible */
+    z-index: 1002; /* Le damos un z-index para asegurar que esté por encima del mapa */
+    pointer-events: all; /* Aseguramos que se pueda hacer clic en él */
+    
+    /* Heredamos el estilo base de los otros botones por si lo perdió */
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 1px solid #7f8c8d;
+    background-color: rgba(44, 62, 80, 0.9);
+    color: #ecf0f1;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    display: none; /* Lo volvemos a poner aquí para asegurar el estado inicial */
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* Y AÑADIMOS esta regla para asegurar que cuando JS lo active, se vea */
+#floatingNextUnitBtn[style*="display: flex"] {
+    display: flex !important;
+}
+
+/* --- Menú Colapsable Derecho (Sin cambios) --- */
+#toggle-right-menu-btn {
+    background-color: #34495e;
+    order: 98;
+}
+.submenu {
+    order: 97;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 15px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.3s ease-out;
+    pointer-events: none;
+}
+.floating-action-group.right.is-open .submenu {
+    max-height: 500px;
+    opacity: 1;
+    pointer-events: all;
+    margin-bottom: 12px;
+}
+.submenu button {
+    display: flex !important;
+}
+
+/*
+ =========================================================================
+ ===           INICIO DE LA CORRECCIÓN PARA LA CONSOLA                 ===
+ =========================================================================
+*/
+
+/* 1. La consola en sí no cambia, pero nos aseguramos de su altura y z-index */
+#debug-console {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 200px; /* Altura fija que usaremos para empujar */
+    /*z-index: 9000; /* Alto, pero MENOS que el panel contextual (10000) */
+    z-index: 999; 
+    display: flex; /* Asegúrate de que esto siga aquí */
+    flex-direction: column;
+    padding: 10px;
+    box-sizing: border-box;
+    border-top: 1px solid #00FF00;
+}
+
+/* 2. LA REGLA MÁGICA: Cuando la consola está visible... */
+#debug-console[style*="display: flex"] ~ #tactical-ui-container .floating-action-group,
+#debug-console[style*="display: flex"] ~ #tactical-ui-container #floatingNextUnitBtn {
+    /* ...empuja los grupos de botones y el botón "Next Unit" hacia arriba */
+    bottom: 220px; /* Altura de la consola (200px) + margen (20px) */
+}
+
+/* 3. Ajuste para el panel contextual, para que también se suba */
+#debug-console[style*="display: flex"] ~ #contextualInfoPanel {
+    bottom: 200px; /* Exactamente la altura de la consola */
+    transition: bottom 0.3s ease-out;
+}
+
+/*
+ =========================================================================
+ ===            FIN DE LA CORRECCIÓN PARA LA CONSOLA                   ===
+ =========================================================================
+*/
 
 /* ========================================================================== */
 /* 7. MODALES (base y específicos)
@@ -1178,7 +1366,6 @@ html, body {
 .tech-tree-content .tech-node.available { background-color: #2a9d8f; border-color: #264653; box-shadow: 0 0 10px 3px #aaf0d1; }
 .tech-tree-content .tech-node.locked { background-color: #6c757d; opacity: 0.7; cursor: not-allowed; }
 
-style_content = """
 /* ========================================================== */
 /* ==   NUEVOS ESTILOS COMPLETOS PARA TALENTOS (V2)        == */
 /* ========================================================== */
@@ -1894,7 +2081,7 @@ style_content = """
 
 /* ========================================================================== */
 /* 9. ESTILOS DE DEPURACIÓN Y TUTORIAL
-/* ========================================================================== */
+/* ========================================================================== 
 
 #debug-console {
     position: fixed; bottom: 0; left: 0; width: 100%; height: 200px;
@@ -1918,7 +2105,7 @@ style_content = """
 .tutorial-highlight { box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlight 1.5s infinite alternate ease-in-out; z-index: 2002 !important; position: relative; }
 .hex.tutorial-highlight-hex { box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7); animation: pulseHighlightHex 1.5s infinite alternate ease-in-out; z-index: 100 !important; }
 
-/* Estilo para el panel de mensajes del tutorial */
+/* Estilo para el panel de mensajes del tutorial 
 .tutorial-panel {
     position: absolute;
     top: 15px;
@@ -1938,7 +2125,7 @@ style_content = """
     line-height: 1.5;
 }
 
-/* El efecto de brillo para resaltar un elemento de la UI */
+/* El efecto de brillo para resaltar un elemento de la UI 
 .tutorial-highlight {
     box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
     animation: pulseHighlight 1.5s infinite alternate ease-in-out;
@@ -1946,7 +2133,7 @@ style_content = """
     position: relative; /* Necesario para que el z-index funcione correctamente */
 }
 
-/* El efecto de brillo para resaltar un hexágono en el mapa */
+/* El efecto de brillo para resaltar un hexágono en el mapa 
 .hex.tutorial-highlight-hex {
     box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
     animation: pulseHighlightHex 1.5s infinite alternate ease-in-out;
@@ -1961,6 +2148,97 @@ style_content = """
 @keyframes pulseHighlightHex {
     from { filter: brightness(1.2); }
     to { filter: brightness(1.5); }
+}
+    */
+
+/* ========================================================================== */
+/* 9. ESTILOS DE DEPURACIÓN Y TUTORIAL
+/* ========================================================================== */
+
+/* --- Contenedor Principal de la Consola --- */
+#debug-console {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 200px;
+    background-color: rgba(0, 0, 0, 0.85);
+    color: #00FF00;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    z-index: 9999;
+    
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    box-sizing: border-box;
+    border-top: 2px solid #00FF00;
+}
+
+/* --- Área de Salida de Mensajes --- */
+#console-output {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* --- Campo de Entrada de Comandos --- */
+#console-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #00FF00;
+    background-color: rgba(0, 0, 0, 0.9);
+    color: #00FF00;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+#console-input::placeholder {
+    color: #008f00;
+}
+
+/* --- Estilos para los Tipos de Mensajes --- */
+.console-info { color: #00FF00; }
+.console-success { color: #32CD32; }
+.console-error { color: #FF4136; }
+.console-warning { color: #FFDC00; }
+.console-command { color: #7FDBFF; }
+.console-chronicle { color: #F012BE; font-style: italic; }
+
+/* --- Estilos del Tutorial --- */
+.tutorial-panel {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    background-color: rgba(26, 32, 44, 0.95);
+    color: #edf2f7;
+    padding: 15px 25px;
+    border-radius: 8px;
+    border: 2px solid #f6e05e;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+    max-width: 600px;
+    text-align: center;
+    font-size: 1.1em;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.tutorial-highlight {
+    box-shadow: 0 0 0 4px gold, 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
+    animation: pulseHighlight 1.5s infinite alternate ease-in-out;
+    z-index: 2002 !important;
+    position: relative;
+}
+
+.hex.tutorial-highlight-hex {
+    box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
+    animation: pulseHighlightHex 1.5s infinite alternate ease-in-out;
+    z-index: 100 !important;
 }
 
 /* ========================================================================== */
@@ -2034,6 +2312,7 @@ style_content = """
 #mainMenuScreen .modal-content {
     pointer-events: auto;
 }
+
 
 /* ========================================================================== */
 /* 12. ESTILOS ANTIGUOS O DESHABILITADOS

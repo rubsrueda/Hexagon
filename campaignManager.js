@@ -94,6 +94,9 @@ function setupMainMenuListeners() { // Esta función será llamada por main.js -
         
         // 2. Muestra la pantalla del juego
         showScreen(domElements.gameContainer);
+        if (domElements.tacticalUiContainer) {
+            domElements.tacticalUiContainer.style.display = 'block';
+        }
         
         // <<== MODIFICACIÓN: Inicializamos el estado del tutorial DESPUÉS ==>>
         // Esto asegura que la fase se establece correctamente.
@@ -221,7 +224,10 @@ function handleStartScenarioBattle() {
     }
     campaignState.currentMapTacticalDataForBattle = mapTacticalData;
     closeScenarioBriefing();
-    showScreen(domElements.gameContainer); // Usar domElements
+    showScreen(domElements.gameContainer);
+    if (domElements.tacticalUiContainer) {
+        domElements.tacticalUiContainer.style.display = 'block';
+    }// Usar domElements
 
     if (typeof resetAndSetupTacticalGame === "function") { 
         resetAndSetupTacticalGame(scenarioData, mapTacticalData, campaignState.currentTerritoryIdForBattle);

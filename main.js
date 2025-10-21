@@ -189,6 +189,30 @@ function initApp() {
             }
         });
     }
+
+    // Listener de botones expandibles
+    if (domElements.toggleRightMenuBtn) {
+        domElements.toggleRightMenuBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            // Buscamos el contenedor padre que tiene toda la lógica
+            const menuGroup = domElements.toggleRightMenuBtn.closest('.floating-action-group.right');
+            if (menuGroup) {
+                const isOpen = menuGroup.classList.toggle('is-open');
+                domElements.toggleRightMenuBtn.textContent = isOpen ? '✕' : '⚙️';
+            }
+        });
+
+        // Cierra el submenú si haces clic fuera (esta parte es importante)
+        document.addEventListener('click', (event) => {
+            const menuGroup = document.querySelector('.floating-action-group.right.is-open');
+            // Si el menú está abierto y el clic fue fuera de él
+            if (menuGroup && !menuGroup.contains(event.target)) {
+                menuGroup.classList.remove('is-open');
+                if (domElements.toggleRightMenuBtn) domElements.toggleRightMenuBtn.textContent = '⚙️';
+            }
+        });
+    }
+    
     // <<== "Forja" ==>>
 
     const openForgeBtn = document.getElementById('openForgeBtn');
@@ -574,7 +598,11 @@ if (domElements.createNetworkGameBtn) {
             const selectedInitialUnits = domElements.initialUnitsCountSelect.value; 
             gameState.deploymentUnitLimit = selectedInitialUnits === "unlimited" ? Infinity : parseInt(selectedInitialUnits);
             
-            if (typeof showScreen === "function" && domElements.gameContainer) { showScreen(domElements.gameContainer); } 
+            if (typeof showScreen === "function" && domElements.gameContainer) { 
+                showScreen(domElements.gameContainer);
+                if (domElements.tacticalUiContainer) {
+                    domElements.tacticalUiContainer.style.display = 'block';
+                } } 
             else { console.error("main.js: CRÍTICO: showScreen o domElements.gameContainer no disponibles."); }
             gameState.currentPhase = "deployment";
             // CORRECCIÓN: Inicializar contador de unidades desplegadas para el jugador 1
@@ -611,6 +639,9 @@ if (domElements.createNetworkGameBtn) {
             
             // 4. Muestra la pantalla del juego.
             showScreen(domElements.gameContainer);
+            if (domElements.tacticalUiContainer) {
+                domElements.tacticalUiContainer.style.display = 'block';
+            }
         });
     }
 
@@ -763,6 +794,10 @@ if (domElements.createNetworkGameBtn) {
                      else console.error("main.js: showScreen (de campaignManager) o domElements.mainMenuScreenEl no disponibles.");
                 } 
             } 
+            if (domElements.tacticalUiContainer) {
+                domElements.tacticalUiContainer.style.display = 'none';
+            }
+            showScreen(domElements.mainMenuScreenEl);
         }); 
     }
     
@@ -1114,6 +1149,9 @@ function iniciarPartidaLAN(settings) {
     gameState.isCampaignBattle = false;
 
     showScreen(domElements.gameContainer);
+            if (domElements.tacticalUiContainer) {
+                domElements.tacticalUiContainer.style.display = 'block';
+            }
     gameState.currentPhase = "deployment";
     // CORRECCIÓN: Inicializar contador de unidades desplegadas
     gameState.unitsPlacedByPlayer = { 1: 0, 2: 0 }; 

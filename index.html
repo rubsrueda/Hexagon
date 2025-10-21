@@ -610,24 +610,50 @@
     <div id="gameLogContainer" class="game-log-container"></div>
 
     <!-- ====================================================================== -->
-    <!-- ===================== BOTONES FLOTANTES INDIVIDUALES ================= -->
+    <!-- ================ BARRA DE ACCIONES V2 (CON MENÚ COLAPSABLE) ========= -->
     <!-- ====================================================================== -->
-    <button id="floatingMenuBtn">☰</button>
-    <button id="floatingTechTreeBtn">💡</button>
-    <button id="floatingEndTurnBtn">►</button>
-    <button id="floatingCreateDivisionBtn" style="display: none;">➕</button> 
-    <button id="setAsCapitalBtn" style="display: none;">👑</button> 
-    <button id="floatingConsoleBtn">C</button>
-    <button id="floatingAssignGeneralBtn" title="Asignar General">👤</button>
-    <button id="floatingUndoMoveBtn" title="Deshacer Movimiento">↩</button>
-    <button id="floatingNextUnitBtn" title="Siguiente Unidad Inactiva" style="display: none;">»</button>
-    <button id="floatingConsolidateBtn" title="Consolidar Regimientos">🔁</button>
-    <button id="floatingReinforceBtn" title="Reforzar Unidad">💪</button>
-    <button id="floatingSplitBtn" title="Dividir Unidad">✂</button>
-    <button id="floatingBuildBtn" title="Construir Estructura">🏗️</button>
-    <button id="floatingPillageBtn" title="Saquear Hexágono">💰</button>
-    <button id="floatingWikiBtn" title="Wiki del Juego">i</button>
-    <button id="floatingInboxBtn" title="Buzón del General">✉️</button>
+    <div id="tactical-ui-container" style="display: none;">
+        
+        <!-- Grupo Izquierdo: Acciones de Unidad (Contextuales) -->
+        <div class="floating-action-group left">
+            <button id="floatingUndoMoveBtn" title="Deshacer Movimiento">↩</button>
+            <button id="floatingReinforceBtn" title="Gestionar/Reforzar">💪</button>
+            <button id="floatingSplitBtn" title="Dividir Unidad">✂️</button>
+            <button id="floatingBuildBtn" title="Construir">🏗️</button>
+            <button id="floatingPillageBtn" title="Saquear">💰</button>
+            <button id="floatingAssignGeneralBtn" title="Asignar General">👤</button>
+            <button id="floatingConsolidateBtn" title="Consolidar">🔁</button>
+            <button id="floatingCreateDivisionBtn" title="Crear División">➕</button>
+            <button id="setAsCapitalBtn" title="Establecer Capital">👑</button>
+        </div>
+
+        <!-- Grupo Derecho: Acciones Globales -->
+        <div class="floating-action-group right">
+            <!-- Botón de Fin de Turno (siempre visible) -->
+            <button id="floatingEndTurnBtn" title="Finalizar Turno">►</button>
+            <button id="floatingNextUnitBtn" title="Siguiente Unidad">»</button>
+            
+            <!-- Botón principal para mostrar/ocultar el submenú -->
+            <button id="toggle-right-menu-btn" class="menu-toggle-btn" title="Opciones Globales">⚙️</button>
+
+            <!-- Contenedor del submenú que se colapsará -->
+            <div id="right-submenu" class="submenu">
+                <button id="barracksBtn" title="Cuartel">🎖️</button>
+                <button id="openForgeBtn" title="Forja">⚔️</button>
+                <button id="floatingWikiBtn" title="Wiki">ℹ️</button>
+                <button id="floatingInboxBtn" title="Buzón">✉️</button>
+                <button id="floatingTechTreeBtn" title="Tecnologías">💡</button>
+                <button id="floatingConsoleBtn" title="Consola">C</button>
+                <button id="floatingMenuBtn" title="Menú Principal">☰</button>
+            </div>
+        </div>
+
+        <!-- Botón de Siguiente Unidad (posición especial) -->
+        <button id="floatingNextUnitBtn" title="Siguiente Unidad">»</button>
+
+    </div>
+    
+    <!-- El resto de tus elementos como #combatPredictionPanel y los scripts van después -->
     <div id="combatPredictionPanel" style="display: none;"></div>
 
     <!-- ====================================================================== -->
