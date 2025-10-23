@@ -2213,9 +2213,17 @@ html, body {
 /* --- Estilos del Tutorial --- */
 .tutorial-panel {
     position: absolute;
-    top: 15px;
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 80px; /* <--- Lo anclamos a 80px desde abajo */
+    left: 10px;   /* <--- Lo alineamos a la izquierda con un pequeño margen */
+    right: 10px;  /* <--- Y a la derecha, para que ocupe el ancho disponible */
+    
+    /* Eliminamos el transform que ya no es necesario para centrar */
+    /* transform: translateX(-50%); */ 
+
+    /* Hacemos el texto un poco más pequeño en móviles */
+    font-size: 0.95em;
+    
+    /* El resto de tus estilos se mantienen */
     z-index: 2000;
     background-color: rgba(26, 32, 44, 0.95);
     color: #edf2f7;
@@ -2223,11 +2231,9 @@ html, body {
     border-radius: 8px;
     border: 2px solid #f6e05e;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
-    max-width: 600px;
+    max-width: none; /* Quitamos el max-width para que se ajuste al 100% */
+    width: auto; /* Dejamos que left y right definan el ancho */
     text-align: center;
-    font-size: 1.1em;
-    font-weight: 500;
-    line-height: 1.5;
     pointer-events: none;
 }
 
