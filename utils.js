@@ -410,4 +410,28 @@ function calculateTalentBonuses(unit, opposingUnit = null, isFirstHit = false) {
     return bonuses;
 }
 
+/**
+ * Muestra una notificación temporal (toast) en el centro de la pantalla.
+ * @param {string} message - El mensaje a mostrar.
+ * @param {string} [type='info'] - El tipo de notificación ('info', 'success', 'warning', 'error').
+ * @param {number} [duration=3000] - La duración en milisegundos.
+ */
+function showToast(message, type = 'info', duration = 3000) {
+    // Crear el elemento de la notificación
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type}`;
+    toast.textContent = message;
+
+    // Ajustar la duración de la animación a través de JS
+    toast.style.animationDuration = `${duration / 1000}s`;
+
+    // Añadirlo al cuerpo del documento
+    document.body.appendChild(toast);
+
+    // Eliminar el elemento del DOM después de que termine la animación
+    setTimeout(() => {
+        toast.remove();
+    }, duration);
+}
+
 console.log("utils.js se ha cargado.");

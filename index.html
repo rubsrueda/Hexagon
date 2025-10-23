@@ -63,6 +63,8 @@
     <!-- ====================================================================== -->
     <!-- ===================== PANTALLA DE MENÚ PRINCIPAL ===================== -->
     <!-- ====================================================================== -->
+
+    <!-- version de botones
     <div id="mainMenuScreen" class="modal no-close-on-click" style="display: none; text-align: center; align-items: center; justify-content: center;">
     <div class="modal-content" style="width: auto; min-width: 300px; max-width: 500px;">
         <h2>Iberion</h2>
@@ -82,6 +84,42 @@
         <button id="startTutorialBtn" style="display: block; width: 80%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial</button>
     </div>
     </div>
+    -->
+    <div id="mainMenuScreen" class="modal no-close-on-click" style="display: flex;">
+    <!-- Contenedor para los "Hotspots" o botones invisibles -->
+    <div id="interactiveBoardContainer">
+        <!-- Partida Rápida: Tablero hexagonal central -->
+        <div id="hotspotMap" class="main-menu-hotspot" data-action="openGameModes"></div>
+        <!-- Cuartel: Libro arriba a la izquierda -->
+        <div id="hotspotBarracks" class="main-menu-hotspot" data-action="openBarracks"></div>
+        <!-- Forja: Soldados a la izquierda -->
+        <div id="hotspotForge" class="main-menu-hotspot" data-action="openForge"></div>
+        <!-- Altar de los Deseos: Estatua a la derecha -->
+        <div id="hotspotAltar" class="main-menu-hotspot" data-action="openAltar"></div>
+        <!-- Campaña: Edificio grande arriba -->
+        <div id="hotspotCampaign" class="main-menu-hotspot" data-action="showComingSoon"></div>
+        <!-- Tronos de Iberia: Ruinas a la derecha -->
+        <div id="hotspotThrones" class="main-menu-hotspot" data-action="showComingSoon"></div>
+        
+        <!-- Información del General y Logout -->
+        <div id="generalInfoPanel">
+            <span>General: <strong id="currentGeneralName_main">Ninguno</strong></span>
+            <button id="logoutBtn_main" title="Cerrar Sesión">⏻</button>
+        </div>
+    </div>
+
+    <!-- Modal SECUNDARIO para los modos de juego -->
+    <div id="gameModesModal" class="modal" style="display: none; background-color: rgba(0,0,0,0.7);">
+        <div class="modal-content" style="text-align: center; max-width: 400px;">
+            <span class="close-button" id="closeGameModesModalBtn">×</span>
+            <h2>Elige tu Batalla</h2>
+            <button id="startSkirmishBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em;">Partida Rápida (Escaramuza)</button>
+            <button id="startTutorialBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #28a745;">Iniciar Tutorial (5 min)</button>
+            <button id="joinNetworkGameBtn_new" style="display: block; width: 90%; margin: 20px auto; padding: 15px; font-size: 1.1em; background-color: #ffc107; color: black;">Unirse a Partida en Red</button>
+        </div>
+    </div>
+</div>
+
 
     <!-- ====================================================================== -->
     <!-- ====== PANTALLA DE CONFIGURACIÓN DE PARTIDA RÁPIDA (ESCARAMUZA) ====== -->

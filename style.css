@@ -1172,6 +1172,7 @@ html, body {
 
 /* Elimina el fondo, borde y sombra de la caja de contenido. */
 #mainMenuScreen .modal-content {
+    width: 90%; /* Ocupa el 90% del ancho de la pantalla */
     background-color: transparent;
     border: none;
     box-shadow: none;
@@ -1196,7 +1197,8 @@ html, body {
 }
 
 /* Efecto al pasar el ratón por encima del botón. */
-#mainMenuScreen button:hover {
+#mainMenuScreen button:hover,
+#mainMenuScreen button:active {
     background-color: rgba(20, 20, 20, 0.8); /* Se oscurece un poco */
     border-color: rgba(255, 215, 0, 0.9); /* El borde se vuelve más brillante */
     transform: translateY(-3px) scale(1.02); /* Se eleva y agranda ligeramente */
@@ -2131,7 +2133,7 @@ html, body {
     animation: pulseHighlight 1.5s infinite alternate ease-in-out;
     z-index: 2002 !important;
     position: relative; /* Necesario para que el z-index funcione correctamente */
-}
+/*}
 
 /* El efecto de brillo para resaltar un hexágono en el mapa 
 .hex.tutorial-highlight-hex {
@@ -2226,6 +2228,7 @@ html, body {
     font-size: 1.1em;
     font-weight: 500;
     line-height: 1.5;
+    pointer-events: none;
 }
 
 .tutorial-highlight {
@@ -2235,10 +2238,25 @@ html, body {
     position: relative;
 }
 
-.hex.tutorial-highlight-hex {
-    box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7) !important;
+.hex.tutorial-highlight-hex::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* Heredamos la forma hexagonal del padre */
+    clip-path: inherit; 
+    
+    /* Creamos el efecto de brillo con la sombra */
+    box-shadow: inset 0 0 0 4px gold, inset 0 0 0 8px rgba(0, 255, 255, 0.7);
+    
+    /* Animación del pulso */
     animation: pulseHighlightHex 1.5s infinite alternate ease-in-out;
-    z-index: 100 !important;
+    
+    /* IMPORTANTE: Lo ponemos por debajo de la unidad (z-index de unidad es 10) */
+    z-index: 5; 
 }
 
 /* ========================================================================== */
@@ -2300,20 +2318,212 @@ html, body {
    REGLA 1: Le dice a la "lámina de cristal" del menú que ignore los clics del ratón.
    Ahora los clics pasarán a través de ella como si no existiera.
 */
-#mainMenuScreen.modal {
-    pointer-events: none;
-}
+/*#mainMenuScreen.modal {    pointer-events: none;}
 
 /*
    REGLA 2: Le dice a la caja de contenido (que tiene los botones como "Cuartel")
    que SÍ debe aceptar clics. Esto "reactiva" la capacidad de hacer clic
    solo para esa área.
 */
-#mainMenuScreen .modal-content {
-    pointer-events: auto;
+/*#mainMenuScreen .modal-content {    pointer-events: auto;}
+
+/* ========================================================================== */
+/* 13. ESTILOS DEL NUEVO MENÚ PRINCIPAL INTERACTIVO (COMPLETO)
+/* ========================================================================== */
+
+/* --- Contenedor y Estilo Base de Hotspots --- */
+
+#interactiveBoardContainer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+}
+
+.main-menu-hotspot {
+    position: absolute;
+  /*  background-color: rgba(255, 0, 0, 0.4); /* Descomentado para que veas las zonas rojas y puedas ajustarlas */
+    border-radius: 25px;
+    cursor: pointer;
+    transition: transform 0.1s ease-out, background-color 0.1s;
+    animation: pulse-glow 3s infinite ease-in-out;
+}
+
+/* --- Posicionamiento de cada Hotspot (Estimación inicial) --- */
+
+/* Partida Rápida: Tablero hexagonal central */
+#hotspotMap {
+    top: 45%;
+    left: 32%;
+    width: 36%;
+    height: 50%;
+    border-radius: 50%;
+    animation-delay: 0s;
+}
+
+/* Cuartel: Libro arriba a la izquierda */
+#hotspotBarracks {
+    top: 20%;
+    left: 20%;
+    width: 13%;
+    height: 28%;
+    animation-delay: -0.5s;
+}
+
+/* Forja: Manuscrito de Soldado a la izquierda */
+#hotspotForge {
+    top: 60%;
+    left: 12%;
+    width: 18%;
+    height: 28%;
+    animation-delay: -1s;
+}
+
+/* Altar de los Deseos: Manuscrito a la derecha arriba de soldado*/
+#hotspotAltar {
+    top: 20%;
+    left: 72%;
+    width: 13%;
+    height: 28%;
+    animation-delay: -1.5s;
+}
+
+/* Campaña: Ventana con el Arbol y el rio */
+#hotspotCampaign {
+    top: 10%;
+    left: 35%;
+    width: 35%;
+    height: 25%;
+    animation-delay: -2s;
+}
+
+/* Tronos de Iberia: Ruinas a la derecha */
+#hotspotThrones {
+    top: 60%;
+    left: 72%;
+    width: 18%;
+    height: 28%;
+    animation-delay: -2.5s;
 }
 
 
+/* --- Efectos Visuales y Animaciones --- */
+
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 8px 3px rgba(255, 220, 100, 0); }
+    50% { box-shadow: 0 0 16px 8px rgba(255, 220, 100, 0.5); }
+    100% { box-shadow: 0 0 8px 3px rgba(255, 220, 100, 0); }
+}
+
+.main-menu-hotspot:active {
+    background-color: rgba(255, 255, 150, 0.35);
+    animation: none;
+    box-shadow: 0 0 20px 10px rgba(255, 255, 100, 0.6);
+    transform: scale(1.05);
+}
+
+
+/* --- UI restante del menú --- */
+
+#generalInfoPanel {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #f0e6d2;
+    padding: 8px 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+#logoutBtn_main {
+    background: none;
+    border: none;
+    color: #f0e6d2;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+#gameModesModal button {
+    background-color: rgba(40, 40, 40, 0.8);
+    color: #f0e6d2;
+    border: 1px solid rgba(255, 215, 0, 0.7);
+    transition: background-color 0.2s;
+}
+
+#gameModesModal button:hover,
+#gameModesModal button:active {
+    background-color: rgba(60, 60, 60, 0.9);
+    border-color: rgba(255, 215, 0, 1);
+}
+
+/* ========================================================================== */
+/* 14. SISTEMA DE NOTIFICACIONES (TOASTS)
+/* ========================================================================== */
+
+.toast-notification {
+    position: fixed; /* Se pega a la pantalla, no al juego */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Lo centra perfectamente */
+    padding: 12px 25px;
+    background-color: rgba(20, 20, 20, 0.9);
+    color: #f0f0f0;
+    border-radius: 20px;
+    border: 1px solid #555;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    z-index: 99999; /* Por encima de todo */
+    font-size: 1.1em;
+    font-weight: 500;
+    text-align: center;
+    pointer-events: none; /* No se puede hacer clic en la notificación */
+    opacity: 0; /* Empieza invisible */
+    transition: opacity 0.3s ease-out;
+
+    /* Animación de entrada y salida */
+    animation: toast-fade-in-out 3s ease-in-out forwards;
+}
+
+/* Tipos de notificación (opcional, pero útil) */
+.toast-notification.info {
+    border-color: #3498db; /* Azul */
+}
+.toast-notification.success {
+    border-color: #2ecc71; /* Verde */
+}
+.toast-notification.warning {
+    border-color: #f1c40f; /* Amarillo */
+}
+.toast-notification.error {
+    border-color: #e74c3c; /* Rojo */
+}
+
+
+@keyframes toast-fade-in-out {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    15% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    85% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -70px) scale(0.8);
+    }
+}
 /* ========================================================================== */
 /* 12. ESTILOS ANTIGUOS O DESHABILITADOS
 /* ========================================================================== */

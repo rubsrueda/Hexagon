@@ -54,6 +54,7 @@ const UIManager = {
         btn.innerHTML = "🏁"; // Cambia el icono a una bandera de meta
         btn.title = "Finalizar Tutorial";
         btn.disabled = false;
+        this.highlightTutorialElement(btn.id);
         
         // Clonar y reemplazar el botón para eliminar todos los listeners antiguos de forma segura
         const newBtn = btn.cloneNode(true);
@@ -77,6 +78,7 @@ const UIManager = {
         
         btn.innerHTML = "►";
         btn.title = "Finalizar Turno";
+        btn.classList.remove('tutorial-highlight');
 
         // Clonamos de nuevo para eliminar el listener del tutorial
         const newBtn = btn.cloneNode(true);
@@ -157,7 +159,7 @@ const UIManager = {
             this.hideCombatPrediction();
         }
     },
-
+    /*
     clearHighlights: function() {
         if (this._lastTutorialHighlightElementId) {
              const el = document.getElementById(this._lastTutorialHighlightElementId);
@@ -183,7 +185,31 @@ const UIManager = {
              });
         }
     },
-    
+   */
+  clearTutorialHighlights: function() {
+        if (this._lastTutorialHighlightElementId) {
+             const el = document.getElementById(this._lastTutorialHighlightElementId);
+             if (el) el.classList.remove('tutorial-highlight');
+             this._lastTutorialHighlightElementId = null;
+        }
+        if (this._lastTutorialHighlightHexes.length > 0) {
+             this._lastTutorialHighlightHexes.forEach(coords => {
+                 const hexData = board[coords.r]?.[coords.c];
+                 if (hexData?.element) hexData.element.classList.remove('tutorial-highlight-hex');
+             });
+             this._lastTutorialHighlightHexes = [];
+         }
+    },
+
+    // (FUNCIÓN MODIFICADA) - Ahora solo limpia los resaltados del JUEGO (movimiento, ataque, etc.)
+    clearHighlights: function() {
+        // Ya no toca los resaltados del tutorial, solo los del juego normal.
+        if (board && board.length > 0) {
+             document.querySelectorAll('.hex.highlight-move, .hex.highlight-attack, .hex.highlight-build, .hex.highlight-place').forEach(h => {
+                 h.classList.remove('highlight-move', 'highlight-attack', 'highlight-build', 'highlight-place');
+             });
+        }
+    }, 
     highlightPossibleActions: function(unit) {
         // Llama al método centralizado de limpieza para empezar de cero.
         this.clearHighlights(); 
@@ -308,7 +334,23 @@ const UIManager = {
                     const hasLeadershipTech = playerTechs.includes("LEADERSHIP");
                     const hasHQ = unit.regiments.some(r => r.type === "Cuartel General");
                     const unitHex = board[unit.r]?.[unit.c];
-                    const isAtRecruitmentPoint = unitHex && (unitHex.isCity || unitHex.isCapital || unitHex.structure === "Fortaleza");
+                    let isAtRecruitmentPoint = false;
+                    if (unitHex) {
+                        // Comprueba la casilla actual
+                        if (unitHex.isCity || unitHex.isCapital || unitHex.structure === "Fortaleza") {
+                            isAtRecruitmentPoint = true;
+                        } else {
+                            // Si no, comprueba las casillas adyacentes
+                            const neighbors = getHexNeighbors(unit.r, unit.c);
+                            for (const neighbor of neighbors) {
+                                const neighborHex = board[neighbor.r]?.[neighbor.c];
+                                if (neighborHex && (neighborHex.isCity || neighborHex.isCapital || neighborHex.structure === "Fortaleza")) {
+                                    isAtRecruitmentPoint = true;
+                                    break; // Encontramos una, no hace falta seguir buscando
+                                }
+                            }
+                        }
+                    }
                     const maxGenerals = (gameState.cities.filter(c => c.owner === unit.player).length || 1);
                     const currentGenerals = gameState.activeCommanders[unit.player]?.length || 0;
                     

@@ -81,10 +81,10 @@ function setupMainMenuListeners() { // Esta función será llamada por main.js -
         return;
     }
 
-    domElements.startCampaignBtnEl.addEventListener('click', initializeCampaignMode);
-    domElements.startSkirmishBtnEl.addEventListener('click', () => showScreen(domElements.setupScreen)); 
+    //domElements.startCampaignBtnEl.addEventListener('click', initializeCampaignMode);
+    //domElements.startSkirmishBtnEl.addEventListener('click', () => showScreen(domElements.setupScreen)); 
         
-    domElements.startTutorialBtn.addEventListener('click', () => {
+    //domElements.startTutorialBtn.addEventListener('click', () => {
         // 1. Carga el mapa y el estado base del juego
         const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
         const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
@@ -107,7 +107,7 @@ function setupMainMenuListeners() { // Esta función será llamada por main.js -
         
         // 4. Inicia la secuencia del tutorial
         TutorialManager.start(TUTORIAL_SCRIPTS.completo);
-    });
+    //    });
     domElements.backToMainMenuBtn_fromCampaign.addEventListener('click', () => showScreen(domElements.mainMenuScreenEl)); 
     domElements.backToMainMenuBtn_fromSetup.addEventListener('click', () => showScreen(domElements.mainMenuScreenEl)); 
     domElements.closeScenarioBriefingBtnEl.addEventListener('click', closeScenarioBriefing);

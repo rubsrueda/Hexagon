@@ -407,25 +407,13 @@ function handleActionWithSelectedUnit(r_target, c_target, clickedUnitOnTargetHex
 function selectUnit(unit) {
     console.log(`[DEBUG selectUnit] INICIO - Intentando seleccionar: ${unit?.name || 'unidad nula'}`);
 
-    if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
-        const currentStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
-        // Comprobamos si el paso actual espera la selección de una unidad
-        if (currentStep && currentStep.actionCondition.toString().includes('unit_selected_by_objective')) {
-            // Comprobamos si la unidad seleccionada es la del objetivo
-            const targetCoords = currentStep.highlightHexCoords;
-            if (targetCoords && targetCoords[0].r === unit.r && targetCoords[0].c === unit.c) {
-                TutorialManager.notifyActionCompleted('unit_selected_by_objective');
-            }
-        }
-    }
-    
     if (!unit) {
         console.warn("[selectUnit] Intento de seleccionar unidad nula.");
         if (typeof deselectUnit === "function") deselectUnit();
         return;
     }
 
-    // No llamar a checkAndProcessBrokenUnit aquí, para permitir la selección.
+    selectedUnit = unit;
     
     if (gameState.currentPhase === 'play' && unit.player !== gameState.currentPlayer) {
         console.log(`[selectUnit] No se puede tomar control de ${unit.name} (Jugador ${unit.player}).`);

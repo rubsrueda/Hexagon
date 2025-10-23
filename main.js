@@ -2,19 +2,7 @@
 // Punto de entrada para la lógica de batalla táctica y listeners de UI táctica.
 
 function onHexClick(r, c) {
-    //tutorial
-    if (gameState.isTutorialActive && typeof TutorialManager !== 'undefined') {
-        const currentStep = TutorialManager.currentSteps[TutorialManager.currentIndex];
-        // Comprobamos si el paso actual espera la selección de un hexágono.
-        if (currentStep && currentStep.actionCondition.toString().includes('hex_selected')) {
-            // Comprobamos si las coordenadas del clic coinciden con las del objetivo.
-            const targetCoords = currentStep.highlightHexCoords;
-            if (targetCoords && targetCoords[0].r === r && targetCoords[0].c === c) {
-                TutorialManager.notifyActionCompleted('hex_selected');
-            }
-        }
-    }
-
+   
     // --- GUARDIÁN DE TURNO LÓGICO ---
     // Este bloque es el primero que se ejecuta. Si es una partida en red
     // y no es tu turno, muestra un mensaje y detiene toda la función.
@@ -123,6 +111,8 @@ function initApp() {
     // 2. LÓGICA DE CUENTAS DE USUARIO
     // ======================================================================
 
+
+    /*cambio
     const showMainMenu = () => {
         if (PlayerDataManager.currentPlayer) {
             domElements.currentGeneralName.textContent = PlayerDataManager.currentPlayer.username;
@@ -134,7 +124,20 @@ function initApp() {
             showScreen(domElements.mainMenuScreenEl);
         }
     };
+    */ 
 
+    const showMainMenu = () => {
+    if (PlayerDataManager.currentPlayer) {
+        // <<== MODIFICACIÓN IMPORTANTE ==>>
+        // Actualizamos los dos posibles displays del nombre del general
+        const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
+        if (newGeneralNameDisplay) newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
+        if (domElements.currentGeneralName) domElements.currentGeneralName.textContent = PlayerDataManager.currentPlayer.username;
+    }
+
+    // Forzamos que se muestre directamente el nuevo menú principal
+    showScreen(domElements.mainMenuScreenEl);
+};
     const showLoginScreen = () => {
         showScreen(domElements.loginScreen);
         const lastUser = localStorage.getItem('lastUser');
@@ -1028,6 +1031,116 @@ if (domElements.createNetworkGameBtn) {
     } else {
         console.warn("main.js: setAsCapitalBtn no encontrado, no se pudo añadir listener.");
     } 
+
+
+    // ======================================================================
+// 4. LÓGICA DEL NUEVO MENÚ PRINCIPAL INTERACTIVO
+// ======================================================================
+const interactiveBoard = document.getElementById('interactiveBoardContainer');
+if (interactiveBoard) {
+    interactiveBoard.addEventListener('click', (event) => {
+        const hotspot = event.target.closest('.main-menu-hotspot');
+        if (!hotspot) return;
+
+        // Prevenimos que el clic se propague a otros elementos
+        event.stopPropagation();
+
+        const action = hotspot.dataset.action;
+        console.log("Hotspot presionado:", action);
+
+        switch(action) {
+            case 'openGameModes':
+                document.getElementById('gameModesModal').style.display = 'flex';
+                break;
+            case 'openAltar':
+                if (typeof openDeseosModal === 'function') {
+                    openDeseosModal();
+                }
+                break;
+            case 'openBarracks':
+                if (typeof openBarracksModal === 'function') {
+                    openBarracksModal(false); // false = modo vista, no asignación
+                }
+                break;
+            case 'openForge':
+                if (typeof openForgeModal === 'function') {
+                    openForgeModal();
+                }
+                break;
+            case 'showComingSoon':
+            // Usamos la nueva función de notificación para el jugador
+            if (typeof showToast === 'function') {
+                showToast("Esta función estará disponible próximamente.", "info");
+            } else {
+                alert("Próximamente..."); // Fallback por si acaso
+            }
+            break;
+        }
+    });
+}
+
+// -- Listeners para el nuevo modal de modos de juego --
+
+// Botón para cerrar el modal de modos
+const closeGameModesBtn = document.getElementById('closeGameModesModalBtn');
+if (closeGameModesBtn) {
+    closeGameModesBtn.addEventListener('click', () => {
+        document.getElementById('gameModesModal').style.display = 'none';
+    });
+}
+
+// Botón de Partida Rápida (Escaramuza)
+const newSkirmishBtn = document.getElementById('startSkirmishBtn_new');
+if (newSkirmishBtn) {
+    newSkirmishBtn.addEventListener('click', () => {
+        document.getElementById('gameModesModal').style.display = 'none';
+        if (typeof showScreen === 'function') showScreen(domElements.setupScreen);
+    });
+}
+
+// Botón del Tutorial
+const newTutorialBtn = document.getElementById('startTutorialBtn_new');
+if (newTutorialBtn) {
+    newTutorialBtn.addEventListener('click', () => {
+        document.getElementById('gameModesModal').style.display = 'none';
+        // Lógica del tutorial que ya tenías
+        const tutorialScenario = GAME_DATA_REGISTRY.scenarios["TUTORIAL_SCENARIO"];
+        const tutorialMap = GAME_DATA_REGISTRY.maps[tutorialScenario.mapFile];
+        resetAndSetupTacticalGame(tutorialScenario, tutorialMap, "tutorial");
+        showScreen(domElements.gameContainer);
+        if (domElements.tacticalUiContainer) domElements.tacticalUiContainer.style.display = 'block';
+        initializeTutorialState(); 
+        gameState.currentPhase = "deployment";
+        TutorialManager.start(TUTORIAL_SCRIPTS.completo);
+    });
+}
+
+// Botón de Unirse a Partida en Red
+const newJoinNetworkBtn = document.getElementById('joinNetworkGameBtn_new');
+if (newJoinNetworkBtn) {
+    newJoinNetworkBtn.addEventListener('click', () => {
+        document.getElementById('gameModesModal').style.display = 'none';
+        const shortCode = prompt("Introduce el ID de la partida:");
+        if (shortCode && shortCode.trim() !== "") {
+            if (typeof logMessage === 'function') logMessage(`Intentando unirse a ${shortCode}...`);
+            NetworkManager.preparar(onConexionLANEstablecida, onDatosLANRecibidos, onConexionLANCerrada);
+            NetworkManager.unirseAPartida(shortCode.trim());
+        }
+    });
+}
+
+// -- Reconectar el botón de logout y el nombre del general --
+const newLogoutBtn = document.getElementById('logoutBtn_main');
+if (newLogoutBtn) {
+    newLogoutBtn.addEventListener('click', () => {
+        PlayerDataManager.logout();
+        if (typeof showScreen === 'function') showScreen(domElements.loginScreen);
+    });
+}
+const newGeneralNameDisplay = document.getElementById('currentGeneralName_main');
+if (newGeneralNameDisplay && PlayerDataManager.currentPlayer) {
+    newGeneralNameDisplay.textContent = PlayerDataManager.currentPlayer.username;
+}
 
     // ======================================================================
     // 4. LÓGICA DE ARRANQUE

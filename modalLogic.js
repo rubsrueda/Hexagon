@@ -2273,8 +2273,10 @@ function openDeseosModal() {
     // Ocultar resultados de tiradas anteriores al abrir
     document.getElementById('gachaResultContainer').style.display = 'none';
 
-    // Llama a la función centralizada para mostrar la pantalla
-    showScreen(modal);
+    // <<== LÍNEA CAMBIADA ==>>
+    // En lugar de llamar a showScreen, simplemente mostramos este modal.
+    // Esto evita que se oculte el menú principal que está de fondo.
+    modal.style.display = 'flex'; 
 }
 
 /**
@@ -2332,8 +2334,17 @@ function setupGachaModalListeners() {
     if (openBtn) openBtn.addEventListener('click', openDeseosModal);
     
     if (closeBtn) closeBtn.addEventListener('click', () => {
-        document.getElementById('deseosModal').style.display = 'none';
-    });
+    const deseosModal = document.getElementById('deseosModal');
+    if (deseosModal) {
+        deseosModal.style.display = 'none';
+    }
+
+    // <<== LÍNEA AÑADIDA ==>>
+    // Nos aseguramos de que la pantalla del menú principal se muestre de nuevo.
+    if (typeof showScreen === 'function' && domElements.mainMenuScreenEl) {
+        showScreen(domElements.mainMenuScreenEl);
+    }
+});
     
     if (wishOnceBtn) wishOnceBtn.addEventListener('click', () => {
         const activeBannerId = document.querySelector('.banner.active').dataset.bannerId;

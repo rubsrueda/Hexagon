@@ -17,6 +17,7 @@ domElements.currentBoardTranslateY = 0;
 domElements.domElementsInitialized = false; 
 
 // --- Inicializar todas las propiedades a null ---
+domElements.heroDetailModal = null; 
 domElements.tacticalUiContainer = null;
 domElements.unitManagementModal = null;
 domElements.closeUnitManagementModalBtn = null;
@@ -206,6 +207,7 @@ function initializeDomElements() {
     domElements.domElementsInitialized = false;
 
     // --- Obtener referencias de elementos DOM ---
+    domElements.heroDetailModal = document.getElementById('heroDetailModal');
     domElements.tacticalUiContainer = document.getElementById('tactical-ui-container');
     domElements.welcomeHelpModalEl = document.getElementById('welcomeHelpModal');
     domElements.closeWelcomeHelpBtn = document.getElementById('closeWelcomeHelpBtn');
@@ -234,9 +236,9 @@ function initializeDomElements() {
     domElements.setupScreen = document.getElementById('setupScreen');
     domElements.worldMapScreenEl = document.getElementById('worldMapScreen');
     domElements.gameContainer = document.querySelector('.game-container');
-    domElements.startCampaignBtnEl = document.getElementById('startCampaignBtn');
-    domElements.startSkirmishBtnEl = document.getElementById('startSkirmishBtn'); 
-    domElements.startTutorialBtn = document.getElementById('startTutorialBtn'); 
+    //domElements.startCampaignBtnEl = document.getElementById('startCampaignBtn');
+    //domElements.startSkirmishBtnEl = document.getElementById('startSkirmishBtn'); 
+    //domElements.startTutorialBtn = document.getElementById('startTutorialBtn'); 
     domElements.barracksBtn = document.getElementById('barracksBtn');    
     domElements.expandPanelBtn = document.getElementById('expandPanelBtn');
     domElements.startGameBtn = document.getElementById('startGameBtn');
@@ -395,11 +397,11 @@ function initializeDomElements() {
     if (!domElements.setupScreen) console.error("DOM CRIT: setupScreen NO ENCONTRADO");
     if (!domElements.worldMapScreenEl) console.error("DOM CRIT: worldMapScreenEl NO ENCONTRADO");
     if (!domElements.gameContainer) console.error("DOM CRIT: gameContainer (clase '.game-container') NO ENCONTRADO. ¿El juego táctico está en el HTML?");
-    if (!domElements.startCampaignBtnEl) console.error("DOM CRIT: startCampaignBtnEl NO ENCONTRADO");
-    if (!domElements.startSkirmishBtnEl) console.error("DOM CRIT: startSkirmishBtnEl (ID: 'startSkirmishBtn') NO ENCONTRADO. Verifica index.html."); 
-    else console.log("DOM OK: startSkirmishBtnEl encontrado.");
+    //if (!domElements.startCampaignBtnEl) console.error("DOM CRIT: startCampaignBtnEl NO ENCONTRADO");
+    //if (!domElements.startSkirmishBtnEl) console.error("DOM CRIT: startSkirmishBtnEl (ID: 'startSkirmishBtn') NO ENCONTRADO. Verifica index.html."); 
+    //else console.log("DOM OK: startSkirmishBtnEl encontrado.");
 
-    if (!domElements.startTutorialBtn) console.error("DOM CRIT: startTutorialBtn NO ENCONTRADO"); 
+    //if (!domElements.startTutorialBtn) console.error("DOM CRIT: startTutorialBtn NO ENCONTRADO"); 
     
     domElements.domElementsInitialized = true;
     console.log("domElements.js: Referencias a elementos DOM completamente inicializadas.");
